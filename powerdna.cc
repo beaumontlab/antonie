@@ -36,6 +36,9 @@ public:
   
   uint64_t getFragmentPos(const std::string& str) 
   {
+    if(str.length() != d_indexlength)
+      throw runtime_error("Attempting to find fragment of length we've not indexed for");
+      
     uint32_t hashval = hash(str.c_str(), str.length(), 0);
     index_t::const_iterator iter = d_index.find(hashval);
     if(iter == d_index.end())
@@ -58,10 +61,10 @@ public:
   }
 
   void printCoverage();
+  void index(int length);
 
 private:
-
-  void index();
+  unsigned int d_indexlength;
   string d_genome;
   vector<uint16_t> d_coverage;
   typedef map<uint32_t, vector<uint64_t> > index_t;
@@ -90,16 +93,17 @@ ReferenceGenome::ReferenceGenome(FILE *fp)
     d_genome.append(line);
   }
   d_coverage.resize(d_genome.size());
-  index();
+  d_indexlength=0;
 }
 
-void ReferenceGenome::index()
+void ReferenceGenome::index(int length)
 {
-  cerr<<"Indexing "<<d_genome.length()<<" nucleotides"<<endl;
+  d_indexlength=length;
+  cerr<<"Indexing "<<d_genome.length()<<" nucleotides for length "<<length<<endl;
   boost::progress_display show_progress( d_genome.length(), cerr);
 
-  for(string::size_type pos = 0 ; pos < d_genome.length() - 150; ++pos) {
-    uint32_t hashval = hash(d_genome.c_str() + pos, 150, 0);
+  for(string::size_type pos = 0 ; pos < d_genome.length() - length; ++pos) {
+    uint32_t hashval = hash(d_genome.c_str() + pos, length, 0);
     d_index[hashval].push_back(pos);
     ++show_progress;
   }
@@ -162,7 +166,7 @@ void ReferenceGenome::printCoverage()
   for(string::size_type pos = 0; pos < d_coverage.size(); ++pos) {
     cov = d_coverage[pos];
     totCoverage += cov;
-    printf("%ld %d\n", pos, cov);
+//    printf("%ld %d\n", pos, cov);
     if(!cov) {
       noCoverage++;
       nulls[pos / binwidth]++;
@@ -170,6 +174,8 @@ void ReferenceGenome::printCoverage()
     
     if(cov && wasNul) {
       cout<<"SNP: "<<prevNulpos << " - " << pos<< " (len = "<< pos-prevNulpos<<")"<<endl;
+      if(prevNulpos > 50 && pos + 50 < d_genome.length())
+        cout<<"\t"<<d_genome.substr(prevNulpos-50, 50) << " | "<< d_genome.substr(prevNulpos, pos-prevNulpos)<< " | " << d_genome.substr(pos, 50)<<endl;
       wasNul=false;
     }
     else if(!cov && !wasNul) {
@@ -197,6 +203,10 @@ uint64_t filesize(const char* name)
 
 int main(int argc, char** argv)
 {
+  if(argc!=3) {
+    fprintf(stderr, "Syntax: powerdna fastqfile fastafile\n");
+    exit(EXIT_FAILURE);
+  }
   FILE* fastq = fopen(argv[1], "r");
   FILE* fasta = fopen(argv[2], "r");
 
@@ -205,13 +215,16 @@ int main(int argc, char** argv)
   //  cout<<"Reference genome has "<<rg.size()<<" nucleotides"<<endl;
 
   FastQFragment fq;
+  
+  unsigned int bytes=0;
+  bytes=getFragment(fastq, &fq); // get a fragment and index on it
+  rg.index(fq.d_nucleotides.size());
+
   uint64_t pos;
   uint64_t withAny=0, found=0, notFound=0, total=0, reverseFound=0;
-
   boost::progress_display show_progress( filesize(argv[1]), cerr);
 
-  unsigned int bytes=0;
-  while((bytes=getFragment(fastq, &fq))) {
+  do { 
     show_progress += bytes;
     total++;
     if(fq.d_nucleotides.find('N') != string::npos) {
@@ -230,7 +243,7 @@ int main(int argc, char** argv)
     else {
       found++;
     }
-  }
+  } while((bytes=getFragment(fastq, &fq)));
   cerr<<"Total fragments: "<<total<<endl;
   cerr<<"Found: "<<found<<endl;
   cerr<<"Reverse found: "<<reverseFound<<endl;
