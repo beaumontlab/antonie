@@ -14,23 +14,56 @@
 #include <numeric>
 #include <unistd.h>
 #include <math.h>
-
+#include <boost/format.hpp>
 #include <boost/accumulators/accumulators.hpp>
 #include <boost/accumulators/statistics/density.hpp>
 #include <boost/accumulators/statistics/stats.hpp>
+#include <boost/accumulators/statistics/mean.hpp>
+#include <boost/accumulators/statistics/median.hpp>
 
 using namespace boost;
 using namespace boost::accumulators;
-
-typedef accumulator_set<unsigned int, features<tag::density> > acc;
-typedef iterator_range<std::vector<std::pair<double, double> >::iterator > histogram_type; 
-  
 
 
 extern "C" {
 #include "hash.h"
 }
 using namespace std;
+
+struct FastQFragment
+{
+  string d_nucleotides;
+  string d_quality;
+  bool exceedsQuality(unsigned int);
+  void reverse();
+};
+
+bool FastQFragment::exceedsQuality(unsigned int limit)
+{
+  uint8_t q;
+  for(string::size_type pos = 0 ; pos < d_quality.size(); ++pos) {
+    q = d_quality[pos] - 33;
+    if(q < limit)
+      return false;
+  }
+  return true;
+}
+
+void FastQFragment::reverse()
+{
+  std::reverse(d_nucleotides.begin(), d_nucleotides.end());
+  for(string::iterator iter = d_nucleotides.begin(); iter != d_nucleotides.end(); ++iter) {
+    if(*iter == 'C')
+      *iter = 'G';
+    else if(*iter == 'G')
+      *iter = 'C';
+    else if(*iter == 'A')
+      *iter = 'T';
+    else if(*iter == 'T')
+      *iter = 'A';
+  }
+}
+
 
 char* sfgets(char* p, int num, FILE* fp)
 {
@@ -48,21 +81,21 @@ public:
     return d_genome.size();
   }
   
-  uint64_t getFragmentPos(const std::string& str) 
+  uint64_t getFragmentPos(const FastQFragment& fq)
   {
-    if(str.length() != d_indexlength)
+    if(fq.d_nucleotides.length() != d_indexlength)
       throw runtime_error("Attempting to find fragment of length we've not indexed for");
       
-    uint32_t hashval = hash(str.c_str(), str.length(), 0);
+    uint32_t hashval = hash(fq.d_nucleotides.c_str(), fq.d_nucleotides.length(), 0);
     index_t::const_iterator iter = d_index.find(hashval);
     if(iter == d_index.end())
       return string::npos;
 
     const char* pos=0;
     BOOST_FOREACH(uint64_t off, iter->second) {
-      if(!memcmp(d_genome.c_str() + off, str.c_str(), str.length())) {
+      if(!memcmp(d_genome.c_str() + off, fq.d_nucleotides.c_str(), fq.d_nucleotides.length())) {
 	pos = d_genome.c_str() + off;
-	cover(off, str.size());
+	cover(off, fq.d_nucleotides.size(), fq.d_quality);
       }
     }
     if(pos)
@@ -71,9 +104,14 @@ public:
     return string::npos;
   }
 
-  void cover(uint64_t pos, unsigned int length) {
-    while(length-- > 0) 
-      d_coverage[pos++]++;
+  void cover(uint64_t pos, unsigned int length, const std::string& quality) 
+  {
+
+    const char* p = quality.c_str();
+    for(unsigned int i = 0; i < length; ++i) {
+      if(p[i]-33 > 30)
+	d_coverage[pos+i]++;
+    }
   }
   string snippet(uint64_t start, uint64_t stop) {
     return d_genome.substr(start, stop-start);
@@ -131,26 +169,6 @@ void ReferenceGenome::index(int length)
   cerr<<"Average hash fill: "<<1.0*d_genome.length()/d_index.size()<<endl;
 }
 
-struct FastQFragment
-{
-  string d_nucleotides;
-  void reverse();
-};
-
-void FastQFragment::reverse()
-{
-  std::reverse(d_nucleotides.begin(), d_nucleotides.end());
-  for(string::iterator iter = d_nucleotides.begin(); iter != d_nucleotides.end(); ++iter) {
-    if(*iter == 'C')
-      *iter = 'G';
-    else if(*iter == 'G')
-      *iter = 'C';
-    else if(*iter == 'A')
-      *iter = 'T';
-    else if(*iter == 'T')
-      *iter = 'A';
-  }
-}
 
 unsigned int getFragment(FILE* fastq, FastQFragment* fq, unsigned int size=0)
 {
@@ -170,6 +188,8 @@ unsigned int getFragment(FILE* fastq, FastQFragment* fq, unsigned int size=0)
     fq->d_nucleotides.assign(line);
   sfgets(line, sizeof(line), fastq);
   sfgets(line, sizeof(line), fastq);
+  chomp(line);
+  fq->d_quality.assign(line);
   return ftell(fastq) - pos;
 }
 
@@ -189,7 +209,7 @@ vector<Unmatched> g_unm;
 
 void ReferenceGenome::printCoverage()
 {
-  uint64_t totCoverage=0, noCoverage=0;
+  uint64_t totCoverage=0, noCoverages=0;
   unsigned int cov;
 
   vector<unsigned int> nulls;
@@ -201,20 +221,19 @@ void ReferenceGenome::printCoverage()
 
   vector<unsigned int> covhisto;
   covhisto.resize(65535);
-  acc dens( tag::density::num_bins = 150, tag::density::cache_size = 10000);
 
   for(string::size_type pos = 0; pos < d_coverage.size(); ++pos) {
     cov = d_coverage[pos];
+    bool noCov = cov < 1;
     covhisto[cov]++;
     totCoverage += cov;
 
-    if(cov < 2) {
-      noCoverage++;
+    if(noCov) {
+      noCoverages++;
       nulls[pos / binwidth]++;
     }
     
-    if(cov && wasNul) {
-
+    if(!noCov && wasNul) {
       if(prevNulpos > 40 && pos + 40 < d_genome.length()) {
 	Unmatched unm;
 	unm.left = d_genome.substr(prevNulpos-40, 40);
@@ -226,17 +245,14 @@ void ReferenceGenome::printCoverage()
       }
       wasNul=false;
     }
-    else if(!cov && !wasNul) {
+    else if(noCov && !wasNul) {
       wasNul=true;
       prevNulpos = pos;
     }
-
   }
 
-  double mu = totCoverage/d_coverage.size();
   cerr<<"Average depth: "<<totCoverage/d_coverage.size()<<endl;
-  cerr<<"No coverage: "<<noCoverage*100.0/d_coverage.size()<<"%"<<endl;
-
+  cerr<<"No coverage: "<<noCoverages*100.0/d_coverage.size()<<"%"<<endl;
 
   uint64_t total = std::accumulate(covhisto.begin(), covhisto.end(), 0);
 
@@ -250,8 +266,7 @@ void ReferenceGenome::printCoverage()
   cout<<"];\n";
 
   //  for(unsigned int n = 0; n < 2000; ++n) 
-  //  cout<<n*binwidth<<"\t"<<nulls[n]<<endl;
-  
+  //  cout<<n*binwidth<<"\t"<<nulls[n]<<endl;  
 }
 
 uint64_t filesize(const char* name)
@@ -280,20 +295,31 @@ int main(int argc, char** argv)
   rg.index(fq.d_nucleotides.size());
 
   uint64_t pos;
-  uint64_t withAny=0, found=0, notFound=0, total=0, reverseFound=0;
+  uint64_t withAny=0, found=0, notFound=0, total=0, reverseFound=0, qualityExcluded=0;
   boost::progress_display show_progress( filesize(argv[1]), cerr);
+
+  accumulator_set<double, stats<tag::mean, tag::median > > acc;
 
   do { 
     show_progress += bytes;
     total++;
+    BOOST_FOREACH(char c, fq.d_quality) {
+      double i = c-33;
+      acc(i);
+    }
+
+    if(!fq.exceedsQuality(10)) {
+      qualityExcluded++;
+      continue;
+    }
     if(fq.d_nucleotides.find('N') != string::npos) {
       withAny++;
       continue;
     }
-    pos = rg.getFragmentPos(fq.d_nucleotides);
+    pos = rg.getFragmentPos(fq);
     if(pos == string::npos) {
       fq.reverse();
-      pos = rg.getFragmentPos(fq.d_nucleotides);
+      pos = rg.getFragmentPos(fq);
       if(pos != string::npos)
 	reverseFound++;
       else
@@ -304,12 +330,16 @@ int main(int argc, char** argv)
     }
   } while((bytes=getFragment(fastq, &fq)));
   cerr<<"Total fragments: "<<total<<endl;
-  cerr<<"Found: "<<found<<endl;
-  cerr<<"Reverse found: "<<reverseFound<<endl;
-  cerr<<"Not found: "<< notFound<<endl;
+  cerr<<"Quality Excluded: "<<qualityExcluded<<endl;
+  cerr<<"Found + Reverse found : "<< found<< " + " << reverseFound<< " = " <<found+reverseFound<<endl;
+  cerr<< (boost::format("Not found: %d (%f%%)\n") % notFound % (notFound*100.0/total)).str() << endl;
   cerr<<"Fragments with N: "<<withAny++<<endl;
+  std::cerr << "Mean:   " << mean(acc) << std::endl;
+  std::cerr << "Median: " << median(acc) << std::endl;
 
   rg.printCoverage();
+
+
   unsigned int unmcount=0;
   BOOST_FOREACH(Unmatched& unm, g_unm) {
     printf("unm[%d]=[", unmcount++);
@@ -321,6 +351,9 @@ int main(int argc, char** argv)
     printf("];\n");
   }
   cout<<endl;
+
+
+  exit(EXIT_SUCCESS);
 
   rewind(fastq);
   
