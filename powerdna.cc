@@ -11,7 +11,21 @@
 #include <algorithm>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <numeric>
 #include <unistd.h>
+#include <math.h>
+
+#include <boost/accumulators/accumulators.hpp>
+#include <boost/accumulators/statistics/density.hpp>
+#include <boost/accumulators/statistics/stats.hpp>
+
+using namespace boost;
+using namespace boost::accumulators;
+
+typedef accumulator_set<unsigned int, features<tag::density> > acc;
+typedef iterator_range<std::vector<std::pair<double, double> >::iterator > histogram_type; 
+  
+
 
 extern "C" {
 #include "hash.h"
@@ -67,10 +81,11 @@ public:
   void printCoverage();
   void index(int length);
 
+  vector<uint16_t> d_coverage;
 private:
   unsigned int d_indexlength;
   string d_genome;
-  vector<uint16_t> d_coverage;
+
   typedef map<uint32_t, vector<uint64_t> > index_t;
   index_t d_index;
 };
@@ -137,7 +152,6 @@ void FastQFragment::reverse()
   }
 }
 
-
 unsigned int getFragment(FILE* fastq, FastQFragment* fq, unsigned int size=0)
 {
   uint64_t pos = ftell(fastq);
@@ -157,13 +171,18 @@ unsigned int getFragment(FILE* fastq, FastQFragment* fq, unsigned int size=0)
   sfgets(line, sizeof(line), fastq);
   sfgets(line, sizeof(line), fastq);
   return ftell(fastq) - pos;
-
 }
+
+struct Rematched
+{
+  string left, middle, right;
+};
 
 struct Unmatched
 {
   string left, unmatched, right;
   uint64_t pos;
+  vector<Rematched> matches;
 };
 
 vector<Unmatched> g_unm;
@@ -180,10 +199,15 @@ void ReferenceGenome::printCoverage()
   bool wasNul=true;
   string::size_type prevNulpos=0;
 
+  vector<unsigned int> covhisto;
+  covhisto.resize(65535);
+  acc dens( tag::density::num_bins = 150, tag::density::cache_size = 10000);
+
   for(string::size_type pos = 0; pos < d_coverage.size(); ++pos) {
     cov = d_coverage[pos];
+    covhisto[cov]++;
     totCoverage += cov;
-//    printf("%ld %d\n", pos, cov);
+
     if(cov < 2) {
       noCoverage++;
       nulls[pos / binwidth]++;
@@ -191,10 +215,10 @@ void ReferenceGenome::printCoverage()
     
     if(cov && wasNul) {
 
-      if(prevNulpos > 50 && pos + 50 < d_genome.length()) {
+      if(prevNulpos > 40 && pos + 40 < d_genome.length()) {
 	Unmatched unm;
-	unm.left = d_genome.substr(prevNulpos-50, 50);
-	unm.right = d_genome.substr(pos, 50);
+	unm.left = d_genome.substr(prevNulpos-40, 40);
+	unm.right = d_genome.substr(pos, 40);
 	unm.unmatched = d_genome.substr(prevNulpos, pos-prevNulpos);
 	unm.pos = prevNulpos;
 	g_unm.push_back(unm);
@@ -208,9 +232,23 @@ void ReferenceGenome::printCoverage()
     }
 
   }
+
+  double mu = totCoverage/d_coverage.size();
   cerr<<"Average depth: "<<totCoverage/d_coverage.size()<<endl;
   cerr<<"No coverage: "<<noCoverage*100.0/d_coverage.size()<<"%"<<endl;
-  
+
+
+  uint64_t total = std::accumulate(covhisto.begin(), covhisto.end(), 0);
+
+  cout<<"var histo=["<<endl;
+  for(unsigned int i = 0; i < 250; i++ ) 
+  {
+    if(i)
+      cout<<',';
+    std::cout << '['<< i << ',' << 1.0*covhisto[i]/total << ']';
+  }
+  cout<<"];\n";
+
   //  for(unsigned int n = 0; n < 2000; ++n) 
   //  cout<<n*binwidth<<"\t"<<nulls[n]<<endl;
   
@@ -270,8 +308,19 @@ int main(int argc, char** argv)
   cerr<<"Reverse found: "<<reverseFound<<endl;
   cerr<<"Not found: "<< notFound<<endl;
   cerr<<"Fragments with N: "<<withAny++<<endl;
-  
+
   rg.printCoverage();
+  unsigned int unmcount=0;
+  BOOST_FOREACH(Unmatched& unm, g_unm) {
+    printf("unm[%d]=[", unmcount++);
+    for(uint64_t pos = unm.pos - 500; pos < unm.pos + 500; ++pos) {
+      if(pos != unm.pos - 500) 
+	printf(", ");
+      printf("[%ld, %d]", pos, rg.d_coverage[pos]);
+    }
+    printf("];\n");
+  }
+  cout<<endl;
 
   rewind(fastq);
   
@@ -294,9 +343,34 @@ int main(int argc, char** argv)
 	continue;
 
       // lpos & rpos now correct 
-      cout<<"UNM: "<<unm.pos << " - " << unm.pos + unm.unmatched.length() << " (len = "<< unm.unmatched.length()<<")"<<endl;
+      cout<<"UNM: "<<unm.pos << " - " << unm.pos + unm.unmatched.length() << " (len = "<< unm.unmatched.length()<<", lpos = "<<lpos<<", rpos = "<<rpos<<")"<<endl;
       cout << unm.left << " | "<< unm.unmatched<< " | " << unm.right<<endl;
-      cout << fq.d_nucleotides.substr(lpos, 50) << " | " << fq.d_nucleotides.substr(lpos+50, rpos-lpos-50) << " | " << fq.d_nucleotides.substr(rpos) << endl;
+
+      Rematched rem;
+      if(lpos + 40 > rpos) {
+	rem.left = fq.d_nucleotides.substr(lpos, 40);  
+	rem.middle="1";
+	rem.right=fq.d_nucleotides.substr(rpos);
+      }
+      else {
+	rem.left = fq.d_nucleotides.substr(lpos, 40);
+	rem.middle = fq.d_nucleotides.substr(lpos+40, rpos-lpos-40);
+	rem.right = fq.d_nucleotides.substr(rpos);
+      }
+      cout << rem.left << " | " << rem.middle << " | " << rem.right <<endl;
+      unm.matches.push_back(rem);
     }
+  }
+
+  cout<<"------------------"<<endl;
+  BOOST_FOREACH(Unmatched& unm, g_unm) {
+    cout<<"REM: "<<unm.pos << " - " << unm.pos + unm.unmatched.length() << " (len = "<< unm.unmatched.length()<<", matches: "<<unm.matches.size()<<")\n";
+    cout << "ref "<<unm.left << " | "<< unm.unmatched<< " | " << unm.right<<endl;
+
+    BOOST_FOREACH(Rematched& rem, unm.matches) {
+      cout <<"us  "<< rem.left << " | "<< rem.middle<< " | " << rem.right<<endl;
+    }
+    cout<<endl;
+    
   }
 }
