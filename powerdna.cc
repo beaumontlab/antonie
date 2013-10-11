@@ -543,12 +543,15 @@ int main(int argc, char** argv)
       cout<<j->second;
     }
     int tot=iter->second.samples.size() + rg.d_coverage[iter->first];
-    cout<<endl<<fmt2<<"Annotation: ";
-    vector<GeneAnnotation> gas=gar.lookup(iter->first);
-    BOOST_FOREACH(const GeneAnnotation& ga, gas) {
-      cout<<ga.name<<", ";
-    }
     cout<<endl;
+    vector<GeneAnnotation> gas=gar.lookup(iter->first);
+    if(!gas.empty()) {
+      cout<<fmt2<<"Annotation: ";
+      BOOST_FOREACH(const GeneAnnotation& ga, gas) {
+	cout<<ga.name<<" ["<<ga.tag<<"], ";
+      }
+      cout<<endl;
+    }
     
     cout<<fmt2<< "A: " << aCount*100/tot <<"%, C: "<<cCount*100/tot<<"%, G: "<<gCount*100/tot<<"%, T: "<<tCount*100/tot<<"%";
 
