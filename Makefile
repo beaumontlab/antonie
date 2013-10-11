@@ -5,9 +5,9 @@ all: powerdna
 
 -include *.d
 
-powerdna: powerdna.o hash.o
-	g++ $(LDFLAGS) powerdna.o hash.o -o $@
-	
+powerdna: powerdna.o hash.o geneannotated.o
+	g++ $(LDFLAGS) powerdna.o hash.o geneannotated.o -o $@
+
 clean:
 	rm -f *~ *.o *.d powerdna
 
