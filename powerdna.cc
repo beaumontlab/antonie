@@ -27,7 +27,6 @@
 using namespace boost;
 using namespace boost::accumulators;
 
-
 extern "C" {
 #include "hash.h"
 }
@@ -288,14 +287,20 @@ int main(int argc, char** argv)
   FILE* fasta = fopen(argv[2], "r");
 
   ReferenceGenome rg(fasta);
+
+  FILE* phixFP = fopen("phi-x174.fasta", "r");
+  ReferenceGenome phix(phixFP);
+
   FastQFragment fqfrag;
   
   unsigned int bytes=0;
   bytes=fastq.getFragment(&fqfrag); // get a fragment to index based on its size
   rg.index(fqfrag.d_nucleotides.size());
+  phix.index(fqfrag.d_nucleotides.size());
 
   uint64_t pos;
-  uint64_t withAny=0, found=0, notFound=0, total=0, reverseFound=0, qualityExcluded=0, fuzzyFound=0;
+
+  uint64_t withAny=0, found=0, notFound=0, total=0, reverseFound=0, qualityExcluded=0, fuzzyFound=0, phixFound=0;
   boost::progress_display show_progress( filesize(argv[1]), cerr);
 
   accumulator_set<double, stats<tag::mean, tag::median > > acc;
@@ -320,8 +325,19 @@ int main(int argc, char** argv)
       if(pos != string::npos)
 	reverseFound++;
       else {
-	unfoundReads.push_back(fastq.getPos());
-	notFound++;
+	if(phix.getFragmentPos(fqfrag)!=string::npos) {
+	  phixFound++;
+	}
+	else {
+	  fqfrag.reverse();
+	  if(phix.getFragmentPos(fqfrag)!=string::npos) {
+	    phixFound++;
+	  }
+	  else {
+	    unfoundReads.push_back(fastq.getPos());
+	    notFound++;
+	  }
+	}
       }
     }
     else {
@@ -329,6 +345,7 @@ int main(int argc, char** argv)
     }
   } while((bytes=fastq.getFragment(&fqfrag)));
   cerr<<"Total fragments: "<<total<<endl;
+  cerr<<"Phix: "<<phixFound<<endl;
   cerr<<"Quality Excluded: "<<qualityExcluded<<endl;
   cerr<<"Found + Reverse found : "<< found<< " + " << reverseFound<< " = " <<found+reverseFound<<endl;
   cerr<< (boost::format("Not found: %d (%.02f%%)\n") % notFound % (notFound*100.0/total)).str() << endl;
@@ -378,7 +395,7 @@ int main(int argc, char** argv)
 	sort(together.begin(), together.end());
 	bool found=false;
 	if(together.size()>=3) {
-	  for(unsigned int i = 0; i < together.size() - 3; ++i) {
+	  for(unsigned int i = 0; i < together.size() - 2; ++i) {
 	    if(together[i].second=='L' && together[i+1].second=='M' && together[i+2].second=='R' && together[i+1].first - together[i].first < 60 && together[i+2].first - together[i+1].first < 60) {
 	      cout<<together[i].first<<together[i].second<<" - " <<
 		together[i+1].first<<together[i+1].second<<" - " <<
@@ -417,6 +434,13 @@ int main(int argc, char** argv)
     cerr<<"Have "<<unfoundReads.size()<<" unfound reads left"<<endl;
   }
 
+  FILE *fp=fopen("unfound.fastq", "w");
+  BOOST_FOREACH(uint64_t pos, unfoundReads) {
+    fastq.seek(pos);
+    fastq.getFragment(&fqfrag);
+    fprintf(fp, "%s\n%s\n", fqfrag.d_nucleotides.c_str(), fqfrag.d_quality.c_str());
+  }
+  fclose(fp);
   cout<<"After fuzzy: "<<endl;
   printUnmatched(rg);
 
@@ -426,9 +450,8 @@ int main(int argc, char** argv)
   string fmt2("                  ");
   int aCount, cCount, tCount, gCount;
 
-  
   for(locimap_t::iterator iter = locimap.begin(); iter != locimap.end(); ++iter) {
-    if(rg.d_coverage[iter->first] < 10 ||  iter->second.samples.size() < 7) 
+    if(iter->second.samples.size() < 7) 
       continue;
     char c=rg.snippet(iter->first, iter->first+1)[0];
     aCount = cCount = tCount = gCount = 0;

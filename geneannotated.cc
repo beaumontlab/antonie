@@ -49,6 +49,8 @@ GeneAnnotationReader::GeneAnnotationReader(const std::string& fname)
       case 3:
 	ga.stopPos=atoi(p);
 	break;
+      case 4:
+	ga.strand = (*p=='+');
       case 5:
 	ga.name=p;
 	break;

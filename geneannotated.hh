@@ -6,6 +6,7 @@ struct GeneAnnotation
 {
   std::string tag;
   std::string name;
+  bool strand;
   uint64_t startPos;
   uint64_t stopPos;
 };
