@@ -9,8 +9,6 @@
 #include <boost/foreach.hpp>
 #include <boost/progress.hpp>
 #include <algorithm>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <numeric>
 #include <unistd.h>
 #include <math.h>
@@ -41,36 +39,45 @@ public:
     return d_genome.size();
   }
 
-  vector<uint64_t> getFragmentPositions(const std::string& nucleotides)
+  vector<uint64_t> getReadPositions(const std::string& nucleotides)
   {
     vector<uint64_t> ret;
     if(nucleotides.length() != d_indexlength)
       throw runtime_error("Attempting to find fragment of length we've not indexed for");
       
     uint32_t hashval = hash(nucleotides.c_str(), nucleotides.length(), 0);
-    index_t::const_iterator iter = d_index.find(hashval);
-    if(iter == d_index.end())
+    HashPos hp(hashval, 0);
+    pair<index_t::const_iterator, index_t::const_iterator> range = equal_range(d_index.begin(), d_index.end(), hp);
+    if(range.first == range.second)
       return ret;
 
-    BOOST_FOREACH(uint64_t off, iter->second) {
-      if(!memcmp(d_genome.c_str() + off, nucleotides.c_str(), nucleotides.length())) {
-	ret.push_back(off);
+    for(;range.first != range.second; range.first++) {
+      if(!memcmp(d_genome.c_str() + range.first->d_pos, nucleotides.c_str(), nucleotides.length())) {
+	ret.push_back(range.first->d_pos);
       }
     }
     return ret;
   }
   
-  uint64_t getFragmentPos(const FastQFragment& fq, bool doCover=1)
+  uint64_t getReadPosBoth(const FastQRead& fqp) // tries both
   {
-    vector<uint64_t> positions = getFragmentPositions(fq.d_nucleotides);
-    if(doCover) {
-      for(vector<uint64_t>::const_iterator iter = positions.begin(); iter != positions.end(); ++iter) {
-	cover(*iter, fq.d_nucleotides.size(), fq.d_quality);
+    FastQRead fq = fqp;
+
+    vector<uint64_t> positions;
+    string nucleotides;
+    for(int tries = 0; tries < 2; ++tries) {
+      positions = getReadPositions(fq.d_nucleotides);
+
+      if(!positions.empty()) {
+	if(positions.size() > 1)
+	  random_shuffle(positions.begin(), positions.end());
+
+	cover(positions[0], fq.d_nucleotides.size(), fq.d_quality);
+	return positions[0];
       }
+      fq.reverse();
     }
-    if(positions.empty())
-      return string::npos;
-    return positions[0];
+    return string::npos;
   }
 
   void cover(uint64_t pos, unsigned int length, const std::string& quality) 
@@ -89,7 +96,7 @@ public:
   }
 
 
-  string snippet(uint64_t start, uint64_t stop) {
+  string snippet(uint64_t start, uint64_t stop) const { 
     return d_genome.substr(start, stop-start);
   }
   void printCoverage();
@@ -100,7 +107,20 @@ private:
   unsigned int d_indexlength;
   string d_genome;
 
-  typedef map<uint32_t, vector<uint64_t> > index_t;
+  struct HashPos {
+    HashPos(uint32_t hash_, uint64_t pos) : d_hash(hash_), d_pos(pos)
+    {}
+    HashPos(){}
+    uint32_t d_hash;
+    uint64_t d_pos;
+    
+    bool operator<(const HashPos& rhs) const 
+    {
+      return d_hash < rhs.d_hash;
+    }
+  };
+
+  typedef vector<HashPos> index_t;
   index_t d_index;
 };
 
@@ -129,11 +149,14 @@ void ReferenceGenome::index(int length)
 
   for(string::size_type pos = 0 ; pos < d_genome.length() - length; ++pos) {
     uint32_t hashval = hash(d_genome.c_str() + pos, d_indexlength, 0);
-    d_index[hashval].push_back(pos);
+    d_index.push_back(HashPos(hashval, pos));
     ++show_progress;
   }
-  
-  cerr<<endl;
+
+  cerr<<endl<<"Sorting hashes..";
+  sort(d_index.begin(), d_index.end());
+  cerr<<" done"<<endl;
+    
   cerr<<"Average hash fill: "<<1.0*d_genome.length()/d_index.size()<<endl;
 }
 
@@ -201,7 +224,7 @@ void ReferenceGenome::printCoverage()
 
   uint64_t total = std::accumulate(covhisto.begin(), covhisto.end(), 0);
 
-  cout<<"var histo=["<<endl;
+  cout<<"var histo=[";
   for(unsigned int i = 0; i < 250; i++ ) 
   {
     if(i)
@@ -212,15 +235,6 @@ void ReferenceGenome::printCoverage()
 
   //  for(unsigned int n = 0; n < 2000; ++n) 
   //  cout<<n*binwidth<<"\t"<<nulls[n]<<endl;  
-}
-
-uint64_t filesize(const char* name)
-{
-  struct stat buf;
-  if(!stat(name, &buf)) {
-    return buf.st_size;
-  }
-  return 0;
 }
 
 
@@ -239,10 +253,10 @@ string DNADiff(ReferenceGenome& rg, uint64_t pos, const std::string& a, const st
 
   int diffcount=0;
   for(string::size_type i = 0; i < a.size() && i < b.size();++i) {
-    if(a[i] != b[i]) 
+    if(a[i] != b[i] && quality[i]>'@') 
       diffcount++;
   }
-
+  cout<<"US:  "<<a<<endl<<"DIF: ";
   for(string::size_type i = 0; i < a.size() && i < b.size();++i) {
     if(a[i] != b[i]) {
       diff.append(1, quality[i] > '@' ? '!' : '^');
@@ -254,15 +268,18 @@ string DNADiff(ReferenceGenome& rg, uint64_t pos, const std::string& a, const st
       rg.cover(pos+i,quality[i]);
     }
   }
+
+  cout<<diff<<endl<<"REF: "<<b<<endl;
+  cout<<"QUA: "<<quality<<endl;
   return diff;
 }
 
 
-void printUnmatched(ReferenceGenome& rg)
+void printUnmatched(ReferenceGenome& rg, const string& name)
 {
   unsigned int unmcount=0;
   BOOST_FOREACH(Unmatched& unm, g_unm) {
-    printf("unm[%d]=[", unmcount++);
+    printf("%s[%d]=[", name.c_str(), unmcount++);
     for(uint64_t pos = unm.pos - 500; pos < unm.pos + 500; ++pos) {
       if(pos != unm.pos - 500) 
 	printf(", ");
@@ -273,6 +290,23 @@ void printUnmatched(ReferenceGenome& rg)
   cout<<endl;
 }
 
+unsigned int variabilityCount(const ReferenceGenome& rg, uint64_t position, const LociStats& lc)
+{
+  vector<int> counts(256);
+  counts[rg.snippet(position, position+1)[0]]+=rg.d_coverage[position];
+
+  for(vector<pair<char,char> >::const_iterator j = lc.samples.begin(); j!= lc.samples.end(); ++j) {
+    counts[j->first]++;
+  }
+  sort(counts.begin(), counts.end());
+  unsigned int nonDom=0;
+  for(unsigned int i=0; i < 255; ++i) {
+    nonDom+=counts[i];
+  }
+  
+  return 100*nonDom/counts[255];
+
+}
 
 int main(int argc, char** argv)
 {
@@ -291,16 +325,16 @@ int main(int argc, char** argv)
   FILE* phixFP = fopen("phi-x174.fasta", "r");
   ReferenceGenome phix(phixFP);
 
-  FastQFragment fqfrag;
+  FastQRead fqfrag;
   
   unsigned int bytes=0;
-  bytes=fastq.getFragment(&fqfrag); // get a fragment to index based on its size
+  bytes=fastq.getRead(&fqfrag); // get a fragment to index based on its size
   rg.index(fqfrag.d_nucleotides.size());
   phix.index(fqfrag.d_nucleotides.size());
 
   uint64_t pos;
 
-  uint64_t withAny=0, found=0, notFound=0, total=0, reverseFound=0, qualityExcluded=0, fuzzyFound=0, phixFound=0;
+  uint64_t withAny=0, found=0, notFound=0, total=0, qualityExcluded=0, fuzzyFound=0, phixFound=0;
   boost::progress_display show_progress( filesize(argv[1]), cerr);
 
   accumulator_set<double, stats<tag::mean, tag::median > > acc;
@@ -318,131 +352,104 @@ int main(int argc, char** argv)
       withAny++;
       continue;
     }
-    pos = rg.getFragmentPos(fqfrag);
-    if(pos == string::npos) {
-      fqfrag.reverse();
-      pos = rg.getFragmentPos(fqfrag);
-      if(pos != string::npos)
-	reverseFound++;
+    pos = rg.getReadPosBoth(fqfrag);
+    if(pos == string::npos ) {
+      if(phix.getReadPosBoth(fqfrag)!=string::npos) {
+	phixFound++;
+      }
       else {
-	if(phix.getFragmentPos(fqfrag)!=string::npos) {
-	  phixFound++;
-	}
-	else {
-	  fqfrag.reverse();
-	  if(phix.getFragmentPos(fqfrag)!=string::npos) {
-	    phixFound++;
-	  }
-	  else {
-	    unfoundReads.push_back(fastq.getPos());
-	    notFound++;
-	  }
-	}
+	unfoundReads.push_back(fastq.getPos());
+	notFound++;
       }
     }
     else {
       found++;
     }
-  } while((bytes=fastq.getFragment(&fqfrag)));
+  } while((bytes=fastq.getRead(&fqfrag)));
   cerr<<"Total fragments: "<<total<<endl;
   cerr<<"Phix: "<<phixFound<<endl;
   cerr<<"Quality Excluded: "<<qualityExcluded<<endl;
-  cerr<<"Found + Reverse found : "<< found<< " + " << reverseFound<< " = " <<found+reverseFound<<endl;
+  cerr<<"Full matches: "<< found<< endl;
   cerr<< (boost::format("Not found: %d (%.02f%%)\n") % notFound % (notFound*100.0/total)).str() << endl;
-  cerr<<"Fragments with N: "<<withAny++<<endl;
-  std::cerr << "Mean:   " << mean(acc) << std::endl;
-  std::cerr << "Median: " << median(acc) << std::endl;
-
+  cerr<<"Reads with N: "<<withAny++<<endl;
+  cerr<<"Not found: "<<unfoundReads.size()<<endl;
+  cerr << "Mean Q:   " << mean(acc) << std::endl;
+  cerr << "Median Q: " << median(acc) << std::endl;
+  
   rg.printCoverage();
   
-  printUnmatched(rg);
+  printUnmatched(rg,"perfect");
   cout<<"---------"<<endl;
 
   int keylen=11;
   rg.index(keylen);
 
   string left, middle, right;
-  vector<uint64_t> lpos, mpos, rpos;
- 
-  for(int attempts=0; attempts < 12; ++attempts) {
-    vector<uint64_t> stillUnfound;
-    BOOST_FOREACH(uint64_t pos, unfoundReads) {
-      fastq.seek(pos);
-      fastq.getFragment(&fqfrag);
+  vector<uint64_t> lpositions, mpositions, rpositions;
+  vector<uint64_t> stillUnfound;
+  typedef pair<uint64_t, char> tpos;
 
+  boost::progress_display fuzzyProgress(unfoundReads.size(), cerr);
+
+  BOOST_FOREACH(uint64_t pos, unfoundReads) {
+    fastq.seek(pos);
+    fastq.getRead(&fqfrag);
+
+    for(unsigned int attempts=0; attempts < 12; ++attempts) {
       for(int tries = 0; tries < 2; ++tries) {
-	left=fqfrag.d_nucleotides.substr(attempts*3, keylen);
-	middle=fqfrag.d_nucleotides.substr(50+attempts*3, keylen);
-	right=fqfrag.d_nucleotides.substr(100+attempts*3, keylen);
+	if(tries)
+	  fqfrag.reverse();
+	left=fqfrag.d_nucleotides.substr(attempts*3, keylen);	middle=fqfrag.d_nucleotides.substr(50+attempts*3, keylen); right=fqfrag.d_nucleotides.substr(100+attempts*3, keylen);
+      	lpositions=rg.getReadPositions(left); mpositions=rg.getReadPositions(middle); rpositions=rg.getReadPositions(right);
 
-	lpos=rg.getFragmentPositions(left); 
-	mpos=rg.getFragmentPositions(middle);
-	rpos=rg.getFragmentPositions(right);
-
-	//    cout << lpos.size()<<", "<<mpos.size()<<", " <<rpos.size()<<endl;
-	typedef pair<uint64_t, char> tpos;
-
-	vector<tpos> together;
-	BOOST_FOREACH(uint64_t fpos, lpos) { 
-	  together.push_back(make_pair(fpos, 'L'));
-	}
-	BOOST_FOREACH(uint64_t fpos, mpos) { 
-	  together.push_back(make_pair(fpos, 'M'));
-	}
-	BOOST_FOREACH(uint64_t fpos, rpos) { 
-	  together.push_back(make_pair(fpos, 'R'));
-	}
+       	vector<tpos> together;
+	BOOST_FOREACH(uint64_t fpos, lpositions) {   together.push_back(make_pair(fpos, 'L')); }	
+	BOOST_FOREACH(uint64_t fpos, mpositions) {   together.push_back(make_pair(fpos, 'M')); }
+	BOOST_FOREACH(uint64_t fpos, rpositions) {   together.push_back(make_pair(fpos, 'R')); }
+	if(together.size() < 3) 
+	  continue;
+	
 	sort(together.begin(), together.end());
-	bool found=false;
-	if(together.size()>=3) {
-	  for(unsigned int i = 0; i < together.size() - 2; ++i) {
-	    if(together[i].second=='L' && together[i+1].second=='M' && together[i+2].second=='R' && together[i+1].first - together[i].first < 60 && together[i+2].first - together[i+1].first < 60) {
-	      cout<<together[i].first<<together[i].second<<" - " <<
-		together[i+1].first<<together[i+1].second<<" - " <<
-		together[i+2].first<<together[i+2].second<< "(" << together[i+1].first - together[i].first<< " - " << together[i+2].first - together[i+1].first<<")"<<endl;
 
-	      // shifting is ALL WRONG
-
-
-	      cout<<"REF: "<<rg.snippet(together[i].first, together[i+2].first+30)<<endl;
-	      cout<<"US:  "<<fqfrag.d_nucleotides.substr(attempts*3)<<endl;
-	      
-	      cout<<"DIF: "<<DNADiff(rg, together[i].first, fqfrag.d_nucleotides.substr(attempts*3), rg.snippet(together[i].first, together[i+2].first+30), fqfrag.d_quality.substr(attempts*3))<<endl;
-	      cout<<"QUA: "<<fqfrag.d_quality<<endl;
-	      found=true;
-	      fuzzyFound++;
-	    }
+	for(unsigned int i = 0; i < together.size() - 2; ++i) {
+	  if(together[i].second=='L' && together[i+1].second=='M' && together[i+2].second=='R' && 
+	     together[i+1].first - together[i].first < 60 && together[i+2].first - together[i+1].first < 60) {
+	    uint64_t lpos, mpos, rpos;
+	    lpos=together[i].first; 	    mpos=together[i+1].first; 	    rpos=together[i+2].first;
+	    cout<<lpos<<together[i].second<<" - " << mpos<<together[i+1].second<<
+	      " - " << rpos<<together[i+2].second<< " (" << 
+	      mpos - lpos<< " - " << rpos - mpos <<"), reversed: "<<tries<<endl;
+	    
+	    if(lpos < 3*attempts)
+	      continue;
+	    
+	    uint64_t matchOffset=lpos - 3*attempts;
+	    DNADiff(rg, matchOffset, fqfrag.d_nucleotides, rg.snippet(matchOffset, matchOffset+150), fqfrag.d_quality);
+	    fuzzyFound++;
+	    goto foundIt;
+	    break;
 	  }
 	}
-	if(found)
-	  break;
-	if(!tries)
-	  fqfrag.reverse();
-	else {
-	  stillUnfound.push_back(pos);
-	}
-	cout<<"UNF: "<<tries<<" ";
-	BOOST_FOREACH(tpos& tp, together) {
-	  cout<<tp.first<<tp.second<<" ";
-	}
-	cout<<endl;
       }
     }
-    cerr<<"Fuzzy found: "<<fuzzyFound<<endl;
-    fuzzyFound=0;
-    unfoundReads.swap(stillUnfound);
-    cerr<<"Have "<<unfoundReads.size()<<" unfound reads left"<<endl;
+    stillUnfound.push_back(pos);
+  foundIt:;
+    ++fuzzyProgress;
   }
-
+  cerr<<"\rFuzzy found: "<<fuzzyFound<<endl;
+  fuzzyFound=0;
+  unfoundReads.swap(stillUnfound);
+  cerr<<"Have "<<unfoundReads.size()<<" unfound reads left"<<endl;
+  
   FILE *fp=fopen("unfound.fastq", "w");
   BOOST_FOREACH(uint64_t pos, unfoundReads) {
     fastq.seek(pos);
-    fastq.getFragment(&fqfrag);
+    fastq.getRead(&fqfrag);
     fprintf(fp, "%s\n%s\n", fqfrag.d_nucleotides.c_str(), fqfrag.d_quality.c_str());
   }
   fclose(fp);
-  cout<<"After fuzzy: "<<endl;
-  printUnmatched(rg);
+  cout<<"After sliding matching: "<<endl;
+  printUnmatched(rg, "fuzzy");
 
   cerr<<"Found "<<locimap.size()<<" varying loci"<<endl;
   uint64_t seriouslyVariable=0;
@@ -451,7 +458,8 @@ int main(int argc, char** argv)
   int aCount, cCount, tCount, gCount;
 
   for(locimap_t::iterator iter = locimap.begin(); iter != locimap.end(); ++iter) {
-    if(iter->second.samples.size() < 7) 
+    unsigned int varcount=variabilityCount(rg, iter->first, iter->second);
+    if(varcount < 20) 
       continue;
     char c=rg.snippet(iter->first, iter->first+1)[0];
     aCount = cCount = tCount = gCount = 0;
@@ -529,7 +537,7 @@ int main(int argc, char** argv)
   //fastq.seek(0);  
 #if 0
   string::size_type lpos, rpos;
-  while((bytes=fastq.getFragment(&fqfrag))) {
+  while((bytes=fastq.getRead(&fqfrag))) {
     BOOST_FOREACH(Unmatched& unm, g_unm) {
       lpos = rpos = string::npos;
       lpos = fqfrag.d_nucleotides.find(unm.left);

@@ -5,7 +5,7 @@
 
 using namespace std;
 
-bool FastQFragment::exceedsQuality(unsigned int limit)
+bool FastQRead::exceedsQuality(unsigned int limit)
 {
   uint8_t q;
   for(string::size_type pos = 0 ; pos < d_quality.size(); ++pos) {
@@ -16,22 +16,13 @@ bool FastQFragment::exceedsQuality(unsigned int limit)
   return true;
 }
 
-void FastQFragment::reverse()
+void FastQRead::reverse()
 {
-  std::reverse(d_nucleotides.begin(), d_nucleotides.end());
-  for(string::iterator iter = d_nucleotides.begin(); iter != d_nucleotides.end(); ++iter) {
-    if(*iter == 'C')
-      *iter = 'G';
-    else if(*iter == 'G')
-      *iter = 'C';
-    else if(*iter == 'A')
-      *iter = 'T';
-    else if(*iter == 'T')
-      *iter = 'A';
-  }
+  reverseNucleotides(&d_nucleotides);
+  std::reverse(d_quality.begin(), d_quality.end());
 }
 
-unsigned int FASTQReader::getFragment(FastQFragment* fq, unsigned int size)
+unsigned int FASTQReader::getRead(FastQRead* fq, unsigned int size)
 {
   d_pos = ftell(d_fp);
   char line[256]="";

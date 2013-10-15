@@ -141,9 +141,9 @@ int main(int argc, char** argv)
   Search16S s16("./gg_13_5.fasta.gz", 150);
   cout<<"Done reading"<<endl;
   FASTQReader fq("tot.fastq");
-  FastQFragment fqfrag;
+  FastQRead fqfrag;
   unsigned int num=0;
-  while(fq.getFragment(&fqfrag)) {
+  while(fq.getRead(&fqfrag)) {
     s16.score(fqfrag.d_nucleotides);
     fqfrag.reverse();
     s16.score(fqfrag.d_nucleotides);

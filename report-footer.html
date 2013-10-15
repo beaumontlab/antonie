@@ -1,6 +1,7 @@
 var plotoptions={
 	axes:{yaxis:{min:0}}, 
-	series:[{color:'#1FAB78', showMarker: false, shadow: false, label: 'Depth'}], 
+	series:[ {color:'#1FAB78', showMarker: false, shadow: false, label: 'Depth'}, 
+		{color:'#FF0078', showMarker: false, shadow: false, label:  'Depth'}], 
 	legend: {show: true},
 	highlighter: {
 			show: true, 
@@ -11,13 +12,12 @@ var plotoptions={
 	        zoom:true, 
 	        showTooltip:false
 	       } 
-	
 	 };
   
-for(n=0; n < unm.length; ++n) {
+for(n=0; n < perfect.length; ++n) {
 	$("#graphs").append('<div id="unm'+n+'"></div><br/>');
 	plotoptions.title="Unmatched region "+n; 
-	$.jqplot('unm'+n,  [unm[n]], plotoptions); 
+	$.jqplot('unm'+n,  [perfect[n],fuzzy[n]], plotoptions); 
 }
  
 // plotoptions.axes.xaxis.min=0;

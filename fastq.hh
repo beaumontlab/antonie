@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdexcept>
 
-struct FastQFragment
+struct FastQRead
 {
   std::string d_nucleotides;
   std::string d_quality;
@@ -34,7 +34,7 @@ public:
     // d_pos gets reset AFTER a read
   }
 
-  unsigned int getFragment(FastQFragment* fq, unsigned int size=0);
+  unsigned int getRead(FastQRead* fq, unsigned int size=0);
 private:
   FILE *d_fp;
   uint64_t d_pos;
