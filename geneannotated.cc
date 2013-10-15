@@ -6,24 +6,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <algorithm>
+#include "misc.hh"
 using namespace std;
-
-
-//! read a line of text from a FILE* to a std::string, returns false on 'no data'
-static bool stringfgets(FILE* fp, std::string* line)
-{
-  char buffer[1024];   
-  line->clear();
-  
-  do {
-    if(!fgets(buffer, sizeof(buffer), fp))
-      return !line->empty();
-    
-    line->append(buffer);
-  } while(!strchr(buffer, '\n'));
-  return true;
-}
-
 
 GeneAnnotationReader::GeneAnnotationReader(const std::string& fname)
 {
@@ -34,8 +18,10 @@ GeneAnnotationReader::GeneAnnotationReader(const std::string& fname)
   string line;
   GeneAnnotation ga;
   while(stringfgets(fp, &line)) {
-    if(line[0]=='#')
+    if(line[0]=='#') {
+      cerr<<"Annotations from: "<<line;
       continue;
+    }
     const char* p=strtok((char*)line.c_str(), ",\"");
     int field=0;
     do {

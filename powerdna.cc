@@ -150,9 +150,11 @@ ReferenceGenome::ReferenceGenome(FILE *fp)
   char line[256]="";
 
   sfgets(line, sizeof(line), fp);
+  chomp(line);
+
   if(line[0] != '>') 
     throw runtime_error("Input not FASTA");
-
+  cerr<<"Reading FASTA reference genome of '"<<line+1<<"'\n";
   while(fgets(line, sizeof(line), fp)) {
     chomp(line);
     d_genome.append(line);
@@ -178,7 +180,7 @@ void ReferenceGenome::index(int length)
   sort(d_index.begin(), d_index.end());
   cerr<<" done"<<endl;
     
-  cerr<<"Average hash fill: "<<1.0*d_genome.length()/d_index.size()<<endl;
+  //  cerr<<"Average hash fill: "<<1.0*d_genome.length()/d_index.size()<<endl;
 }
 
 void ReferenceGenome::printFastQs(uint64_t pos, FASTQReader& fastq) 
@@ -190,7 +192,7 @@ void ReferenceGenome::printFastQs(uint64_t pos, FASTQReader& fastq)
   
   string reference=snippet(pos, pos+300);
 
-  for(unsigned int i = 0 ; i < 150; ++i) {
+  for(unsigned int i = 0 ; i < 151; ++i) {
     if(i==75)
       cout << reference << endl;
     string spacer(i, ' ');
@@ -204,10 +206,14 @@ void ReferenceGenome::printFastQs(uint64_t pos, FASTQReader& fastq)
       for(unsigned int j = 0 ; j < fqr.d_nucleotides.size(); ++j) {
 	if(reference[i+j]==fqr.d_nucleotides[j])
 	  cout<<'.';
+	else if(fqr.d_quality[j] > '@') 
+	  cout << fqr.d_nucleotides[j];
+	else if(fqr.d_quality[j] < '7') 
+	  cout << ' ';
 	else
-	  cout<<fqr.d_nucleotides[j];
+	  cout<< (char)tolower(fqr.d_nucleotides[j]);
       }
-      cout<<" "<<(fqm.reverse ? 'R' : ' ');
+      cout<<"                 "<<(fqm.reverse ? 'R' : ' ');
       cout<<endl;
     }
   }
@@ -307,12 +313,12 @@ string DNADiff(ReferenceGenome& rg, uint64_t pos, const FastQRead& fqfrag)
   if(diffcount < 5) 
     rg.mapFastQ(pos, fqfrag);
 
-  cout<<"US:  "<<fqfrag.d_nucleotides<<endl<<"DIF: ";
+  //  cout<<"US:  "<<fqfrag.d_nucleotides<<endl<<"DIF: ";
   for(string::size_type i = 0; i < fqfrag.d_nucleotides.size() && i < b.size();++i) {
     if(fqfrag.d_nucleotides[i] != b[i]) {
       diff.append(1, fqfrag.d_quality[i] > '@' ? '!' : '^');
-      if(fqfrag.d_quality[i]>'@' && diffcount < 5)
-	locimap[pos+i].samples.push_back(make_tuple(fqfrag.d_nucleotides[i], fqfrag.d_quality[i], fqfrag.reversed));
+      if(fqfrag.d_quality[i]>'@' && diffcount < 5) 
+	locimap[pos+i].samples.push_back(make_tuple(fqfrag.d_nucleotides[i], fqfrag.d_quality[i], fqfrag.reversed ^ (i>75))); // head or tail
     }
     else {
       diff.append(1, ' ');
@@ -320,8 +326,8 @@ string DNADiff(ReferenceGenome& rg, uint64_t pos, const FastQRead& fqfrag)
     }
   }
 
-  cout<<diff<<endl<<"REF: "<<b<<endl;
-  cout<<"QUA: "<<fqfrag.d_quality<<endl;
+  //  cout<<diff<<endl<<"REF: "<<b<<endl;
+  //  cout<<"QUA: "<<fqfrag.d_quality<<endl;
   return diff;
 }
 
@@ -334,14 +340,14 @@ void printUnmatched(ReferenceGenome& rg, const string& name)
     for(uint64_t pos = unm.pos - 500; pos < unm.pos + 500; ++pos) {
       if(pos != unm.pos - 500) 
 	printf(", ");
-      printf("[%ld, %d]", pos, rg.d_mapping[pos].coverage);
+      printf("[%llu, %d]", pos, rg.d_mapping[pos].coverage);
     }
     printf("];\n");
   }
   cout<<endl;
 }
 
-unsigned int variabilityCount(const ReferenceGenome& rg, uint64_t position, const LociStats& lc)
+unsigned int variabilityCount(const ReferenceGenome& rg, uint64_t position, const LociStats& lc, double* fraction)
 {
   vector<int> counts(256);
   counts[rg.snippet(position, position+1)[0]]+=rg.d_mapping[position].coverage;
@@ -358,10 +364,11 @@ unsigned int variabilityCount(const ReferenceGenome& rg, uint64_t position, cons
   for(unsigned int i=0; i < 255; ++i) {
     nonDom+=counts[i];
   }
-  double fraction = 1.0*forwardCount / (1.0*nonDom+counts[255]);
-  if(fraction < 0.1 || fraction > 0.9)
+
+  *fraction = 1.0*forwardCount / (1.0*lc.samples.size());
+  if(*fraction < 0.1 || *fraction > 0.9)
     return 0;
-  
+
   return 100*nonDom/counts[255];
 
 }
@@ -380,6 +387,7 @@ int main(int argc, char** argv)
 
   ReferenceGenome rg(fasta);
 
+  cerr<<"Loading filter genome(s)"<<endl;
   FILE* phixFP = fopen("phi-x174.fasta", "r");
   ReferenceGenome phix(phixFP);
 
@@ -393,6 +401,8 @@ int main(int argc, char** argv)
   uint64_t pos;
 
   uint64_t withAny=0, found=0, notFound=0, total=0, qualityExcluded=0, fuzzyFound=0, phixFound=0;
+
+  cerr<<"Performing exact matches of reads to reference genome"<<endl;
   boost::progress_display show_progress( filesize(argv[1]), cerr);
 
   accumulator_set<double, stats<tag::mean, tag::median > > acc;
@@ -425,14 +435,15 @@ int main(int argc, char** argv)
       found++;
     }
   } while((bytes=fastq.getRead(&fqfrag)));
-  cerr<<"Total fragments: "<<total<<endl;
-  cerr<<"Phix: "<<phixFound<<endl;
-  cerr<<"Quality Excluded: "<<qualityExcluded<<endl;
-  cerr<<"Full matches: "<< found<< endl;
-  cerr<< (boost::format("Not found: %d (%.02f%%)\n") % notFound % (notFound*100.0/total)).str() << endl;
-  cerr<<"Reads with N: "<<withAny++<<endl;
-  cerr<<"Not found: "<<unfoundReads.size()<<endl;
-  cerr << "Mean Q:   " << mean(acc) << std::endl;
+
+  cerr<< (boost::format("Total fragments: %|40t| %10d") % total).str() <<endl;
+  cerr<< (boost::format("Excluded control fragments: %|40t|-%10d") % phixFound).str() <<endl;
+  cerr<< (boost::format("Quality excluded: %|40t|-%10d") % qualityExcluded).str() <<endl;
+  cerr<< (boost::format("Ignored reads with N: %|40t|-%10d") % withAny).str()<<endl;
+  cerr<< (boost::format("Full matches: %|40t|-%10d (%.02f%%)\n") % found % (100.0*found/total)).str();
+  cerr<< (boost::format("Not yet found: %|40t|=%10d (%.02f%%)\n") % notFound % (notFound*100.0/total)).str();
+
+  cerr << "Mean Q: " << mean(acc) << std::endl;
   cerr << "Median Q: " << median(acc) << std::endl;
   
   rg.printCoverage();
@@ -450,9 +461,9 @@ int main(int argc, char** argv)
   vector<uint64_t> lpositions, mpositions, rpositions;
   vector<uint64_t> stillUnfound;
   typedef pair<uint64_t, char> tpos;
-
+  cerr<<"Performing sliding window partial matches"<<endl;
   boost::progress_display fuzzyProgress(unfoundReads.size(), cerr);
-
+  
   BOOST_FOREACH(uint64_t pos, unfoundReads) {
     fastq.seek(pos);
     fastq.getRead(&fqfrag);
@@ -478,10 +489,10 @@ int main(int argc, char** argv)
 	     together[i+1].first - together[i].first < 60 && together[i+2].first - together[i+1].first < 60) {
 	    uint64_t lpos, mpos, rpos;
 	    lpos=together[i].first; 	    mpos=together[i+1].first; 	    rpos=together[i+2].first;
-	    cout<<lpos<<together[i].second<<" - " << mpos<<together[i+1].second<<
+	    /*	    cout<<lpos<<together[i].second<<" - " << mpos<<together[i+1].second<<
 	      " - " << rpos<<together[i+2].second<< " (" << 
 	      mpos - lpos<< " - " << rpos - mpos <<"), reversed: "<<tries<<endl;
-	    
+	    */
 	    if(lpos < 3*attempts)
 	      continue;
 	    
@@ -498,10 +509,13 @@ int main(int argc, char** argv)
   foundIt:;
     ++fuzzyProgress;
   }
-  cerr<<"\rFuzzy found: "<<fuzzyFound<<endl;
+  cerr<< (boost::format("Fuzzy found: %|40t|-%10d (%.02f%%)\n") % fuzzyFound % (fuzzyFound*100.0/total)).str();
+
   fuzzyFound=0;
   unfoundReads.swap(stillUnfound);
-  cerr<<"Have "<<unfoundReads.size()<<" unfound reads left"<<endl;
+  cerr<< (boost::format("Unmatched reads: %|40t|=%10d (%.02f%%)\n") % unfoundReads.size() % (unfoundReads.size()*100.0/total)).str();
+
+  /*
   rg.printFastQs(5718000, fastq);  
   FILE *fp=fopen("unfound.fastq", "w");
   BOOST_FOREACH(uint64_t pos, unfoundReads) {
@@ -510,17 +524,18 @@ int main(int argc, char** argv)
     fprintf(fp, "%s\n%s\n", fqfrag.d_nucleotides.c_str(), fqfrag.d_quality.c_str());
   }
   fclose(fp);
+  */
   cout<<"After sliding matching: "<<endl;
   printUnmatched(rg, "fuzzy");
 
-  cerr<<"Found "<<locimap.size()<<" varying loci"<<endl;
+  cerr<< (boost::format("Varying loci: %|40t| %10d\n") % locimap.size()).str();
   uint64_t seriouslyVariable=0;
   boost::format fmt1("%-10d: %3d*%c ");
   string fmt2("                  ");
   int aCount, cCount, tCount, gCount;
-
+  double fraction;
   for(locimap_t::iterator iter = locimap.begin(); iter != locimap.end(); ++iter) {
-    unsigned int varcount=variabilityCount(rg, iter->first, iter->second);
+    unsigned int varcount=variabilityCount(rg, iter->first, iter->second, &fraction);
     if(varcount < 20) 
       continue;
     char c=rg.snippet(iter->first, iter->first+1)[0];
@@ -569,6 +584,12 @@ int main(int argc, char** argv)
 	j != iter->second.samples.end(); ++j) {
       cout<<j->get<1>();
     }
+    cout<<endl<<fmt2;
+    for(vector<tuple<char,char,char> >::const_iterator j = iter->second.samples.begin(); 
+	j != iter->second.samples.end(); ++j) {
+      cout<< (j->get<2>() ? 'R' : '.');
+    }
+
     int tot=iter->second.samples.size() + rg.d_mapping[iter->first].coverage;
     cout<<endl;
     vector<GeneAnnotation> gas=gar.lookup(iter->first);
@@ -579,13 +600,14 @@ int main(int argc, char** argv)
       }
       cout<<endl;
     }
-    
+    cout<<fmt2<< "Fraction forward: "<<fraction<<", "<<iter->second.samples.size()<<endl;
     cout<<fmt2<< "A: " << aCount*100/tot <<"%, C: "<<cCount*100/tot<<"%, G: "<<gCount*100/tot<<"%, T: "<<tCount*100/tot<<"%"<<endl;
 
     rg.printFastQs(iter->first, fastq);
 
   }
-  cerr<<"Found "<<seriouslyVariable<<" seriously variable loci"<<endl;
+  cerr<< (boost::format("Seriously varying loci: %|40t| %10d\n") % seriouslyVariable).str();
+
   exit(EXIT_SUCCESS);
 
 }
