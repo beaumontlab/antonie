@@ -20,11 +20,12 @@ void FastQRead::reverse()
 {
   reverseNucleotides(&d_nucleotides);
   std::reverse(d_quality.begin(), d_quality.end());
+  reversed = !reversed;
 }
 
 unsigned int FASTQReader::getRead(FastQRead* fq, unsigned int size)
 {
-  d_pos = ftell(d_fp);
+  uint64_t pos = ftell(d_fp);
   char line[256]="";
   if(!fgets(line, sizeof(line), d_fp)) 
     return 0;
@@ -42,5 +43,7 @@ unsigned int FASTQReader::getRead(FastQRead* fq, unsigned int size)
   sfgets(line, sizeof(line), d_fp);
   chomp(line);
   fq->d_quality.assign(line);
-  return ftell(d_fp) - d_pos;
+  fq->reversed=0;
+  fq->position=pos;
+  return ftell(d_fp) - pos;
 }

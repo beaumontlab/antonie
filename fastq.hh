@@ -6,12 +6,14 @@
 
 struct FastQRead
 {
+  FastQRead() : reversed(false), position(0) {}
   std::string d_nucleotides;
   std::string d_quality;
   bool exceedsQuality(unsigned int);
   void reverse();
+  bool reversed;
+  uint64_t position;
 };
-
 
 class FASTQReader
 {
@@ -23,20 +25,13 @@ public:
       throw std::runtime_error("Unable to open file "+str+" for FASTQ inpuot");
   }
 
-  uint64_t getPos() const
-  {
-    return d_pos;
-  }
-
   void seek(uint64_t pos) 
   {
     fseek(d_fp, pos, SEEK_SET);
-    // d_pos gets reset AFTER a read
   }
 
   unsigned int getRead(FastQRead* fq, unsigned int size=0);
 private:
   FILE *d_fp;
-  uint64_t d_pos;
 };
 

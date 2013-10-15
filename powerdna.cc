@@ -18,6 +18,8 @@
 #include <boost/accumulators/statistics/stats.hpp>
 #include <boost/accumulators/statistics/mean.hpp>
 #include <boost/accumulators/statistics/median.hpp>
+#include <boost/tuple/tuple_comparison.hpp>
+#include <boost/tuple/tuple.hpp>
 #include "geneannotated.hh"
 #include "misc.hh"
 #include "fastq.hh"
@@ -30,6 +32,20 @@ extern "C" {
 }
 using namespace std;
 
+struct FASTQMapping
+{
+  uint64_t pos;
+  bool reverse;
+  // something about inserts & deletes
+};
+
+struct GenomeLocusMapping
+{
+  GenomeLocusMapping() : aCount(0), cCount(0), gCount(0), tCount(0), coverage(0) {}
+  vector<FASTQMapping> d_fastqs;
+  unsigned int aCount, cCount, gCount, tCount;
+  unsigned int coverage;
+};
  
 class ReferenceGenome
 {
@@ -59,23 +75,21 @@ public:
     return ret;
   }
   
-  uint64_t getReadPosBoth(const FastQRead& fqp) // tries both
+  uint64_t getReadPosBoth(FastQRead* fq) // tries both
   {
-    FastQRead fq = fqp;
-
     vector<uint64_t> positions;
     string nucleotides;
     for(int tries = 0; tries < 2; ++tries) {
-      positions = getReadPositions(fq.d_nucleotides);
+      positions = getReadPositions(fq->d_nucleotides);
 
       if(!positions.empty()) {
 	if(positions.size() > 1)
 	  random_shuffle(positions.begin(), positions.end());
 
-	cover(positions[0], fq.d_nucleotides.size(), fq.d_quality);
+	cover(positions[0], fq->d_nucleotides.size(), fq->d_quality);
 	return positions[0];
       }
-      fq.reverse();
+      fq->reverse();
     }
     return string::npos;
   }
@@ -85,24 +99,31 @@ public:
     const char* p = quality.c_str();
     for(unsigned int i = 0; i < length; ++i) {
       if(p[i]-33 > 30)
-	d_coverage[pos+i]++;
+	d_mapping[pos+i].coverage++;
     }
   }
 
   void cover(uint64_t pos, char quality) 
   {
     if(quality-33 > 30)
-      d_coverage[pos]++;
+      d_mapping[pos].coverage++;
   }
 
+  void mapFastQ(uint64_t pos, const FastQRead& fqfrag)
+  {
+    FASTQMapping fqm;
+    fqm.pos=fqfrag.position;
+    fqm.reverse = fqfrag.reversed;
+    d_mapping[pos].d_fastqs.push_back(fqm);
+  }
 
   string snippet(uint64_t start, uint64_t stop) const { 
     return d_genome.substr(start, stop-start);
   }
   void printCoverage();
   void index(int length);
-
-  vector<uint16_t> d_coverage;
+  void printFastQs(uint64_t pos, FASTQReader& fastq);
+  vector<GenomeLocusMapping> d_mapping;
 private:
   unsigned int d_indexlength;
   string d_genome;
@@ -136,7 +157,7 @@ ReferenceGenome::ReferenceGenome(FILE *fp)
     chomp(line);
     d_genome.append(line);
   }
-  d_coverage.resize(d_genome.size());
+  d_mapping.resize(d_genome.size());
   d_indexlength=0;
 }
 
@@ -160,18 +181,42 @@ void ReferenceGenome::index(int length)
   cerr<<"Average hash fill: "<<1.0*d_genome.length()/d_index.size()<<endl;
 }
 
-
-
-struct Rematched
+void ReferenceGenome::printFastQs(uint64_t pos, FASTQReader& fastq) 
 {
-  string left, middle, right;
-};
+  if(pos < 150)
+    pos = 0;
+  else
+    pos -= 150;
+  
+  string reference=snippet(pos, pos+300);
+
+  for(unsigned int i = 0 ; i < 150; ++i) {
+    if(i==75)
+      cout << reference << endl;
+    string spacer(i, ' ');
+    BOOST_FOREACH(FASTQMapping& fqm, d_mapping[pos+i].d_fastqs) {
+      fastq.seek(fqm.pos);
+      FastQRead fqr;
+      fastq.getRead(&fqr);
+      if(fqm.reverse)
+	fqr.reverse();
+      cout << spacer;
+      for(unsigned int j = 0 ; j < fqr.d_nucleotides.size(); ++j) {
+	if(reference[i+j]==fqr.d_nucleotides[j])
+	  cout<<'.';
+	else
+	  cout<<fqr.d_nucleotides[j];
+      }
+      cout<<" "<<(fqm.reverse ? 'R' : ' ');
+      cout<<endl;
+    }
+  }
+}
 
 struct Unmatched
 {
   string left, unmatched, right;
   uint64_t pos;
-  vector<Rematched> matches;
 };
 
 vector<Unmatched> g_unm;
@@ -183,7 +228,7 @@ void ReferenceGenome::printCoverage()
 
   vector<unsigned int> nulls;
   nulls.resize(2000);
-  unsigned int binwidth = d_coverage.size()/2000;
+  unsigned int binwidth = d_mapping.size()/2000;
 
   bool wasNul=true;
   string::size_type prevNulpos=0;
@@ -191,8 +236,8 @@ void ReferenceGenome::printCoverage()
   vector<unsigned int> covhisto;
   covhisto.resize(65535);
 
-  for(string::size_type pos = 0; pos < d_coverage.size(); ++pos) {
-    cov = d_coverage[pos];
+  for(string::size_type pos = 0; pos < d_mapping.size(); ++pos) {
+    cov = d_mapping[pos].coverage;
     bool noCov = cov < 1;
     covhisto[cov]++;
     totCoverage += cov;
@@ -219,8 +264,8 @@ void ReferenceGenome::printCoverage()
     }
   }
 
-  cerr<<"Average depth: "<<totCoverage/d_coverage.size()<<endl;
-  cerr<<"No coverage: "<<noCoverages*100.0/d_coverage.size()<<"%"<<endl;
+  cerr<<"Average depth: "<<totCoverage/d_mapping.size()<<endl;
+  cerr<<"No coverage: "<<noCoverages*100.0/d_mapping.size()<<"%"<<endl;
 
   uint64_t total = std::accumulate(covhisto.begin(), covhisto.end(), 0);
 
@@ -240,37 +285,43 @@ void ReferenceGenome::printCoverage()
 
 struct LociStats
 {
-  vector<pair<char,char > > samples;
+  vector<tuple<char,char,char > > samples;
 };
 
 typedef map<uint64_t, LociStats> locimap_t;
 locimap_t locimap;
 
-string DNADiff(ReferenceGenome& rg, uint64_t pos, const std::string& a, const std::string& b, const std::string& quality)
+string DNADiff(ReferenceGenome& rg, uint64_t pos, const FastQRead& fqfrag)
 {
   string diff;
-  diff.reserve(a.length());
+  diff.reserve(fqfrag.d_nucleotides.length());
+
+  string b= rg.snippet(pos, pos + fqfrag.d_nucleotides.length());
 
   int diffcount=0;
-  for(string::size_type i = 0; i < a.size() && i < b.size();++i) {
-    if(a[i] != b[i] && quality[i]>'@') 
+  for(string::size_type i = 0; i < fqfrag.d_nucleotides.size() && i < b.size();++i) {
+    if(fqfrag.d_nucleotides[i] != b[i] && fqfrag.d_quality[i]>'@') 
       diffcount++;
   }
-  cout<<"US:  "<<a<<endl<<"DIF: ";
-  for(string::size_type i = 0; i < a.size() && i < b.size();++i) {
-    if(a[i] != b[i]) {
-      diff.append(1, quality[i] > '@' ? '!' : '^');
-      if(quality[i]>'@' && diffcount < 5)
-	locimap[pos+i].samples.push_back(make_pair(a[i], quality[i]));
+
+  if(diffcount < 5) 
+    rg.mapFastQ(pos, fqfrag);
+
+  cout<<"US:  "<<fqfrag.d_nucleotides<<endl<<"DIF: ";
+  for(string::size_type i = 0; i < fqfrag.d_nucleotides.size() && i < b.size();++i) {
+    if(fqfrag.d_nucleotides[i] != b[i]) {
+      diff.append(1, fqfrag.d_quality[i] > '@' ? '!' : '^');
+      if(fqfrag.d_quality[i]>'@' && diffcount < 5)
+	locimap[pos+i].samples.push_back(make_tuple(fqfrag.d_nucleotides[i], fqfrag.d_quality[i], fqfrag.reversed));
     }
     else {
       diff.append(1, ' ');
-      rg.cover(pos+i,quality[i]);
+      rg.cover(pos+i,fqfrag.d_quality[i]);
     }
   }
 
   cout<<diff<<endl<<"REF: "<<b<<endl;
-  cout<<"QUA: "<<quality<<endl;
+  cout<<"QUA: "<<fqfrag.d_quality<<endl;
   return diff;
 }
 
@@ -283,7 +334,7 @@ void printUnmatched(ReferenceGenome& rg, const string& name)
     for(uint64_t pos = unm.pos - 500; pos < unm.pos + 500; ++pos) {
       if(pos != unm.pos - 500) 
 	printf(", ");
-      printf("[%ld, %d]", pos, rg.d_coverage[pos]);
+      printf("[%ld, %d]", pos, rg.d_mapping[pos].coverage);
     }
     printf("];\n");
   }
@@ -293,16 +344,23 @@ void printUnmatched(ReferenceGenome& rg, const string& name)
 unsigned int variabilityCount(const ReferenceGenome& rg, uint64_t position, const LociStats& lc)
 {
   vector<int> counts(256);
-  counts[rg.snippet(position, position+1)[0]]+=rg.d_coverage[position];
+  counts[rg.snippet(position, position+1)[0]]+=rg.d_mapping[position].coverage;
+  
+  int forwardCount=0;
 
-  for(vector<pair<char,char> >::const_iterator j = lc.samples.begin(); j!= lc.samples.end(); ++j) {
-    counts[j->first]++;
+  for(vector<tuple<char,char,char> >::const_iterator j = lc.samples.begin(); j!= lc.samples.end(); ++j) {
+    counts[j->get<0>()]++;
+    if(j->get<2>())
+      forwardCount++;
   }
   sort(counts.begin(), counts.end());
   unsigned int nonDom=0;
   for(unsigned int i=0; i < 255; ++i) {
     nonDom+=counts[i];
   }
+  double fraction = 1.0*forwardCount / (1.0*nonDom+counts[255]);
+  if(fraction < 0.1 || fraction > 0.9)
+    return 0;
   
   return 100*nonDom/counts[255];
 
@@ -352,17 +410,18 @@ int main(int argc, char** argv)
       withAny++;
       continue;
     }
-    pos = rg.getReadPosBoth(fqfrag);
+    pos = rg.getReadPosBoth(&fqfrag);
     if(pos == string::npos ) {
-      if(phix.getReadPosBoth(fqfrag)!=string::npos) {
+      if(phix.getReadPosBoth(&fqfrag)!=string::npos) {
 	phixFound++;
       }
       else {
-	unfoundReads.push_back(fastq.getPos());
+	unfoundReads.push_back(fqfrag.position);
 	notFound++;
       }
     }
     else {
+      rg.mapFastQ(pos, fqfrag);
       found++;
     }
   } while((bytes=fastq.getRead(&fqfrag)));
@@ -377,9 +436,12 @@ int main(int argc, char** argv)
   cerr << "Median Q: " << median(acc) << std::endl;
   
   rg.printCoverage();
+
   
   printUnmatched(rg,"perfect");
   cout<<"---------"<<endl;
+
+
 
   int keylen=11;
   rg.index(keylen);
@@ -424,7 +486,7 @@ int main(int argc, char** argv)
 	      continue;
 	    
 	    uint64_t matchOffset=lpos - 3*attempts;
-	    DNADiff(rg, matchOffset, fqfrag.d_nucleotides, rg.snippet(matchOffset, matchOffset+150), fqfrag.d_quality);
+	    DNADiff(rg, matchOffset, fqfrag);
 	    fuzzyFound++;
 	    goto foundIt;
 	    break;
@@ -440,7 +502,7 @@ int main(int argc, char** argv)
   fuzzyFound=0;
   unfoundReads.swap(stillUnfound);
   cerr<<"Have "<<unfoundReads.size()<<" unfound reads left"<<endl;
-  
+  rg.printFastQs(5718000, fastq);  
   FILE *fp=fopen("unfound.fastq", "w");
   BOOST_FOREACH(uint64_t pos, unfoundReads) {
     fastq.seek(pos);
@@ -465,26 +527,26 @@ int main(int argc, char** argv)
     aCount = cCount = tCount = gCount = 0;
     switch(c) {
     case 'A':
-      aCount += rg.d_coverage[iter->first];
+      aCount += rg.d_mapping[iter->first].coverage;
       break;
     case 'C':
-      cCount += rg.d_coverage[iter->first];
+      cCount += rg.d_mapping[iter->first].coverage;
       break;
     case 'T':
-      tCount += rg.d_coverage[iter->first];
+      tCount += rg.d_mapping[iter->first].coverage;
       break;
     case 'G':
-      gCount += rg.d_coverage[iter->first];
+      gCount += rg.d_mapping[iter->first].coverage;
       break;
     }
 
-    cout<< (fmt1 % iter->first % rg.d_coverage[iter->first] % rg.snippet(iter->first, iter->first+1) ).str();
+    cout<< (fmt1 % iter->first % rg.d_mapping[iter->first].coverage % rg.snippet(iter->first, iter->first+1) ).str();
     sort(iter->second.samples.begin(), iter->second.samples.end());
 
     seriouslyVariable++;
-    for(vector<pair<char,char> >::const_iterator j = iter->second.samples.begin(); 
+    for(vector<tuple<char,char,char> >::const_iterator j = iter->second.samples.begin(); 
 	j != iter->second.samples.end(); ++j) {
-      c=j->first;
+      c=j->get<0>();
       switch(c) {
       case 'A':
 	aCount++;
@@ -500,14 +562,14 @@ int main(int argc, char** argv)
 	break;
       }
       
-      cout<<j->first;
+      cout<<c;
     }
     cout<<endl<<fmt2;
-    for(vector<pair<char,char> >::const_iterator j = iter->second.samples.begin(); 
+    for(vector<tuple<char,char,char> >::const_iterator j = iter->second.samples.begin(); 
 	j != iter->second.samples.end(); ++j) {
-      cout<<j->second;
+      cout<<j->get<1>();
     }
-    int tot=iter->second.samples.size() + rg.d_coverage[iter->first];
+    int tot=iter->second.samples.size() + rg.d_mapping[iter->first].coverage;
     cout<<endl;
     vector<GeneAnnotation> gas=gar.lookup(iter->first);
     if(!gas.empty()) {
@@ -518,72 +580,12 @@ int main(int argc, char** argv)
       cout<<endl;
     }
     
-    cout<<fmt2<< "A: " << aCount*100/tot <<"%, C: "<<cCount*100/tot<<"%, G: "<<gCount*100/tot<<"%, T: "<<tCount*100/tot<<"%";
+    cout<<fmt2<< "A: " << aCount*100/tot <<"%, C: "<<cCount*100/tot<<"%, G: "<<gCount*100/tot<<"%, T: "<<tCount*100/tot<<"%"<<endl;
 
-#if 0
-    vector<int> suf;
-    suf.push_back(100*aCount/tot);     suf.push_back(100*cCount/tot);    suf.push_back(100*gCount/tot);    
-    suf.push_back(100*tCount/tot);
-    sort(suf.begin(), suf.end());
-    cout<<endl<<fmt2<<"PRO: ";
-    BOOST_FOREACH(int k, suf) { cout << k<<" ";}
+    rg.printFastQs(iter->first, fastq);
 
-#endif
-    cout<<endl;
   }
   cerr<<"Found "<<seriouslyVariable<<" seriously variable loci"<<endl;
   exit(EXIT_SUCCESS);
 
-  //fastq.seek(0);  
-#if 0
-  string::size_type lpos, rpos;
-  while((bytes=fastq.getRead(&fqfrag))) {
-    BOOST_FOREACH(Unmatched& unm, g_unm) {
-      lpos = rpos = string::npos;
-      lpos = fqfrag.d_nucleotides.find(unm.left);
-      if(lpos != string::npos)
-	rpos = fqfrag.d_nucleotides.find(unm.right);
-      
-      if(rpos == string::npos) {
-	fqfrag.reverse();
-	lpos = fqfrag.d_nucleotides.find(unm.left);
-	if(lpos != string::npos)
-	  rpos = fqfrag.d_nucleotides.find(unm.right);
-      }
-      
-      if(rpos == string::npos)
-	continue;
-
-      // lpos & rpos now correct 
-      cout<<"UNM: "<<unm.pos << " - " << unm.pos + unm.unmatched.length() << " (len = "<< unm.unmatched.length()<<", lpos = "<<lpos<<", rpos = "<<rpos<<")"<<endl;
-      cout << unm.left << " | "<< unm.unmatched<< " | " << unm.right<<endl;
-
-      Rematched rem;
-      if(lpos + 40 > rpos) {
-	rem.left = fqfrag.d_nucleotides.substr(lpos, 40);  
-	rem.middle="1";
-	rem.right=fqfrag.d_nucleotides.substr(rpos);
-      }
-      else {
-	rem.left = fqfrag.d_nucleotides.substr(lpos, 40);
-	rem.middle = fqfrag.d_nucleotides.substr(lpos+40, rpos-lpos-40);
-	rem.right = fqfrag.d_nucleotides.substr(rpos);
-      }
-      cout << rem.left << " | " << rem.middle << " | " << rem.right <<endl;
-      unm.matches.push_back(rem);
-    }
-  }
-
-  cout<<"------------------"<<endl;
-  BOOST_FOREACH(Unmatched& unm, g_unm) {
-    cout<<"REM: "<<unm.pos << " - " << unm.pos + unm.unmatched.length() << " (len = "<< unm.unmatched.length()<<", matches: "<<unm.matches.size()<<")\n";
-    cout << "ref "<<unm.left << " | "<< unm.unmatched<< " | " << unm.right<<endl;
-
-    BOOST_FOREACH(Rematched& rem, unm.matches) {
-      cout <<"us  "<< rem.left << " | "<< rem.middle<< " | " << rem.right<<endl;
-    }
-    cout<<endl;
-    
-  }
-#endif
 }
