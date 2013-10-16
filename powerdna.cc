@@ -340,7 +340,7 @@ void printUnmatched(ReferenceGenome& rg, const string& name)
     for(uint64_t pos = unm.pos - 500; pos < unm.pos + 500; ++pos) {
       if(pos != unm.pos - 500) 
 	printf(", ");
-      printf("[%llu, %d]", pos, rg.d_mapping[pos].coverage);
+      printf("[%ld, %d]", pos, rg.d_mapping[pos].coverage);
     }
     printf("];\n");
   }
@@ -437,11 +437,11 @@ int main(int argc, char** argv)
   } while((bytes=fastq.getRead(&fqfrag)));
 
   cerr<< (boost::format("Total fragments: %|40t| %10d") % total).str() <<endl;
-  cerr<< (boost::format("Excluded control fragments: %|40t|-%10d") % phixFound).str() <<endl;
+  cerr<< (boost::format("Excluded control fragments: -%|40t|-%10d") % phixFound).str() <<endl;
   cerr<< (boost::format("Quality excluded: %|40t|-%10d") % qualityExcluded).str() <<endl;
   cerr<< (boost::format("Ignored reads with N: %|40t|-%10d") % withAny).str()<<endl;
   cerr<< (boost::format("Full matches: %|40t|-%10d (%.02f%%)\n") % found % (100.0*found/total)).str();
-  cerr<< (boost::format("Not yet found: %|40t|=%10d (%.02f%%)\n") % notFound % (notFound*100.0/total)).str();
+  cerr<< (boost::format("Not found: %|40t|=%10d (%.02f%%)\n") % notFound % (notFound*100.0/total)).str();
 
   cerr << "Mean Q: " << mean(acc) << std::endl;
   cerr << "Median Q: " << median(acc) << std::endl;
@@ -509,12 +509,10 @@ int main(int argc, char** argv)
   foundIt:;
     ++fuzzyProgress;
   }
-  cerr<< (boost::format("Fuzzy found: %|40t|-%10d (%.02f%%)\n") % fuzzyFound % (fuzzyFound*100.0/total)).str();
-
+  cerr<<"\rFuzzy found: "<<fuzzyFound<<endl;
   fuzzyFound=0;
   unfoundReads.swap(stillUnfound);
-  cerr<< (boost::format("Unmatched reads: %|40t|=%10d (%.02f%%)\n") % unfoundReads.size() % (unfoundReads.size()*100.0/total)).str();
-
+  cerr<<"Have "<<unfoundReads.size()<<" unfound reads left"<<endl;
   /*
   rg.printFastQs(5718000, fastq);  
   FILE *fp=fopen("unfound.fastq", "w");
@@ -528,7 +526,7 @@ int main(int argc, char** argv)
   cout<<"After sliding matching: "<<endl;
   printUnmatched(rg, "fuzzy");
 
-  cerr<< (boost::format("Varying loci: %|40t| %10d\n") % locimap.size()).str();
+  cerr<<"Found "<<locimap.size()<<" varying loci"<<endl;
   uint64_t seriouslyVariable=0;
   boost::format fmt1("%-10d: %3d*%c ");
   string fmt2("                  ");
@@ -606,8 +604,7 @@ int main(int argc, char** argv)
     rg.printFastQs(iter->first, fastq);
 
   }
-  cerr<< (boost::format("Seriously varying loci: %|40t| %10d\n") % seriouslyVariable).str();
-
+  cerr<<"Found "<<seriouslyVariable<<" seriously variable loci"<<endl;
   exit(EXIT_SUCCESS);
 
 }
