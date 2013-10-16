@@ -212,7 +212,7 @@ void ReferenceGenome::printFastQs(uint64_t pos, FASTQReader& fastq)
 	fqr.reverse();
 
       if(fqm.indel > 0 && !insertPos) { // our read has an insert at this position
-	reference.insert(i+fqm.indel, 1, ' ');
+	reference.insert(i+fqm.indel, 1, '_');
 	insertPos=i+fqm.indel;
 	//	fqr.d_nucleotides.erase(fqm.indel, 1); // this makes things align again
 	//fqr.d_quality.erase(fqm.indel, 1); 
@@ -226,7 +226,7 @@ void ReferenceGenome::printFastQs(uint64_t pos, FASTQReader& fastq)
       int offset=0;
       for(unsigned int j = 0 ; j < fqr.d_nucleotides.size(); ++j) {
 	if(reference[i+j]==' ' && !fqm.indel) {
-	  cout<<' ';
+	  cout<<'_';
 	  offset=1;
 	}
 	if(reference[i+j+offset]==fqr.d_nucleotides[j])
@@ -609,10 +609,13 @@ int main(int argc, char** argv)
   foundIt:;
     ++fuzzyProgress;
   }
-  cerr<<"\rFuzzy found: "<<fuzzyFound<<endl;
+  cerr<<"\r";
+  cerr<<(boost::format("Fuzzy found: %|40t|-%10d\n")%fuzzyFound).str();
   fuzzyFound=0;
   unfoundReads.swap(stillUnfound);
-  cerr<<"Have "<<unfoundReads.size()<<" unfound reads left"<<endl;
+  cerr<<(boost::format("Unmatchable reads:%|40t|=%10d (%.2f%%)\n") 
+	 % unfoundReads.size() % (100.0*unfoundReads.size()/total)).str();
+
   cout<<"After: "<<endl;
   rg.printFastQs(45881, fastq);  
   rg.printFastQs(1728495, fastq);
