@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <numeric>
 #include <unistd.h>
+#include <errno.h>
 #include <math.h>
 #include <boost/format.hpp>
 #include <boost/accumulators/accumulators.hpp>
@@ -23,6 +24,10 @@
 #include "geneannotated.hh"
 #include "misc.hh"
 #include "fastq.hh"
+
+#include <mba/diff.h>
+#include <mba/msgno.h>
+
 
 using namespace boost;
 using namespace boost::accumulators;
@@ -167,16 +172,17 @@ void ReferenceGenome::index(int length)
 {
   d_index.clear();
   d_indexlength=length;
-  cerr<<"Indexing "<<d_genome.length()<<" nucleotides for length "<<length<<endl;
-  boost::progress_display show_progress( d_genome.length() - d_indexlength, cerr);
+  cerr<<"Indexing "<<d_genome.length()<<" nucleotides for length "<<length<<"..";
+
+  //  boost::progress_display show_progress( d_genome.length() - d_indexlength, cerr);
 
   for(string::size_type pos = 0 ; pos < d_genome.length() - length; ++pos) {
     uint32_t hashval = hash(d_genome.c_str() + pos, d_indexlength, 0);
     d_index.push_back(HashPos(hashval, pos));
-    ++show_progress;
+    // ++show_progress;
   }
 
-  cerr<<endl<<"Sorting hashes..";
+  cerr<<" done\nSorting hashes..";
   sort(d_index.begin(), d_index.end());
   cerr<<" done"<<endl;
     
@@ -297,6 +303,48 @@ struct LociStats
 typedef map<uint64_t, LociStats> locimap_t;
 locimap_t locimap;
 
+
+int MBADiff(uint64_t pos, const string& a, const string& b)
+{
+  string::size_type n, m, d;
+  int sn, i;
+  struct varray *ses = varray_new(sizeof(struct diff_edit), NULL);
+  
+  n = a.length();
+  m = b.length();
+  if ((d = diff(a.c_str(), 0, n, b.c_str(), 0, m, NULL, NULL, NULL, 0, ses, &sn, NULL)) == -1) {
+    MMNO(errno);
+    printf("Error\n");
+    return EXIT_FAILURE;
+  }
+  if(sn > 4)
+    return 0;
+  printf("%ld, d=%ld sn=%d\nA:   %s\nB:   %s\n", pos, d, 
+	 sn, a.c_str(), b.c_str());
+  for (i = 0; i < sn; i++) {
+    struct diff_edit *e = (struct diff_edit*)varray_get(ses, i);
+
+    switch (e->op) {
+    case DIFF_MATCH:
+      printf("MAT: ");
+      fwrite(a.c_str() + e->off, 1, e->len, stdout);
+      break;
+    case DIFF_INSERT:
+      printf("INS: ");
+      fwrite(b.c_str() + e->off, 1, e->len, stdout);
+      break;
+    case DIFF_DELETE:
+      printf("DEL: ");
+      fwrite(a.c_str() + e->off, 1, e->len, stdout);
+      break;
+    }
+    printf("\n");
+  }
+
+  varray_del(ses);
+  return d;
+}
+
 string DNADiff(ReferenceGenome& rg, uint64_t pos, const FastQRead& fqfrag)
 {
   string diff;
@@ -312,7 +360,9 @@ string DNADiff(ReferenceGenome& rg, uint64_t pos, const FastQRead& fqfrag)
 
   if(diffcount < 5) 
     rg.mapFastQ(pos, fqfrag);
-
+  else {
+    MBADiff(pos, fqfrag.d_nucleotides, b);
+  }
   //  cout<<"US:  "<<fqfrag.d_nucleotides<<endl<<"DIF: ";
   for(string::size_type i = 0; i < fqfrag.d_nucleotides.size() && i < b.size();++i) {
     if(fqfrag.d_nucleotides[i] != b[i]) {
@@ -385,17 +435,16 @@ int main(int argc, char** argv)
   FASTQReader fastq(argv[1]);
   FILE* fasta = fopen(argv[2], "r");
 
-  ReferenceGenome rg(fasta);
 
-  cerr<<"Loading filter genome(s)"<<endl;
+  unsigned int bytes=0;
+  FastQRead fqfrag;
+  bytes=fastq.getRead(&fqfrag); // get a fragment to index based on its size
+  ReferenceGenome rg(fasta);
+  rg.index(fqfrag.d_nucleotides.size());
+
+  cerr<<"Loading positive control filter genome(s)"<<endl;
   FILE* phixFP = fopen("phi-x174.fasta", "r");
   ReferenceGenome phix(phixFP);
-
-  FastQRead fqfrag;
-  
-  unsigned int bytes=0;
-  bytes=fastq.getRead(&fqfrag); // get a fragment to index based on its size
-  rg.index(fqfrag.d_nucleotides.size());
   phix.index(fqfrag.d_nucleotides.size());
 
   uint64_t pos;
@@ -443,8 +492,9 @@ int main(int argc, char** argv)
   cerr<< (boost::format("Full matches: %|40t|-%10d (%.02f%%)\n") % found % (100.0*found/total)).str();
   cerr<< (boost::format("Not found: %|40t|=%10d (%.02f%%)\n") % notFound % (notFound*100.0/total)).str();
 
-  cerr << "Mean Q: " << mean(acc) << std::endl;
-  cerr << "Median Q: " << median(acc) << std::endl;
+  cerr << (boost::format("Mean Q: %|40t|    %10.2f\n") % mean(acc)).str();
+  cerr << (boost::format("Median Q: %|40t|    %10.2f\n") % median(acc)).str();
+
   
   rg.printCoverage();
 

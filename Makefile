@@ -1,4 +1,4 @@
-CXXFLAGS=-Wall -I.  -MMD -O3
+CXXFLAGS=-Wall -I. -Iext/libmba  -MMD -O3
 CFLAGS=-I. -Iext/libmba -O3 -MMD
 
 all: powerdna 16ssearcher
