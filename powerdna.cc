@@ -41,7 +41,8 @@ struct FASTQMapping
 {
   uint64_t pos;
   bool reverse;
-  // something about inserts & deletes
+  int indel; // 0 = nothing, >0 means WE have an insert versus reference at pos
+             // <0 means WE have a delete versus reference at pos
 };
 
 struct GenomeLocusMapping
@@ -114,11 +115,12 @@ public:
       d_mapping[pos].coverage++;
   }
 
-  void mapFastQ(uint64_t pos, const FastQRead& fqfrag)
+  void mapFastQ(uint64_t pos, const FastQRead& fqfrag, int indel=0)
   {
     FASTQMapping fqm;
     fqm.pos=fqfrag.position;
     fqm.reverse = fqfrag.reversed;
+    fqm.indel = indel;
     d_mapping[pos].d_fastqs.push_back(fqm);
   }
 
@@ -197,7 +199,7 @@ void ReferenceGenome::printFastQs(uint64_t pos, FASTQReader& fastq)
     pos -= 150;
   
   string reference=snippet(pos, pos+300);
-
+  int insertPos=0;
   for(unsigned int i = 0 ; i < 151; ++i) {
     if(i==75)
       cout << reference << endl;
@@ -208,9 +210,26 @@ void ReferenceGenome::printFastQs(uint64_t pos, FASTQReader& fastq)
       fastq.getRead(&fqr);
       if(fqm.reverse)
 	fqr.reverse();
+
+      if(fqm.indel > 0 && !insertPos) { // our read has an insert at this position
+	reference.insert(i+fqm.indel, 1, ' ');
+	insertPos=i+fqm.indel;
+	//	fqr.d_nucleotides.erase(fqm.indel, 1); // this makes things align again
+	//fqr.d_quality.erase(fqm.indel, 1); 
+      } else if(fqm.indel < 0) {      // our read has an erase at this position
+	fqr.d_nucleotides.insert(-fqm.indel, 1, 'X');
+	fqr.d_quality.insert(-fqm.indel, 1, 'X');
+      }
+
+
       cout << spacer;
+      int offset=0;
       for(unsigned int j = 0 ; j < fqr.d_nucleotides.size(); ++j) {
-	if(reference[i+j]==fqr.d_nucleotides[j])
+	if(reference[i+j]==' ' && !fqm.indel) {
+	  cout<<' ';
+	  offset=1;
+	}
+	if(reference[i+j+offset]==fqr.d_nucleotides[j])
 	  cout<<'.';
 	else if(fqr.d_quality[j] > '@') 
 	  cout << fqr.d_nucleotides[j];
@@ -276,8 +295,8 @@ void ReferenceGenome::printCoverage()
     }
   }
 
-  cerr<<"Average depth: "<<totCoverage/d_mapping.size()<<endl;
-  cerr<<"No coverage: "<<noCoverages*100.0/d_mapping.size()<<"%"<<endl;
+  cerr << (boost::format("Average depth: %|40t|    %10.2f\n") % (1.0*totCoverage/d_mapping.size())).str();
+  cerr << (boost::format("Uncovered nucleotides: %|40t| %10d (%.2f%%)\n") % noCoverages % (noCoverages*100.0/d_mapping.size())).str();
 
   uint64_t total = std::accumulate(covhisto.begin(), covhisto.end(), 0);
 
@@ -303,69 +322,101 @@ struct LociStats
 typedef map<uint64_t, LociStats> locimap_t;
 locimap_t locimap;
 
-
-int MBADiff(uint64_t pos, const string& a, const string& b)
+// 0 if nothing interesting, positive if our read has insert at that position, negative if we have a delete at that position
+int MBADiff(uint64_t pos, const FastQRead& fqr, const string& reference)
 {
   string::size_type n, m, d;
   int sn, i;
   struct varray *ses = varray_new(sizeof(struct diff_edit), NULL);
   
-  n = a.length();
-  m = b.length();
-  if ((d = diff(a.c_str(), 0, n, b.c_str(), 0, m, NULL, NULL, NULL, 0, ses, &sn, NULL)) == -1) {
+  n = fqr.d_nucleotides.length();
+  m = reference.length();
+  if ((d = diff(fqr.d_nucleotides.c_str(), 0, n, reference.c_str(), 0, m, NULL, NULL, NULL, 0, ses, &sn, NULL)) == -1) {
     MMNO(errno);
     printf("Error\n");
     return EXIT_FAILURE;
   }
-  if(sn > 4)
+  int ret=0;
+  if(sn == 4 && d == 2) {
+    struct diff_edit *match1 = (struct diff_edit*)varray_get(ses, 0),
+      *change1=(struct diff_edit*)varray_get(ses, 1), 
+      *match2=(struct diff_edit*)varray_get(ses, 2), 
+      *change2=(struct diff_edit*)varray_get(ses, 3);
+    
+    if(match1->op == DIFF_MATCH && match2->op==DIFF_MATCH) {
+      if(change1->op == DIFF_INSERT && change2->op==DIFF_DELETE) {
+	cout << "Have delete of "<<change1->len<<" in our read at " << pos+change1->off <<endl;
+	ret=-change1->off;
+      }
+      else if(change1->op == DIFF_DELETE && change2->op==DIFF_INSERT) {
+	cout<<"Have insert of "<<change1->len<<" in our read at "<<pos+change1->off<<endl;
+	ret=change1->off;
+      }
+    }
+  }
+  if(sn > 6)
     return 0;
-  printf("%ld, d=%ld sn=%d\nA:   %s\nB:   %s\n", pos, d, 
-	 sn, a.c_str(), b.c_str());
+
+  printf("pos %ld, d=%ld sn=%d\nUS:  %s\nREF: %s\n", pos, d, 
+	 sn, fqr.d_nucleotides.c_str(), reference.c_str());
+
+  // should have 4 components, a MATCH, an INSERT/DELETE followed by a MATCH, followed by a DELETE/INSERT (inverse)
+
   for (i = 0; i < sn; i++) {
     struct diff_edit *e = (struct diff_edit*)varray_get(ses, i);
 
     switch (e->op) {
     case DIFF_MATCH:
       printf("MAT: ");
-      fwrite(a.c_str() + e->off, 1, e->len, stdout);
+      fwrite(fqr.d_nucleotides.c_str() + e->off, 1, e->len, stdout);
       break;
     case DIFF_INSERT:
       printf("INS: ");
-      fwrite(b.c_str() + e->off, 1, e->len, stdout);
+      fwrite(reference.c_str() + e->off, 1, e->len, stdout);
       break;
     case DIFF_DELETE:
       printf("DEL: ");
-      fwrite(a.c_str() + e->off, 1, e->len, stdout);
+      fwrite(fqr.d_nucleotides.c_str() + e->off, 1, e->len, stdout);
       break;
     }
     printf("\n");
   }
-
   varray_del(ses);
-  return d;
+  return ret;
 }
 
-string DNADiff(ReferenceGenome& rg, uint64_t pos, const FastQRead& fqfrag)
+string DNADiff(ReferenceGenome& rg, uint64_t pos, FastQRead& fqfrag)
 {
   string diff;
   diff.reserve(fqfrag.d_nucleotides.length());
 
-  string b= rg.snippet(pos, pos + fqfrag.d_nucleotides.length());
+  string reference = rg.snippet(pos, pos + fqfrag.d_nucleotides.length());
 
   int diffcount=0;
-  for(string::size_type i = 0; i < fqfrag.d_nucleotides.size() && i < b.size();++i) {
-    if(fqfrag.d_nucleotides[i] != b[i] && fqfrag.d_quality[i]>'@') 
+  for(string::size_type i = 0; i < fqfrag.d_nucleotides.size() && i < reference.size();++i) {
+    if(fqfrag.d_nucleotides[i] != reference[i] && fqfrag.d_quality[i]>'@') 
       diffcount++;
   }
 
   if(diffcount < 5) 
     rg.mapFastQ(pos, fqfrag);
   else {
-    MBADiff(pos, fqfrag.d_nucleotides, b);
+    int res=MBADiff(pos, fqfrag, reference);
+    if(res) {
+      rg.mapFastQ(pos, fqfrag, res);
+      diffcount=1;
+      if(res > 0) { // our read has an insert at this position
+	fqfrag.d_nucleotides.erase(res, 1); // this makes things align again
+	fqfrag.d_quality.erase(res, 1); 
+      } else {      // our read has an erase at this position
+	fqfrag.d_nucleotides.insert(-res, 1, 'X');
+	fqfrag.d_quality.insert(-res, 1, 'X');
+      }
+    }
   }
   //  cout<<"US:  "<<fqfrag.d_nucleotides<<endl<<"DIF: ";
-  for(string::size_type i = 0; i < fqfrag.d_nucleotides.size() && i < b.size();++i) {
-    if(fqfrag.d_nucleotides[i] != b[i]) {
+  for(string::size_type i = 0; i < fqfrag.d_nucleotides.size() && i < reference.size();++i) {
+    if(fqfrag.d_nucleotides[i] != reference[i]) {
       diff.append(1, fqfrag.d_quality[i] > '@' ? '!' : '^');
       if(fqfrag.d_quality[i]>'@' && diffcount < 5) 
 	locimap[pos+i].samples.push_back(make_tuple(fqfrag.d_nucleotides[i], fqfrag.d_quality[i], fqfrag.reversed ^ (i>75))); // head or tail
@@ -486,7 +537,7 @@ int main(int argc, char** argv)
   } while((bytes=fastq.getRead(&fqfrag)));
 
   cerr<< (boost::format("Total fragments: %|40t| %10d") % total).str() <<endl;
-  cerr<< (boost::format("Excluded control fragments: -%|40t|-%10d") % phixFound).str() <<endl;
+  cerr<< (boost::format("Excluded control fragments: %|40t|-%10d") % phixFound).str() <<endl;
   cerr<< (boost::format("Quality excluded: %|40t|-%10d") % qualityExcluded).str() <<endl;
   cerr<< (boost::format("Ignored reads with N: %|40t|-%10d") % withAny).str()<<endl;
   cerr<< (boost::format("Full matches: %|40t|-%10d (%.02f%%)\n") % found % (100.0*found/total)).str();
@@ -495,9 +546,8 @@ int main(int argc, char** argv)
   cerr << (boost::format("Mean Q: %|40t|    %10.2f\n") % mean(acc)).str();
   cerr << (boost::format("Median Q: %|40t|    %10.2f\n") % median(acc)).str();
 
-  
   rg.printCoverage();
-
+  rg.printFastQs(45881, fastq);  
   
   printUnmatched(rg,"perfect");
   cout<<"---------"<<endl;
@@ -563,6 +613,9 @@ int main(int argc, char** argv)
   fuzzyFound=0;
   unfoundReads.swap(stillUnfound);
   cerr<<"Have "<<unfoundReads.size()<<" unfound reads left"<<endl;
+  cout<<"After: "<<endl;
+  rg.printFastQs(45881, fastq);  
+  rg.printFastQs(1728495, fastq);
   /*
   rg.printFastQs(5718000, fastq);  
   FILE *fp=fopen("unfound.fastq", "w");
