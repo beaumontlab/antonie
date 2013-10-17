@@ -47,16 +47,15 @@ struct FASTQMapping
 
 struct GenomeLocusMapping
 {
-  GenomeLocusMapping() : aCount(0), cCount(0), gCount(0), tCount(0), coverage(0) {}
+  GenomeLocusMapping() : coverage(0) {}
   vector<FASTQMapping> d_fastqs;
-  unsigned int aCount, cCount, gCount, tCount;
   unsigned int coverage;
 };
  
 class ReferenceGenome
 {
 public:
-  ReferenceGenome(FILE* fp);
+  ReferenceGenome(const string& fname);
   uint64_t size() const {
     return d_genome.size();
   }
@@ -152,8 +151,13 @@ private:
   index_t d_index;
 };
 
-ReferenceGenome::ReferenceGenome(FILE *fp)
+ReferenceGenome::ReferenceGenome(const string& fname)
 {
+  FILE* fp = fopen(fname.c_str(), "r");
+  if(!fp)
+    throw runtime_error("Unable to open reference genome file '"+fname+"'");
+  d_genome.reserve(filesize(fname.c_str()));  // slight overestimate which is great
+  
   char line[256]="";
 
   sfgets(line, sizeof(line), fp);
@@ -162,10 +166,13 @@ ReferenceGenome::ReferenceGenome(FILE *fp)
   if(line[0] != '>') 
     throw runtime_error("Input not FASTA");
   cerr<<"Reading FASTA reference genome of '"<<line+1<<"'\n";
+
+  d_genome="*"; // this gets all our offsets ""right""
   while(fgets(line, sizeof(line), fp)) {
     chomp(line);
     d_genome.append(line);
   }
+  
   d_mapping.resize(d_genome.size());
   d_indexlength=0;
 }
@@ -173,6 +180,7 @@ ReferenceGenome::ReferenceGenome(FILE *fp)
 void ReferenceGenome::index(int length)
 {
   d_index.clear();
+  d_index.reserve(d_genome.length());
   d_indexlength=length;
   cerr<<"Indexing "<<d_genome.length()<<" nucleotides for length "<<length<<"..";
 
@@ -220,12 +228,15 @@ void ReferenceGenome::printFastQs(uint64_t pos, FASTQReader& fastq)
 	fqr.d_nucleotides.insert(-fqm.indel, 1, 'X');
 	fqr.d_quality.insert(-fqm.indel, 1, 'X');
       }
-
-
+      
+      if(fqm.indel <= 0 && insertPos && i > insertPos) {
+	fqr.d_nucleotides.insert(0, 1, '<');
+	fqr.d_quality.insert(0, 1, 'X');
+      }
       cout << spacer;
       int offset=0;
       for(unsigned int j = 0 ; j < fqr.d_nucleotides.size(); ++j) {
-	if(reference[i+j]==' ' && !fqm.indel) {
+	if(reference[i+j]=='_' && !fqm.indel) {
 	  cout<<'_';
 	  offset=1;
 	}
@@ -257,10 +268,6 @@ void ReferenceGenome::printCoverage()
   uint64_t totCoverage=0, noCoverages=0;
   unsigned int cov;
 
-  vector<unsigned int> nulls;
-  nulls.resize(2000);
-  unsigned int binwidth = d_mapping.size()/2000;
-
   bool wasNul=true;
   string::size_type prevNulpos=0;
 
@@ -275,7 +282,7 @@ void ReferenceGenome::printCoverage()
 
     if(noCov) {
       noCoverages++;
-      nulls[pos / binwidth]++;
+
     }
     
     if(!noCov && wasNul) {
@@ -308,15 +315,12 @@ void ReferenceGenome::printCoverage()
     std::cout << '['<< i << ',' << 1.0*covhisto[i]/total << ']';
   }
   cout<<"];\n";
-
-  //  for(unsigned int n = 0; n < 2000; ++n) 
-  //  cout<<n*binwidth<<"\t"<<nulls[n]<<endl;  
 }
 
 
 struct LociStats
 {
-  vector<tuple<char,char,char > > samples;
+  vector<boost::tuple<char,char,char>> samples;
 };
 
 typedef map<uint64_t, LociStats> locimap_t;
@@ -418,8 +422,8 @@ string DNADiff(ReferenceGenome& rg, uint64_t pos, FastQRead& fqfrag)
   for(string::size_type i = 0; i < fqfrag.d_nucleotides.size() && i < reference.size();++i) {
     if(fqfrag.d_nucleotides[i] != reference[i]) {
       diff.append(1, fqfrag.d_quality[i] > '@' ? '!' : '^');
-      if(fqfrag.d_quality[i]>'@' && diffcount < 5) 
-	locimap[pos+i].samples.push_back(make_tuple(fqfrag.d_nucleotides[i], fqfrag.d_quality[i], fqfrag.reversed ^ (i>75))); // head or tail
+      if(fqfrag.d_quality[i]>'@' && diffcount < 5 && ( (!fqfrag.reversed && i > 14) || (fqfrag.reversed && i < (150-14) ) ) ) 
+	locimap[pos+i].samples.push_back(boost::make_tuple(fqfrag.d_nucleotides[i], fqfrag.d_quality[i], fqfrag.reversed ^ (i>75))); // head or tail
     }
     else {
       diff.append(1, ' ');
@@ -455,7 +459,7 @@ unsigned int variabilityCount(const ReferenceGenome& rg, uint64_t position, cons
   
   int forwardCount=0;
 
-  for(vector<tuple<char,char,char> >::const_iterator j = lc.samples.begin(); j!= lc.samples.end(); ++j) {
+  for(vector<boost::tuple<char,char,char> >::const_iterator j = lc.samples.begin(); j!= lc.samples.end(); ++j) {
     counts[j->get<0>()]++;
     if(j->get<2>())
       forwardCount++;
@@ -465,13 +469,15 @@ unsigned int variabilityCount(const ReferenceGenome& rg, uint64_t position, cons
   for(unsigned int i=0; i < 255; ++i) {
     nonDom+=counts[i];
   }
+  
+  if(nonDom + counts[255] < 20)
+    return 0;
 
   *fraction = 1.0*forwardCount / (1.0*lc.samples.size());
-  if(*fraction < 0.1 || *fraction > 0.9)
+  if(*fraction < 0.05 || *fraction > 0.9)
     return 0;
 
   return 100*nonDom/counts[255];
-
 }
 
 int main(int argc, char** argv)
@@ -484,18 +490,17 @@ int main(int argc, char** argv)
   cerr<<"Done reading "<<gar.size()<<" annotations"<<endl;
   
   FASTQReader fastq(argv[1]);
-  FILE* fasta = fopen(argv[2], "r");
-
 
   unsigned int bytes=0;
   FastQRead fqfrag;
   bytes=fastq.getRead(&fqfrag); // get a fragment to index based on its size
-  ReferenceGenome rg(fasta);
+  
+  ReferenceGenome rg(argv[2]);
+
   rg.index(fqfrag.d_nucleotides.size());
 
   cerr<<"Loading positive control filter genome(s)"<<endl;
-  FILE* phixFP = fopen("phi-x174.fasta", "r");
-  ReferenceGenome phix(phixFP);
+  ReferenceGenome phix("phi-x174.fasta");
   phix.index(fqfrag.d_nucleotides.size());
 
   uint64_t pos;
@@ -551,8 +556,6 @@ int main(int argc, char** argv)
   
   printUnmatched(rg,"perfect");
   cout<<"---------"<<endl;
-
-
 
   int keylen=11;
   rg.index(keylen);
@@ -617,6 +620,15 @@ int main(int argc, char** argv)
 	 % unfoundReads.size() % (100.0*unfoundReads.size()/total)).str();
 
   cout<<"After: "<<endl;
+  
+  vector<uint32_t> missing{1670454,  866724,    1301900,    378768,   2282802,   1728496,  2762187, 985334, 45882};
+  for(auto i : missing) {
+    cout<<i<<": "<<endl;
+    rg.printFastQs(i, fastq);
+  }
+
+
+  exit(1);
   rg.printFastQs(45881, fastq);  
   rg.printFastQs(1728495, fastq);
   /*
@@ -663,7 +675,7 @@ int main(int argc, char** argv)
     sort(iter->second.samples.begin(), iter->second.samples.end());
 
     seriouslyVariable++;
-    for(vector<tuple<char,char,char> >::const_iterator j = iter->second.samples.begin(); 
+    for(vector<boost::tuple<char,char,char> >::const_iterator j = iter->second.samples.begin(); 
 	j != iter->second.samples.end(); ++j) {
       c=j->get<0>();
       switch(c) {
@@ -684,12 +696,12 @@ int main(int argc, char** argv)
       cout<<c;
     }
     cout<<endl<<fmt2;
-    for(vector<tuple<char,char,char> >::const_iterator j = iter->second.samples.begin(); 
+    for(vector<boost::tuple<char,char,char> >::const_iterator j = iter->second.samples.begin(); 
 	j != iter->second.samples.end(); ++j) {
       cout<<j->get<1>();
     }
     cout<<endl<<fmt2;
-    for(vector<tuple<char,char,char> >::const_iterator j = iter->second.samples.begin(); 
+    for(vector<boost::tuple<char,char,char> >::const_iterator j = iter->second.samples.begin(); 
 	j != iter->second.samples.end(); ++j) {
       cout<< (j->get<2>() ? 'R' : '.');
     }
@@ -704,7 +716,7 @@ int main(int argc, char** argv)
       }
       cout<<endl;
     }
-    cout<<fmt2<< "Fraction forward: "<<fraction<<", "<<iter->second.samples.size()<<endl;
+    cout<<fmt2<< "Fraction tail: "<<fraction<<", "<<iter->second.samples.size()<<endl;
     cout<<fmt2<< "A: " << aCount*100/tot <<"%, C: "<<cCount*100/tot<<"%, G: "<<gCount*100/tot<<"%, T: "<<tCount*100/tot<<"%"<<endl;
 
     rg.printFastQs(iter->first, fastq);
