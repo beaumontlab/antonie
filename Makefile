@@ -1,5 +1,5 @@
-CXXFLAGS=-Wall -I. -Iext/libmba  -MMD -O3 -std=gnu++0x
-CFLAGS=-I. -Iext/libmba -O3 -MMD
+CXXFLAGS=-Wall -I. -Iext/libmba  -MMD -O3 -std=gnu++0x -pthread
+CFLAGS=-I. -Iext/libmba -O3 -MMD -pthread
 
 all: powerdna 16ssearcher
 
@@ -11,7 +11,7 @@ strdiff: strdiff.o ext/libmba/libdiff.a
 	gcc strdiff.o ext/libmba/libdiff.a
 
 powerdna: $(POWERDNA_OBJECTS)
-	g++ $(LDFLAGS) $(POWERDNA_OBJECTS) -o $@
+	g++ $(LDFLAGS) $(POWERDNA_OBJECTS) -pthread -o $@
 
 16ssearcher: 16ssearcher.o hash.o misc.o fastq.o
 	g++ $(LDFLAGS) 16ssearcher.o hash.o misc.o fastq.o -lz -o $@

@@ -14,6 +14,7 @@
 #include <errno.h>
 #include <math.h>
 #include <boost/format.hpp>
+#include <boost/bind.hpp>
 #include <boost/accumulators/accumulators.hpp>
 #include <boost/accumulators/statistics/density.hpp>
 #include <boost/accumulators/statistics/stats.hpp>
@@ -24,7 +25,7 @@
 #include "geneannotated.hh"
 #include "misc.hh"
 #include "fastq.hh"
-
+#include <thread>
 #include <mba/diff.h>
 #include <mba/msgno.h>
 
@@ -480,6 +481,76 @@ unsigned int variabilityCount(const ReferenceGenome& rg, uint64_t position, cons
   return 100*nonDom/counts[255];
 }
 
+void hello(){
+
+    std::cout << "Hello from thread " << std::endl;
+
+}
+
+int fuzzyFind(const std::vector<uint64_t>& positions, FASTQReader &fastq, ReferenceGenome& rg, int keylen)
+{
+  boost::progress_display fuzzyProgress(positions.size(), cerr);
+  //FASTQReader fastq(fname);
+  FastQRead fqfrag;
+  string left, middle, right;
+  typedef pair<uint64_t, char> tpos;
+  vector<uint64_t> lpositions, mpositions, rpositions;
+  unsigned int fuzzyFound=0;
+  BOOST_FOREACH(uint64_t pos, positions) {
+    fastq.seek(pos);
+    fastq.getRead(&fqfrag);
+
+    for(unsigned int attempts=0; attempts < 12; ++attempts) {
+      for(int tries = 0; tries < 2; ++tries) {
+	if(tries)
+	  fqfrag.reverse();
+	left=fqfrag.d_nucleotides.substr(attempts*3, keylen);	middle=fqfrag.d_nucleotides.substr(50+attempts*3, keylen); right=fqfrag.d_nucleotides.substr(100+attempts*3, keylen);
+      	lpositions=rg.getReadPositions(left); 
+	if(lpositions.empty())
+	  continue;
+	mpositions=rg.getReadPositions(middle); 
+	if(mpositions.empty())
+	  continue;
+	rpositions=rg.getReadPositions(right);
+
+	if(lpositions.size() + mpositions.size() + rpositions.size() < 3)
+	  continue;
+       	vector<tpos> together;
+	BOOST_FOREACH(uint64_t fpos, lpositions) { together.push_back(make_pair(fpos, 'L')); }	
+	BOOST_FOREACH(uint64_t fpos, mpositions) { together.push_back(make_pair(fpos, 'M')); }
+	BOOST_FOREACH(uint64_t fpos, rpositions) { together.push_back(make_pair(fpos, 'R')); }
+	
+	sort(together.begin(), together.end());
+
+	for(unsigned int i = 0; i < together.size() - 2; ++i) {
+	  if(together[i].second=='L' && together[i+1].second=='M' && together[i+2].second=='R' && 
+	     together[i+1].first - together[i].first < 60 && together[i+2].first - together[i+1].first < 60) {
+	    uint64_t lpos, mpos, rpos;
+	    lpos=together[i].first; mpos=together[i+1].first; rpos=together[i+2].first;
+	    /*	    cout<<lpos<<together[i].second<<" - " << mpos<<together[i+1].second<<
+	      " - " << rpos<<together[i+2].second<< " (" << 
+	      mpos - lpos<< " - " << rpos - mpos <<"), reversed: "<<tries<<endl;
+	    */
+	    if(lpos < 3*attempts)
+	      continue;
+	    
+	    uint64_t matchOffset=lpos - 3*attempts;
+	    DNADiff(rg, matchOffset, fqfrag);
+	    fuzzyFound++;
+	    goto foundIt;
+	    break;
+	  }
+	}
+      }
+    }
+    //   stillUnfound.push_back(pos);
+  foundIt:;
+    ++fuzzyProgress;
+  }
+  cerr<<"\r";
+  return fuzzyFound;
+}
+
 int main(int argc, char** argv)
 {
   if(argc!=3) {
@@ -560,65 +631,30 @@ int main(int argc, char** argv)
   int keylen=11;
   rg.index(keylen);
 
-  string left, middle, right;
-  vector<uint64_t> lpositions, mpositions, rpositions;
   vector<uint64_t> stillUnfound;
-  typedef pair<uint64_t, char> tpos;
+
   cerr<<"Performing sliding window partial matches"<<endl;
-  boost::progress_display fuzzyProgress(unfoundReads.size(), cerr);
-  
-  BOOST_FOREACH(uint64_t pos, unfoundReads) {
-    fastq.seek(pos);
-    fastq.getRead(&fqfrag);
 
-    for(unsigned int attempts=0; attempts < 12; ++attempts) {
-      for(int tries = 0; tries < 2; ++tries) {
-	if(tries)
-	  fqfrag.reverse();
-	left=fqfrag.d_nucleotides.substr(attempts*3, keylen);	middle=fqfrag.d_nucleotides.substr(50+attempts*3, keylen); right=fqfrag.d_nucleotides.substr(100+attempts*3, keylen);
-      	lpositions=rg.getReadPositions(left); 
-	if(lpositions.empty())
-	  continue;
-	mpositions=rg.getReadPositions(middle); 
-	if(mpositions.empty())
-	  continue;
-	rpositions=rg.getReadPositions(right);
 
-	if(lpositions.size() + mpositions.size() + rpositions.size() < 3)
-	  continue;
-       	vector<tpos> together;
-	BOOST_FOREACH(uint64_t fpos, lpositions) { together.push_back(make_pair(fpos, 'L')); }	
-	BOOST_FOREACH(uint64_t fpos, mpositions) { together.push_back(make_pair(fpos, 'M')); }
-	BOOST_FOREACH(uint64_t fpos, rpositions) { together.push_back(make_pair(fpos, 'R')); }
-	
-	sort(together.begin(), together.end());
+#if 0
+  vector<uint64_t> parts[4];
+  uint64_t chunk = unfoundReads.size()/4;
+  parts[0].assign(unfoundReads.begin(), unfoundReads.begin() + chunk);
+  parts[1].assign(unfoundReads.begin()+chunk, unfoundReads.begin() + 2*chunk);
+  parts[2].assign(unfoundReads.begin()+2*chunk, unfoundReads.begin() + 3*chunk);
+  parts[3].assign(unfoundReads.begin()+chunk, unfoundReads.end());
 
-	for(unsigned int i = 0; i < together.size() - 2; ++i) {
-	  if(together[i].second=='L' && together[i+1].second=='M' && together[i+2].second=='R' && 
-	     together[i+1].first - together[i].first < 60 && together[i+2].first - together[i+1].first < 60) {
-	    uint64_t lpos, mpos, rpos;
-	    lpos=together[i].first; mpos=together[i+1].first; rpos=together[i+2].first;
-	    /*	    cout<<lpos<<together[i].second<<" - " << mpos<<together[i+1].second<<
-	      " - " << rpos<<together[i+2].second<< " (" << 
-	      mpos - lpos<< " - " << rpos - mpos <<"), reversed: "<<tries<<endl;
-	    */
-	    if(lpos < 3*attempts)
-	      continue;
-	    
-	    uint64_t matchOffset=lpos - 3*attempts;
-	    DNADiff(rg, matchOffset, fqfrag);
-	    fuzzyFound++;
-	    goto foundIt;
-	    break;
-	  }
-	}
-      }
-    }
-    stillUnfound.push_back(pos);
-  foundIt:;
-    ++fuzzyProgress;
-  }
-  cerr<<"\r";
+  vector<std::thread> threads;
+  threads.emplace_back(boost::bind(fuzzyFind, parts[0], argv[1], rg, 11));
+  threads.emplace_back(boost::bind(fuzzyFind, parts[1], argv[1], rg, 11));
+  threads.emplace_back(boost::bind(fuzzyFind, parts[2], argv[1], rg, 11));
+  threads.emplace_back(boost::bind(fuzzyFind, parts[3], argv[1], rg, 11));
+
+  for(auto& t : threads) 
+    t.join();
+#endif
+  fuzzyFound = fuzzyFind(unfoundReads, fastq, rg, 11);
+
   cerr<<(boost::format("Fuzzy found: %|40t|-%10d\n")%fuzzyFound).str();
   fuzzyFound=0;
   unfoundReads.swap(stillUnfound);
