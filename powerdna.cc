@@ -207,7 +207,7 @@ void ReferenceGenome::printFastQs(uint64_t pos, FASTQReader& fastq)
     pos -= 150;
   
   string reference=snippet(pos, pos+300);
-  int insertPos=0;
+  unsigned int insertPos=0;
   for(unsigned int i = 0 ; i < 151; ++i) {
     if(i==75)
       cout << reference << endl;
@@ -333,9 +333,9 @@ int MBADiff(uint64_t pos, const FastQRead& fqr, const string& reference)
   int sn, i;
   struct varray *ses = varray_new(sizeof(struct diff_edit), NULL);
   
-  n = fqr.d_nucleotides.length();
-  m = reference.length();
-  if ((d = diff(fqr.d_nucleotides.c_str(), 0, n, reference.c_str(), 0, m, NULL, NULL, NULL, 0, ses, &sn, NULL)) == -1) {
+  n = reference.length();
+  m = fqr.d_nucleotides.length();
+  if ((d = diff(reference.c_str(), 0, n, fqr.d_nucleotides.c_str(), 0, m, NULL, NULL, NULL, 0, ses, &sn, NULL)) == -1) {
     MMNO(errno);
     printf("Error\n");
     return EXIT_FAILURE;
@@ -348,11 +348,11 @@ int MBADiff(uint64_t pos, const FastQRead& fqr, const string& reference)
       *change2=(struct diff_edit*)varray_get(ses, 3);
     
     if(match1->op == DIFF_MATCH && match2->op==DIFF_MATCH) {
-      if(change1->op == DIFF_INSERT && change2->op==DIFF_DELETE) {
+      if(change1->op == DIFF_DELETE && change2->op==DIFF_INSERT) {
 	cout << "Have delete of "<<change1->len<<" in our read at " << pos+change1->off <<endl;
 	ret=-change1->off;
       }
-      else if(change1->op == DIFF_DELETE && change2->op==DIFF_INSERT) {
+      else if(change1->op == DIFF_INSERT && change2->op==DIFF_DELETE) {
 	cout<<"Have insert of "<<change1->len<<" in our read at "<<pos+change1->off<<endl;
 	ret=change1->off;
       }
@@ -576,14 +576,20 @@ int main(int argc, char** argv)
 	if(tries)
 	  fqfrag.reverse();
 	left=fqfrag.d_nucleotides.substr(attempts*3, keylen);	middle=fqfrag.d_nucleotides.substr(50+attempts*3, keylen); right=fqfrag.d_nucleotides.substr(100+attempts*3, keylen);
-      	lpositions=rg.getReadPositions(left); mpositions=rg.getReadPositions(middle); rpositions=rg.getReadPositions(right);
-
-       	vector<tpos> together;
-	BOOST_FOREACH(uint64_t fpos, lpositions) {   together.push_back(make_pair(fpos, 'L')); }	
-	BOOST_FOREACH(uint64_t fpos, mpositions) {   together.push_back(make_pair(fpos, 'M')); }
-	BOOST_FOREACH(uint64_t fpos, rpositions) {   together.push_back(make_pair(fpos, 'R')); }
-	if(together.size() < 3) 
+      	lpositions=rg.getReadPositions(left); 
+	if(lpositions.empty())
 	  continue;
+	mpositions=rg.getReadPositions(middle); 
+	if(mpositions.empty())
+	  continue;
+	rpositions=rg.getReadPositions(right);
+
+	if(lpositions.size() + mpositions.size() + rpositions.size() < 3)
+	  continue;
+       	vector<tpos> together;
+	BOOST_FOREACH(uint64_t fpos, lpositions) { together.push_back(make_pair(fpos, 'L')); }	
+	BOOST_FOREACH(uint64_t fpos, mpositions) { together.push_back(make_pair(fpos, 'M')); }
+	BOOST_FOREACH(uint64_t fpos, rpositions) { together.push_back(make_pair(fpos, 'R')); }
 	
 	sort(together.begin(), together.end());
 
@@ -591,7 +597,7 @@ int main(int argc, char** argv)
 	  if(together[i].second=='L' && together[i+1].second=='M' && together[i+2].second=='R' && 
 	     together[i+1].first - together[i].first < 60 && together[i+2].first - together[i+1].first < 60) {
 	    uint64_t lpos, mpos, rpos;
-	    lpos=together[i].first; 	    mpos=together[i+1].first; 	    rpos=together[i+2].first;
+	    lpos=together[i].first; mpos=together[i+1].first; rpos=together[i+2].first;
 	    /*	    cout<<lpos<<together[i].second<<" - " << mpos<<together[i+1].second<<
 	      " - " << rpos<<together[i+2].second<< " (" << 
 	      mpos - lpos<< " - " << rpos - mpos <<"), reversed: "<<tries<<endl;
@@ -620,8 +626,8 @@ int main(int argc, char** argv)
 	 % unfoundReads.size() % (100.0*unfoundReads.size()/total)).str();
 
   cout<<"After: "<<endl;
-  
-  vector<uint32_t> missing{1670454,  866724,    1301900,    378768,   2282802,   1728496,  2762187, 985334, 45882};
+  /*
+  vector<uint32_t> missing{5718050, 1670454,  866724,    1301900,    378768,   2282802,   1728496,  2762187, 985334, 45882};
   for(auto i : missing) {
     cout<<i<<": "<<endl;
     rg.printFastQs(i, fastq);
@@ -631,6 +637,7 @@ int main(int argc, char** argv)
   exit(1);
   rg.printFastQs(45881, fastq);  
   rg.printFastQs(1728495, fastq);
+  */
   /*
   rg.printFastQs(5718000, fastq);  
   FILE *fp=fopen("unfound.fastq", "w");
