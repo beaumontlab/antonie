@@ -25,7 +25,7 @@
 #include "geneannotated.hh"
 #include "misc.hh"
 #include "fastq.hh"
-#include <thread>
+// #include <thread>
 #include <mba/diff.h>
 #include <mba/msgno.h>
 
@@ -65,7 +65,7 @@ public:
   {
     vector<uint64_t> ret;
     if(nucleotides.length() != d_indexlength)
-      throw runtime_error("Attempting to find fragment of length we've not indexed for");
+      throw runtime_error("Attempting to find a read of length we've not indexed for");
       
     uint32_t hashval = hash(nucleotides.c_str(), nucleotides.length(), 0);
     HashPos hp(hashval, 0);
@@ -362,7 +362,7 @@ int MBADiff(uint64_t pos, const FastQRead& fqr, const string& reference)
   if(sn > 6)
     return 0;
 
-  printf("pos %ld, d=%ld sn=%d\nUS:  %s\nREF: %s\n", pos, d, 
+  printf("pos %lld, d=%lu sn=%d\nUS:  %s\nREF: %s\n", pos, d, 
 	 sn, fqr.d_nucleotides.c_str(), reference.c_str());
 
   // should have 4 components, a MATCH, an INSERT/DELETE followed by a MATCH, followed by a DELETE/INSERT (inverse)
@@ -441,12 +441,12 @@ string DNADiff(ReferenceGenome& rg, uint64_t pos, FastQRead& fqfrag)
 void printUnmatched(ReferenceGenome& rg, const string& name)
 {
   unsigned int unmcount=0;
-  BOOST_FOREACH(Unmatched& unm, g_unm) {
+  for(Unmatched& unm : g_unm) {
     printf("%s[%d]=[", name.c_str(), unmcount++);
     for(uint64_t pos = unm.pos - 500; pos < unm.pos + 500; ++pos) {
       if(pos != unm.pos - 500) 
 	printf(", ");
-      printf("[%ld, %d]", pos, rg.d_mapping[pos].coverage);
+      printf("[%llu, %d]", pos, rg.d_mapping[pos].coverage);
     }
     printf("];\n");
   }
@@ -496,7 +496,7 @@ int fuzzyFind(const std::vector<uint64_t>& positions, FASTQReader &fastq, Refere
   typedef pair<uint64_t, char> tpos;
   vector<uint64_t> lpositions, mpositions, rpositions;
   unsigned int fuzzyFound=0;
-  BOOST_FOREACH(uint64_t pos, positions) {
+  for(uint64_t pos : positions) {
     fastq.seek(pos);
     fastq.getRead(&fqfrag);
 
@@ -516,9 +516,9 @@ int fuzzyFind(const std::vector<uint64_t>& positions, FASTQReader &fastq, Refere
 	if(lpositions.size() + mpositions.size() + rpositions.size() < 3)
 	  continue;
        	vector<tpos> together;
-	BOOST_FOREACH(uint64_t fpos, lpositions) { together.push_back(make_pair(fpos, 'L')); }	
-	BOOST_FOREACH(uint64_t fpos, mpositions) { together.push_back(make_pair(fpos, 'M')); }
-	BOOST_FOREACH(uint64_t fpos, rpositions) { together.push_back(make_pair(fpos, 'R')); }
+	for(auto fpos: lpositions) { together.push_back(make_pair(fpos, 'L')); }	
+	for(auto fpos: mpositions) { together.push_back(make_pair(fpos, 'M')); }
+	for(auto fpos: rpositions) { together.push_back(make_pair(fpos, 'R')); }
 	
 	sort(together.begin(), together.end());
 
@@ -564,7 +564,7 @@ int main(int argc, char** argv)
 
   unsigned int bytes=0;
   FastQRead fqfrag;
-  bytes=fastq.getRead(&fqfrag); // get a fragment to index based on its size
+  bytes=fastq.getRead(&fqfrag); // get a read to index based on its size
   
   ReferenceGenome rg(argv[2]);
 
@@ -587,7 +587,7 @@ int main(int argc, char** argv)
   do { 
     show_progress += bytes;
     total++;
-    BOOST_FOREACH(char c, fqfrag.d_quality) {
+    for(char c : fqfrag.d_quality) {
       double i = c-33;
       acc(i);
     }
@@ -612,8 +612,8 @@ int main(int argc, char** argv)
     }
   } while((bytes=fastq.getRead(&fqfrag)));
 
-  cerr<< (boost::format("Total fragments: %|40t| %10d") % total).str() <<endl;
-  cerr<< (boost::format("Excluded control fragments: %|40t|-%10d") % phixFound).str() <<endl;
+  cerr<< (boost::format("Total reads: %|40t| %10d") % total).str() <<endl;
+  cerr<< (boost::format("Excluded control reads: %|40t|-%10d") % phixFound).str() <<endl;
   cerr<< (boost::format("Quality excluded: %|40t|-%10d") % qualityExcluded).str() <<endl;
   cerr<< (boost::format("Ignored reads with N: %|40t|-%10d") % withAny).str()<<endl;
   cerr<< (boost::format("Full matches: %|40t|-%10d (%.02f%%)\n") % found % (100.0*found/total)).str();
@@ -754,7 +754,7 @@ int main(int argc, char** argv)
     vector<GeneAnnotation> gas=gar.lookup(iter->first);
     if(!gas.empty()) {
       cout<<fmt2<<"Annotation: ";
-      BOOST_FOREACH(const GeneAnnotation& ga, gas) {
+      for(auto& ga : gas) {
 	cout<<ga.name<<" ["<<ga.tag<<"], ";
       }
       cout<<endl;
