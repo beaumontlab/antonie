@@ -125,6 +125,9 @@ public:
   }
 
   string snippet(uint64_t start, uint64_t stop) const { 
+    if(stop > d_genome.size()) {
+      return d_genome.substr(start);
+    }
     return d_genome.substr(start, stop-start);
   }
   void printCoverage();
@@ -220,11 +223,10 @@ void ReferenceGenome::printFastQs(uint64_t pos, FASTQReader& fastq)
       if(fqm.reverse)
 	fqr.reverse();
 
-      if(fqm.indel > 0 && !insertPos) { // our read has an insert at this position
-	reference.insert(i+fqm.indel, 1, '_');
+      if(fqm.indel > 0 && !insertPos) { // our read has an insert at this position, stretch reference
+	if(i+fqm.indel < reference.size())
+	  reference.insert(i+fqm.indel, 1, '_');
 	insertPos=i+fqm.indel;
-	//	fqr.d_nucleotides.erase(fqm.indel, 1); // this makes things align again
-	//fqr.d_quality.erase(fqm.indel, 1); 
       } else if(fqm.indel < 0) {      // our read has an erase at this position
 	fqr.d_nucleotides.insert(-fqm.indel, 1, 'X');
 	fqr.d_quality.insert(-fqm.indel, 1, 'X');
@@ -549,8 +551,15 @@ int fuzzyFind(const std::vector<uint64_t>& fqpositions, FASTQReader &fastq, Refe
   for(uint64_t fqpos : fqpositions) {
     fastq.seek(fqpos);
     fastq.getRead(&fqfrag);
-
-    map<uint64_t, unsigned int> allMatches;
+    
+    struct Match 
+    {
+      Match() = default;
+      Match(unsigned int score_, bool reversed_) : score(score_), reversed(reversed_){}
+      unsigned int score;
+      bool reversed;
+    };
+    map<uint64_t, Match> allMatches;
     for(unsigned int attempts=0; attempts < 12; ++attempts) {
       for(int tries = 0; tries < 2; ++tries) {
 	if(tries)
@@ -581,7 +590,7 @@ int fuzzyFind(const std::vector<uint64_t>& fqpositions, FASTQReader &fastq, Refe
 	     
 	  score = diffScore(rg, match, fqfrag);
 	  
-	  allMatches[match] = score;
+	  allMatches[match] = Match{score, fqfrag.reversed};
 	  if(score==0) // won't get any better than this
 	    goto done;
 	}
@@ -591,20 +600,25 @@ int fuzzyFind(const std::vector<uint64_t>& fqpositions, FASTQReader &fastq, Refe
     if(!allMatches.empty()) {
       cout<<"Have "<<allMatches.size()<<" different matches"<<endl;
       if(allMatches.size()==1) {
-	cout<<"  Position "<<allMatches.begin()->first<<" had score "<<allMatches.begin()->second<<endl;
+	cout<<"  Position "<<allMatches.begin()->first<<" had score "<<allMatches.begin()->second.score<<endl;
+	if(fqfrag.reversed != allMatches.begin()->second.reversed)
+	  fqfrag.reverse();
+
 	DNADiff(rg, allMatches.begin()->first, fqfrag);
       } 
       else {
-	map<unsigned int, vector<uint64_t>> scores;
+	map<unsigned int, vector<pair<uint64_t, bool>>> scores;
 	for(auto match: allMatches) {
-	  cout<<"  Position "<<match.first<<" had score "<<match.second<<endl;
-	  scores[match.second].push_back(match.first);
+	  cout<<"  Position "<<match.first<<" had score "<<match.second.score<<endl;
+	  scores[match.second.score].push_back(make_pair(match.first, match.second.reversed));
 	}
 	
 	const auto& first = scores.begin()->second;
 	auto pick = first[random() % first.size()];
-	cout<<" Picking: "<< pick <<endl;
-	DNADiff(rg, pick, fqfrag);
+	cout<<" Picking: "<< pick.first <<endl;
+	if(fqfrag.reversed != pick.second)
+	  fqfrag.reverse();
+	DNADiff(rg, pick.first, fqfrag);
       }
       fuzzyFound++;
     }
@@ -824,5 +838,4 @@ int main(int argc, char** argv)
   }
   cerr<<"Found "<<seriouslyVariable<<" seriously variable loci"<<endl;
   exit(EXIT_SUCCESS);
-
 }
