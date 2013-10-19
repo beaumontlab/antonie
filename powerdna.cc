@@ -447,6 +447,8 @@ vector<uint64_t> getTriplets(const vector<pair<uint64_t, char>>& together, unsig
   return ret;
 }
 
+map<uint64_t, unsigned int> g_insertCounts;
+
 string DNADiff(ReferenceGenome& rg, uint64_t pos, FastQRead& fqfrag)
 {
   string diff;
@@ -470,6 +472,7 @@ string DNADiff(ReferenceGenome& rg, uint64_t pos, FastQRead& fqfrag)
       if(res > 0) { // our read has an insert at this position
 	fqfrag.d_nucleotides.erase(res, 1); // this makes things align again
 	fqfrag.d_quality.erase(res, 1); 
+	g_insertCounts[pos+res]++;
       } else {      // our read has an erase at this position
 	fqfrag.d_nucleotides.insert(-res, 1, 'X');
 	fqfrag.d_quality.insert(-res, 1, 'X');
@@ -539,16 +542,44 @@ unsigned int variabilityCount(const ReferenceGenome& rg, uint64_t position, cons
   return 100*nonDom/counts[255];
 }
 
-int fuzzyFind(std::vector<uint64_t>& fqpositions, FASTQReader &fastq, ReferenceGenome& rg, int keylen)
+
+uint64_t halfFind(const std::vector<uint64_t>& fqpositions, FASTQReader &fastq, ReferenceGenome& rg, int keylen)
 {
   boost::progress_display fuzzyProgress(fqpositions.size(), cerr);
+  vector<uint64_t> stillUnfound;
+  FastQRead fqfrag;
+  for(uint64_t fqpos : fqpositions) {
+    ++fuzzyProgress;
+    fastq.seek(fqpos);
+    fastq.getRead(&fqfrag);
+
+    if(!rg.getReadPositions(fqfrag.d_nucleotides.substr(0, keylen)).empty())
+      continue;
+    if(!rg.getReadPositions(fqfrag.d_nucleotides.substr(keylen, keylen)).empty())
+      continue;
+
+    fqfrag.reverse();
+    if(!rg.getReadPositions(fqfrag.d_nucleotides.substr(0, keylen)).empty())
+      continue;
+    if(!rg.getReadPositions(fqfrag.d_nucleotides.substr(keylen, keylen)).empty())
+      continue;
+    
+    stillUnfound.push_back(fqpos);
+  }
+  return fqpositions.size()  - stillUnfound.size();
+}
+
+
+int fuzzyFind(std::vector<uint64_t>* fqpositions, FASTQReader &fastq, ReferenceGenome& rg, int keylen)
+{
+  boost::progress_display fuzzyProgress(fqpositions->size(), cerr);
   vector<uint64_t> stillUnfound;
   FastQRead fqfrag;
   string left, middle, right;
   typedef pair<uint64_t, char> tpos;
   vector<uint64_t> lpositions, mpositions, rpositions;
   unsigned int fuzzyFound=0;
-  for(uint64_t fqpos : fqpositions) {
+  for(uint64_t fqpos : *fqpositions) {
     fastq.seek(fqpos);
     fastq.getRead(&fqfrag);
     
@@ -628,7 +659,7 @@ int fuzzyFind(std::vector<uint64_t>& fqpositions, FASTQReader &fastq, ReferenceG
 
     ++fuzzyProgress;
   }
-  stillUnfound.swap(fqpositions);
+  stillUnfound.swap(*fqpositions);
   cerr<<"\r";
   
   return fuzzyFound;
@@ -717,18 +748,25 @@ int main(int argc, char** argv)
 
   cerr<<"Performing sliding window partial matches"<<endl;
 
-  fuzzyFound = fuzzyFind(unfoundReads, fastq, rg, 11);
+  fuzzyFound = fuzzyFind(&unfoundReads, fastq, rg, 11);
 
   cerr<<(boost::format("Fuzzy found: %|40t|-%10d\n")%fuzzyFound).str();  
   cerr<<(boost::format("Unmatchable reads:%|40t|=%10d (%.2f%%)\n") 
 	 % unfoundReads.size() % (100.0*unfoundReads.size()/total)).str();
 
-  cout<<"After: "<<endl;
-  
+  /*
+  rg.index(75);
+  auto chimericFound=halfFind(unfoundReads, fastq, rg, 75);
+  cerr<<(boost::format("Probable chimeric reads:%|40t|-%10d (%.2f%%)\n") 
+	 % chimericFound % (100.0*chimericFound/total)).str();
+  */
+
   /*
   rg.printFastQs(5718000, fastq);  
+  */
+  /*
   FILE *fp=fopen("unfound.fastq", "w");
-  BOOST_FOREACH(uint64_t pos, unfoundReads) {
+  for(const auto& pos :  unfoundReads) {
     fastq.seek(pos);
     fastq.getRead(&fqfrag);
     fprintf(fp, "%s\n%s\n", fqfrag.d_nucleotides.c_str(), fqfrag.d_quality.c_str());
