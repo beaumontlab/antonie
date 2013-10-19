@@ -309,7 +309,7 @@ void ReferenceGenome::printCoverage()
   unm.pos=6407143;
   g_unm.push_back(unm);
   cerr << (boost::format("Average depth: %|40t|    %10.2f\n") % (1.0*totCoverage/d_mapping.size())).str();
-  cerr << (boost::format("Uncovered nucleotides: %|40t| %10d (%.2f%%)\n") % noCoverages % (noCoverages*100.0/d_mapping.size())).str();
+  cerr << (boost::format("Undercovered nucleotides: %|40t| %10d (%.2f%%)\n") % noCoverages % (noCoverages*100.0/d_mapping.size())).str();
 
   uint64_t total = std::accumulate(covhisto.begin(), covhisto.end(), 0);
 
@@ -539,10 +539,10 @@ unsigned int variabilityCount(const ReferenceGenome& rg, uint64_t position, cons
   return 100*nonDom/counts[255];
 }
 
-int fuzzyFind(const std::vector<uint64_t>& fqpositions, FASTQReader &fastq, ReferenceGenome& rg, int keylen)
+int fuzzyFind(std::vector<uint64_t>& fqpositions, FASTQReader &fastq, ReferenceGenome& rg, int keylen)
 {
   boost::progress_display fuzzyProgress(fqpositions.size(), cerr);
-  //FASTQReader fastq(fname);
+  vector<uint64_t> stillUnfound;
   FastQRead fqfrag;
   string left, middle, right;
   typedef pair<uint64_t, char> tpos;
@@ -622,14 +622,15 @@ int fuzzyFind(const std::vector<uint64_t>& fqpositions, FASTQReader &fastq, Refe
       }
       fuzzyFound++;
     }
+    else {
+      stillUnfound.push_back(fqpos);
+    }
+
     ++fuzzyProgress;
   }
+  stillUnfound.swap(fqpositions);
   cerr<<"\r";
-
-
-
-
-
+  
   return fuzzyFound;
 }
 
@@ -714,33 +715,11 @@ int main(int argc, char** argv)
   int keylen=11;
   rg.index(keylen);
 
-  vector<uint64_t> stillUnfound;
-
   cerr<<"Performing sliding window partial matches"<<endl;
 
-
-#if 0
-  vector<uint64_t> parts[4];
-  uint64_t chunk = unfoundReads.size()/4;
-  parts[0].assign(unfoundReads.begin(), unfoundReads.begin() + chunk);
-  parts[1].assign(unfoundReads.begin()+chunk, unfoundReads.begin() + 2*chunk);
-  parts[2].assign(unfoundReads.begin()+2*chunk, unfoundReads.begin() + 3*chunk);
-  parts[3].assign(unfoundReads.begin()+chunk, unfoundReads.end());
-
-  vector<std::thread> threads;
-  threads.emplace_back(boost::bind(fuzzyFind, parts[0], argv[1], rg, 11));
-  threads.emplace_back(boost::bind(fuzzyFind, parts[1], argv[1], rg, 11));
-  threads.emplace_back(boost::bind(fuzzyFind, parts[2], argv[1], rg, 11));
-  threads.emplace_back(boost::bind(fuzzyFind, parts[3], argv[1], rg, 11));
-
-  for(auto& t : threads) 
-    t.join();
-#endif
   fuzzyFound = fuzzyFind(unfoundReads, fastq, rg, 11);
 
-  cerr<<(boost::format("Fuzzy found: %|40t|-%10d\n")%fuzzyFound).str();
-  fuzzyFound=0;
-  unfoundReads.swap(stillUnfound);
+  cerr<<(boost::format("Fuzzy found: %|40t|-%10d\n")%fuzzyFound).str();  
   cerr<<(boost::format("Unmatchable reads:%|40t|=%10d (%.2f%%)\n") 
 	 % unfoundReads.size() % (100.0*unfoundReads.size()/total)).str();
 
