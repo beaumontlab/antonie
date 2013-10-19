@@ -76,7 +76,7 @@ public:
 
     for(;range.first != range.second; range.first++) {
       if(!memcmp(d_genome.c_str() + range.first->d_pos, nucleotides.c_str(), nucleotides.length())) {
-	ret.push_back(range.first->d_pos);
+        ret.push_back(range.first->d_pos);
       }
     }
     return ret;
@@ -90,9 +90,9 @@ public:
       positions = getReadPositions(fq->d_nucleotides);
 
       if(!positions.empty()) {
-	int rpos=random() % positions.size();
-	cover(positions[rpos], fq->d_nucleotides.size(), fq->d_quality);
-	return positions[rpos];
+        int rpos=random() % positions.size();
+        cover(positions[rpos], fq->d_nucleotides.size(), fq->d_quality);
+        return positions[rpos];
       }
       fq->reverse();
     }
@@ -104,7 +104,7 @@ public:
     const char* p = quality.c_str();
     for(unsigned int i = 0; i < length; ++i) {
       if(p[i]-33 > 30)
-	d_mapping[pos+i].coverage++;
+        d_mapping[pos+i].coverage++;
     }
   }
 
@@ -221,36 +221,36 @@ void ReferenceGenome::printFastQs(uint64_t pos, FASTQReader& fastq)
       FastQRead fqr;
       fastq.getRead(&fqr);
       if(fqm.reverse)
-	fqr.reverse();
+        fqr.reverse();
 
       if(fqm.indel > 0 && !insertPos) { // our read has an insert at this position, stretch reference
-	if(i+fqm.indel < reference.size())
-	  reference.insert(i+fqm.indel, 1, '_');
-	insertPos=i+fqm.indel;
+        if(i+fqm.indel < reference.size())
+          reference.insert(i+fqm.indel, 1, '_');
+        insertPos=i+fqm.indel;
       } else if(fqm.indel < 0) {      // our read has an erase at this position
-	fqr.d_nucleotides.insert(-fqm.indel, 1, 'X');
-	fqr.d_quality.insert(-fqm.indel, 1, 'X');
+        fqr.d_nucleotides.insert(-fqm.indel, 1, 'X');
+        fqr.d_quality.insert(-fqm.indel, 1, 'X');
       }
       
       if(fqm.indel <= 0 && insertPos && i > insertPos) {
-	fqr.d_nucleotides.insert(0, 1, '<');
-	fqr.d_quality.insert(0, 1, 'X');
+        fqr.d_nucleotides.insert(0, 1, '<');
+        fqr.d_quality.insert(0, 1, 'X');
       }
       cout << spacer;
       int offset=0;
       for(unsigned int j = 0 ; j < fqr.d_nucleotides.size() && i + j + offset < reference.size(); ++j) {
-	if(reference[i+j]=='_' && !fqm.indel) {
-	  cout<<'_';
-	  offset=1;
-	}
-	if(reference[i+j+offset]==fqr.d_nucleotides[j])
-	  cout<<'.';
-	else if(fqr.d_quality[j] > '@') 
-	  cout << fqr.d_nucleotides[j];
-	else if(fqr.d_quality[j] < '7') 
-	  cout << ' ';
-	else
-	  cout<< (char)tolower(fqr.d_nucleotides[j]);
+        if(reference[i+j]=='_' && !fqm.indel) {
+          cout<<'_';
+          offset=1;
+        }
+        if(reference[i+j+offset]==fqr.d_nucleotides[j])
+          cout<<'.';
+        else if(fqr.d_quality[j] > '@') 
+          cout << fqr.d_nucleotides[j];
+        else if(fqr.d_quality[j] < '7') 
+          cout << ' ';
+        else
+          cout<< (char)tolower(fqr.d_nucleotides[j]);
       }
       cout<<"                 "<<(fqm.reverse ? 'R' : ' ');
       cout<<endl;
@@ -290,12 +290,12 @@ void ReferenceGenome::printCoverage()
     
     if(!noCov && wasNul) {
       if(prevNulpos > 40 && pos + 40 < d_genome.length()) {
-	Unmatched unm;
-	unm.left = d_genome.substr(prevNulpos-40, 40);
-	unm.right = d_genome.substr(pos, 40);
-	unm.unmatched = d_genome.substr(prevNulpos, pos-prevNulpos);
-	unm.pos = prevNulpos;
-	g_unm.push_back(unm);
+        Unmatched unm;
+        unm.left = d_genome.substr(prevNulpos-40, 40);
+        unm.right = d_genome.substr(pos, 40);
+        unm.unmatched = d_genome.substr(prevNulpos, pos-prevNulpos);
+        unm.pos = prevNulpos;
+        g_unm.push_back(unm);
       }
       wasNul=false;
     }
@@ -355,18 +355,18 @@ int MBADiff(uint64_t pos, const FastQRead& fqr, const string& reference)
     
     if(match1->op == DIFF_MATCH && match2->op==DIFF_MATCH) {
       if(change1->op == DIFF_DELETE && change2->op==DIFF_INSERT) {
-	cout << "Have delete of "<<change1->len<<" in our read at " << pos+change1->off <<endl;
-	ret=-change1->off;
+        cout << "Have delete of "<<change1->len<<" in our read at " << pos+change1->off <<endl;
+        ret=-change1->off;
       }
       else if(change1->op == DIFF_INSERT && change2->op==DIFF_DELETE) {
-	cout<<"Have insert of "<<change1->len<<" in our read at "<<pos+change1->off<<endl;
-	ret=change1->off;
+        cout<<"Have insert of "<<change1->len<<" in our read at "<<pos+change1->off<<endl;
+        ret=change1->off;
       }
     }
   }
  
   printf("pos %" PRId64 ", d=%" PRIu64 " sn=%d\nUS:  %s\nREF: %s\n", pos, d, 
-	 sn, fqr.d_nucleotides.c_str(), reference.c_str());
+         sn, fqr.d_nucleotides.c_str(), reference.c_str());
 
   if(sn > 6)
     return 0;
@@ -428,11 +428,11 @@ vector<uint64_t> getTriplets(const vector<pair<uint64_t, char>>& together, unsig
       lpos=together[i].first; 
 
       if(lpos < shift)
-	continue;
+        continue;
       
       ret.push_back(lpos-shift);
     }
-  }	    
+  }         
   if(doPrint) {
     for(auto i : together) {
       cout<<i.first<<i.second<<" ";
@@ -470,12 +470,12 @@ string DNADiff(ReferenceGenome& rg, uint64_t pos, FastQRead& fqfrag)
       rg.mapFastQ(pos, fqfrag, res);
       diffcount=1;
       if(res > 0) { // our read has an insert at this position
-	fqfrag.d_nucleotides.erase(res, 1); // this makes things align again
-	fqfrag.d_quality.erase(res, 1); 
-	g_insertCounts[pos+res]++;
+        fqfrag.d_nucleotides.erase(res, 1); // this makes things align again
+        fqfrag.d_quality.erase(res, 1); 
+        g_insertCounts[pos+res]++;
       } else {      // our read has an erase at this position
-	fqfrag.d_nucleotides.insert(-res, 1, 'X');
-	fqfrag.d_quality.insert(-res, 1, 'X');
+        fqfrag.d_nucleotides.insert(-res, 1, 'X');
+        fqfrag.d_quality.insert(-res, 1, 'X');
       }
     }
   }
@@ -484,7 +484,7 @@ string DNADiff(ReferenceGenome& rg, uint64_t pos, FastQRead& fqfrag)
     if(fqfrag.d_nucleotides[i] != reference[i]) {
       diff.append(1, fqfrag.d_quality[i] > '@' ? '!' : '^');
       if(fqfrag.d_quality[i]>'@' && diffcount < 5 && ( (!fqfrag.reversed && i > 14) || (fqfrag.reversed && i < (150-14) ) ) ) 
-	locimap[pos+i].samples.push_back(boost::make_tuple(fqfrag.d_nucleotides[i], fqfrag.d_quality[i], fqfrag.reversed ^ (i>75))); // head or tail
+        locimap[pos+i].samples.push_back(boost::make_tuple(fqfrag.d_nucleotides[i], fqfrag.d_quality[i], fqfrag.reversed ^ (i>75))); // head or tail
     }
     else {
       diff.append(1, ' ');
@@ -505,10 +505,10 @@ void printUnmatched(ReferenceGenome& rg, FASTQReader& fastq, const string& name)
     printf("%s[%d]=[", name.c_str(), unmcount++);
     for(uint64_t pos = unm.pos - 500; pos < unm.pos + 500; ++pos) {
       if(pos != unm.pos - 500) 
-	printf(", ");
+        printf(", ");
       printf("[%" PRIu64", %d]", pos, rg.d_mapping[pos].coverage);
     }
-    printf("];\n%ld:\n", unm.pos);
+    printf("];\n%" PRId64 ":\n", unm.pos);
     rg.printFastQs(unm.pos, fastq);
   }
   cout<<endl;
@@ -593,63 +593,63 @@ int fuzzyFind(std::vector<uint64_t>* fqpositions, FASTQReader &fastq, ReferenceG
     map<uint64_t, Match> allMatches;
     for(unsigned int attempts=0; attempts < 12; ++attempts) {
       for(int tries = 0; tries < 2; ++tries) {
-	if(tries)
-	  fqfrag.reverse();
-	left=fqfrag.d_nucleotides.substr(attempts*3, keylen);	middle=fqfrag.d_nucleotides.substr(50+attempts*3, keylen); right=fqfrag.d_nucleotides.substr(100+attempts*3, keylen);
-      	lpositions=rg.getReadPositions(left); 
-	if(lpositions.empty())
-	  continue;
-	mpositions=rg.getReadPositions(middle); 
-	if(mpositions.empty())
-	  continue;
-	rpositions=rg.getReadPositions(right);
+        if(tries)
+          fqfrag.reverse();
+        left=fqfrag.d_nucleotides.substr(attempts*3, keylen);   middle=fqfrag.d_nucleotides.substr(50+attempts*3, keylen); right=fqfrag.d_nucleotides.substr(100+attempts*3, keylen);
+        lpositions=rg.getReadPositions(left); 
+        if(lpositions.empty())
+          continue;
+        mpositions=rg.getReadPositions(middle); 
+        if(mpositions.empty())
+          continue;
+        rpositions=rg.getReadPositions(right);
 
-	if(lpositions.size() + mpositions.size() + rpositions.size() < 3)
-	  continue;
-       	vector<tpos> together;
-	for(auto fpos: lpositions) { together.push_back(make_pair(fpos, 'L')); }	
-	for(auto fpos: mpositions) { together.push_back(make_pair(fpos, 'M')); }
-	for(auto fpos: rpositions) { together.push_back(make_pair(fpos, 'R')); }
-	
-	sort(together.begin(), together.end());
+        if(lpositions.size() + mpositions.size() + rpositions.size() < 3)
+          continue;
+        vector<tpos> together;
+        for(auto fpos: lpositions) { together.push_back(make_pair(fpos, 'L')); }        
+        for(auto fpos: mpositions) { together.push_back(make_pair(fpos, 'M')); }
+        for(auto fpos: rpositions) { together.push_back(make_pair(fpos, 'R')); }
+        
+        sort(together.begin(), together.end());
 
-	auto matches=getTriplets(together, 3*attempts);
-	int score;
-	for(auto match : matches) {
-	  if(allMatches.count(match))
-	    continue;
-	     
-	  score = diffScore(rg, match, fqfrag);
-	  
-	  allMatches[match] = Match{score, fqfrag.reversed};
-	  if(score==0) // won't get any better than this
-	    goto done;
-	}
+        auto matches=getTriplets(together, 3*attempts);
+        int score;
+        for(auto match : matches) {
+          if(allMatches.count(match))
+            continue;
+             
+          score = diffScore(rg, match, fqfrag);
+          
+          allMatches[match] = Match{score, fqfrag.reversed};
+          if(score==0) // won't get any better than this
+            goto done;
+        }
       }
     }
   done:;
     if(!allMatches.empty()) {
       cout<<"Have "<<allMatches.size()<<" different matches"<<endl;
       if(allMatches.size()==1) {
-	cout<<"  Position "<<allMatches.begin()->first<<" had score "<<allMatches.begin()->second.score<<endl;
-	if(fqfrag.reversed != allMatches.begin()->second.reversed)
-	  fqfrag.reverse();
+        cout<<"  Position "<<allMatches.begin()->first<<" had score "<<allMatches.begin()->second.score<<endl;
+        if(fqfrag.reversed != allMatches.begin()->second.reversed)
+          fqfrag.reverse();
 
-	DNADiff(rg, allMatches.begin()->first, fqfrag);
+        DNADiff(rg, allMatches.begin()->first, fqfrag);
       } 
       else {
-	map<unsigned int, vector<pair<uint64_t, bool>>> scores;
-	for(auto match: allMatches) {
-	  cout<<"  Position "<<match.first<<" had score "<<match.second.score<<endl;
-	  scores[match.second.score].push_back(make_pair(match.first, match.second.reversed));
-	}
-	
-	const auto& first = scores.begin()->second;
-	auto pick = first[random() % first.size()];
-	cout<<" Picking: "<< pick.first <<endl;
-	if(fqfrag.reversed != pick.second)
-	  fqfrag.reverse();
-	DNADiff(rg, pick.first, fqfrag);
+        map<unsigned int, vector<pair<uint64_t, bool>>> scores;
+        for(auto match: allMatches) {
+          cout<<"  Position "<<match.first<<" had score "<<match.second.score<<endl;
+          scores[match.second.score].push_back(make_pair(match.first, match.second.reversed));
+        }
+        
+        const auto& first = scores.begin()->second;
+        auto pick = first[random() % first.size()];
+        cout<<" Picking: "<< pick.first <<endl;
+        if(fqfrag.reversed != pick.second)
+          fqfrag.reverse();
+        DNADiff(rg, pick.first, fqfrag);
       }
       fuzzyFound++;
     }
@@ -714,11 +714,11 @@ int main(int argc, char** argv)
     pos = rg.getReadPosBoth(&fqfrag);
     if(pos == string::npos ) {
       if(phix.getReadPosBoth(&fqfrag)!=string::npos) {
-	phixFound++;
+        phixFound++;
       }
       else {
-	unfoundReads.push_back(fqfrag.position);
-	notFound++;
+        unfoundReads.push_back(fqfrag.position);
+        notFound++;
       }
     }
     else {
@@ -752,13 +752,13 @@ int main(int argc, char** argv)
 
   cerr<<(boost::format("Fuzzy found: %|40t|-%10d\n")%fuzzyFound).str();  
   cerr<<(boost::format("Unmatchable reads:%|40t|=%10d (%.2f%%)\n") 
-	 % unfoundReads.size() % (100.0*unfoundReads.size()/total)).str();
+         % unfoundReads.size() % (100.0*unfoundReads.size()/total)).str();
 
   /*
   rg.index(75);
   auto chimericFound=halfFind(unfoundReads, fastq, rg, 75);
   cerr<<(boost::format("Probable chimeric reads:%|40t|-%10d (%.2f%%)\n") 
-	 % chimericFound % (100.0*chimericFound/total)).str();
+         % chimericFound % (100.0*chimericFound/total)).str();
   */
 
   /*
@@ -808,33 +808,33 @@ int main(int argc, char** argv)
 
     seriouslyVariable++;
     for(vector<boost::tuple<char,char,char> >::const_iterator j = iter->second.samples.begin(); 
-	j != iter->second.samples.end(); ++j) {
+        j != iter->second.samples.end(); ++j) {
       c=j->get<0>();
       switch(c) {
       case 'A':
-	aCount++;
-	break;
+        aCount++;
+        break;
       case 'C':
-	cCount++;
-	break;
+        cCount++;
+        break;
       case 'T':
-	tCount++;
-	break;
+        tCount++;
+        break;
       case 'G':
-	gCount++;
-	break;
+        gCount++;
+        break;
       }
       
       cout<<c;
     }
     cout<<endl<<fmt2;
     for(vector<boost::tuple<char,char,char> >::const_iterator j = iter->second.samples.begin(); 
-	j != iter->second.samples.end(); ++j) {
+        j != iter->second.samples.end(); ++j) {
       cout<<j->get<1>();
     }
     cout<<endl<<fmt2;
     for(vector<boost::tuple<char,char,char> >::const_iterator j = iter->second.samples.begin(); 
-	j != iter->second.samples.end(); ++j) {
+        j != iter->second.samples.end(); ++j) {
       cout<< (j->get<2>() ? 'R' : '.');
     }
 
@@ -844,7 +844,7 @@ int main(int argc, char** argv)
     if(!gas.empty()) {
       cout<<fmt2<<"Annotation: ";
       for(auto& ga : gas) {
-	cout<<ga.name<<" ["<<ga.tag<<"], ";
+        cout<<ga.name<<" ["<<ga.tag<<"], ";
       }
       cout<<endl;
     }
@@ -854,5 +854,24 @@ int main(int argc, char** argv)
     rg.printFastQs(iter->first, fastq);
   }
   cerr<<"Found "<<seriouslyVariable<<" seriously variable loci"<<endl;
+  cerr<<"Found "<<g_insertCounts.size()<<" loci with at least one insert in a read"<<endl;
+  struct revsort
+  {
+    bool operator()(const unsigned int&a, const unsigned int&b) const
+    { return a > b;} 
+  };
+  map<unsigned int, vector<uint64_t>, revsort> topInserts;
+  unsigned int seriousInserts=0;
+  for(const auto& insloc : g_insertCounts) {
+    topInserts[insloc.second].push_back(insloc.first);
+    if(insloc.second > 10)
+      seriousInserts++;
+  }
+  cerr<<"Found "<<seriousInserts<<" serious inserts"<<endl;
+
+  for(const auto& insert : topInserts) {
+    for(const auto& position : insert.second)
+      cout<<position<<"\t"<<insert.first<<" inserts"<<endl;
+  }
   exit(EXIT_SUCCESS);
 }
