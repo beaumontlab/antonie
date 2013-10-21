@@ -1,6 +1,7 @@
 #include "fastq.hh"
 #include <stdint.h>
 #include <algorithm>
+#include <string.h>
 #include "misc.hh"
 
 using namespace std;
@@ -42,7 +43,7 @@ unsigned int FASTQReader::getRead(FastQRead* fq, unsigned int size)
   sfgets(line, sizeof(line), d_fp);
   sfgets(line, sizeof(line), d_fp);
   chomp(line);
-  fq->d_quality.assign(line);
+  fq->d_quality=line;
   fq->reversed=0;
   fq->position=pos;
   return ftell(d_fp) - pos;
