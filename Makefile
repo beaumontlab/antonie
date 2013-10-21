@@ -1,6 +1,6 @@
-CXXFLAGS=-Wall -I. -Iext/libmba  -MMD -O3 -std=gnu++0x -pthread
+CXXFLAGS=-Wall -I. -Iext/libmba  -MMD -O3 -std=gnu++0x -std=c++11 -stdlib=libc++ -pthread
 CFLAGS=-I. -Iext/libmba -O3 -MMD -pthread
-
+LDFLAGS=-stdlib=libc++
 all: powerdna 16ssearcher
 
 -include *.d
@@ -19,5 +19,3 @@ powerdna: $(POWERDNA_OBJECTS)
 clean:
 	rm -f *~ *.o *.d powerdna
 
-report.html: report-header.html data report-footer.html
-	cat report-header.html data report-footer.html > $@	

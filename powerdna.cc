@@ -23,6 +23,7 @@
 #include <boost/accumulators/statistics/median.hpp>
 #include <boost/tuple/tuple_comparison.hpp>
 #include <boost/tuple/tuple.hpp>
+#include <memory>
 #include "geneannotated.hh"
 #include "misc.hh"
 #include "fastq.hh"
@@ -132,7 +133,7 @@ public:
     }
     return d_genome.substr(start, stop-start);
   }
-  void printCoverage();
+  void printCoverage(FILE* jsfp);
   void index(int length);
   void printFastQs(dnapos_t pos, FASTQReader& fastq);
   vector<GenomeLocusMapping> d_mapping;
@@ -288,7 +289,7 @@ vector<uint32_t> ReferenceGenome::getMatchingHashes(const vector<uint32_t>& hash
 }
 vector<Unmatched> g_unm;
 
-void ReferenceGenome::printCoverage()
+void ReferenceGenome::printCoverage(FILE* jsfp)
 {
   uint64_t totCoverage=0, noCoverages=0;
   unsigned int cov;
@@ -301,7 +302,7 @@ void ReferenceGenome::printCoverage()
 
   for(string::size_type pos = 0; pos < d_mapping.size(); ++pos) {
     cov = d_mapping[pos].coverage;
-    bool noCov = cov < 5;
+    bool noCov = cov < 2;
     covhisto[cov]++;
     totCoverage += cov;
 
@@ -335,14 +336,14 @@ void ReferenceGenome::printCoverage()
 
   uint64_t total = std::accumulate(covhisto.begin(), covhisto.end(), 0);
 
-  cout<<"var histo=[";
+  fprintf(jsfp, "var histo=[");
   for(unsigned int i = 0; i < 250; i++ ) 
   {
     if(i)
-      cout<<',';
-    std::cout << '['<< i << ',' << 1.0*covhisto[i]/total << ']';
+      fputc(',', jsfp);
+    fprintf(jsfp, "[%u, %f]", i, 1.0*covhisto[i]/total);
   }
-  cout<<"];\n";
+  fprintf(jsfp,"];\n");
 }
 
 
@@ -520,20 +521,20 @@ string DNADiff(ReferenceGenome& rg, dnapos_t pos, FastQRead& fqfrag)
 }
 
 
-void printUnmatched(ReferenceGenome& rg, FASTQReader& fastq, const string& name)
+void printUnmatched(FILE*fp, ReferenceGenome& rg, FASTQReader& fastq, const string& name)
 {
   unsigned int unmcount=0;
   for(auto& unm : g_unm) {
-    printf("%s[%d]=[", name.c_str(), unmcount++);
+    fprintf(fp, "%s[%d]=[", name.c_str(), unmcount++);
     for(dnapos_t pos = unm.pos - 500; pos < unm.pos + 500; ++pos) {
       if(pos != unm.pos - 500) 
-        printf(", ");
-      printf("[%d, %d]", pos, rg.d_mapping[pos].coverage);
+        fprintf(fp, ", ");
+      fprintf(fp, "[%d, %d]", pos, rg.d_mapping[pos].coverage);
     }
-    printf("];\n%d:\n", unm.pos);
-    rg.printFastQs(unm.pos, fastq);
+    fprintf(fp,"];\n");
+    //rg.printFastQs(unm.pos, fastq);
   }
-  cout<<endl;
+  fputs("\n", fp);
 }
 
 unsigned int variabilityCount(const ReferenceGenome& rg, dnapos_t position, const LociStats& lc, double* fraction)
@@ -691,6 +692,8 @@ int fuzzyFind(std::vector<uint64_t>* fqpositions, FASTQReader &fastq, ReferenceG
 int main(int argc, char** argv)
 {
   srandom(time(0));
+  
+
   if(argc!=3) {
     fprintf(stderr, "Syntax: powerdna fastqfile fastafile\n");
     exit(EXIT_FAILURE);
@@ -715,6 +718,8 @@ int main(int argc, char** argv)
   dnapos_t pos;
 
   uint64_t withAny=0, found=0, notFound=0, total=0, qualityExcluded=0, fuzzyFound=0, phixFound=0;
+
+  unique_ptr<FILE, int(*)(FILE*)> jsfp(fopen("data.js","w"), fclose);
 
   cerr<<"Performing exact matches of reads to reference genome"<<endl;
   boost::progress_display show_progress( filesize(argv[1]), cerr);
@@ -779,10 +784,10 @@ int main(int argc, char** argv)
   cerr << (boost::format("Mean Q: %|40t|    %10.2f\n") % mean(acc)).str();
   cerr << (boost::format("Median Q: %|40t|    %10.2f\n") % median(acc)).str();
 
-  rg.printCoverage();
+  rg.printCoverage(jsfp.get());
   rg.printFastQs(45881, fastq);  
   
-  printUnmatched(rg, fastq, "perfect");
+  printUnmatched(jsfp.get(), rg, fastq, "perfect");
   cout<<"---------"<<endl;
 
   int keylen=11;
@@ -816,7 +821,7 @@ int main(int argc, char** argv)
   fclose(fp);
   */
   cout<<"After sliding matching: "<<endl;
-  printUnmatched(rg, fastq, "fuzzy");
+  printUnmatched(jsfp.get(), rg, fastq, "fuzzy");
 
   cerr<<"Found "<<locimap.size()<<" varying loci"<<endl;
   uint64_t seriouslyVariable=0;
@@ -911,10 +916,14 @@ int main(int argc, char** argv)
       seriousInserts++;
   }
   cerr<<"Found "<<seriousInserts<<" serious inserts"<<endl;
-
+  
   for(const auto& insert : topInserts) {
-    for(const auto& position : insert.second)
+    if(insert.first < 5)
+      break;
+    for(const auto& position : insert.second) {
       cout<<position<<"\t"<<insert.first<<" inserts"<<endl;
+      rg.printFastQs(position, fastq);
+    }
   }
   exit(EXIT_SUCCESS);
 }
