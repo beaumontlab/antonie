@@ -1,6 +1,8 @@
-CXXFLAGS=-Wall -I. -Iext/libmba  -MMD -O3 -std=gnu++0x -std=c++11 -stdlib=libc++ -pthread
+-include sysdeps/$(shell uname).inc
+
+CXXFLAGS=-Wall -I. -Iext/libmba  -MMD -O3 $(CXX2011FLAGS) -pthread
 CFLAGS=-I. -Iext/libmba -O3 -MMD -pthread
-LDFLAGS=-stdlib=libc++
+LDFLAGS=$(CXX2011FLAGS)
 all: powerdna 16ssearcher
 
 -include *.d
