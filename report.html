@@ -20,6 +20,7 @@ body {
 <body>
 <div id="graphs">
 <div id="histo"></div></br>
+<div id="quality"></div></br>
 </div>
 </id>
 </body>
@@ -28,6 +29,7 @@ body {
 var perfect=[];
 var fuzzy=[];
 var histo=[];
+var qualities=[];
 </script>
 
 
@@ -38,7 +40,7 @@ $(document).ready(function(){
 var plotoptions={
 	axes:{yaxis:{min:0}}, 
 	series:[ {color:'#1FAB78', showMarker: false, shadow: false, label: 'Depth'}, 
-		{color:'#FF0078', showMarker: false, shadow: false, label:  'Depth'}], 
+		{color:'#FF0078', showMarker: false, shadow: false, label:  'Fuzzy Depth'}], 
 	legend: {show: true},
 	highlighter: {
 			show: true, 
@@ -53,7 +55,7 @@ var plotoptions={
   
 for(n=0; n < perfect.length; ++n) {
 	$("#graphs").append('<div id="unm'+n+'"></div><br/>');
-	plotoptions.title="Unmatched region "+n; 
+	plotoptions.title="Undermatched region "+n; 
 	$.jqplot('unm'+n,  [perfect[n],fuzzy[n]], plotoptions); 
 }
  
@@ -61,6 +63,11 @@ for(n=0; n < perfect.length; ++n) {
 plotoptions.title="Histogram of depth";
 plotoptions.series[0].label="Frequency";
 $.jqplot('histo', [histo], plotoptions);
+
+plotoptions.title="Distribution of Quality";
+plotoptions.series[0].label="Quality";
+$.jqplot('quality', [qualities], plotoptions);
+
  
 });
 </script>

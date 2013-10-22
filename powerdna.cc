@@ -17,10 +17,9 @@
 #include <boost/format.hpp>
 #include <boost/bind.hpp>
 #include <boost/accumulators/accumulators.hpp>
-#include <boost/accumulators/statistics/density.hpp>
 #include <boost/accumulators/statistics/stats.hpp>
 #include <boost/accumulators/statistics/mean.hpp>
-#include <boost/accumulators/statistics/median.hpp>
+#include <boost/accumulators/statistics/moment.hpp>
 #include <boost/tuple/tuple_comparison.hpp>
 #include <boost/tuple/tuple.hpp>
 #include <memory>
@@ -308,7 +307,6 @@ void ReferenceGenome::printCoverage(FILE* jsfp)
 
     if(noCov) {
       noCoverages++;
-
     }
     
     if(!noCov && wasNul) {
@@ -328,11 +326,8 @@ void ReferenceGenome::printCoverage(FILE* jsfp)
     }
   }
 
-  Unmatched unm;
-  unm.pos=6407143;
-  g_unm.push_back(unm);
   cerr << (boost::format("Average depth: %|40t|    %10.2f\n") % (1.0*totCoverage/d_mapping.size())).str();
-  cerr << (boost::format("Undercovered nucleotides: %|40t| %10d (%.2f%%)\n") % noCoverages % (noCoverages*100.0/d_mapping.size())).str();
+  cerr << (boost::format("Undercovered nucleotides: %|40t| %10d (%.2f%%), %d ranges\n") % noCoverages % (noCoverages*100.0/d_mapping.size()) % g_unm.size()).str();
 
   uint64_t total = std::accumulate(covhisto.begin(), covhisto.end(), 0);
 
@@ -378,18 +373,18 @@ int MBADiff(dnapos_t pos, const FastQRead& fqr, const string& reference)
     
     if(match1->op == DIFF_MATCH && match2->op==DIFF_MATCH) {
       if(change1->op == DIFF_DELETE && change2->op==DIFF_INSERT) {
-        cout << "Have delete of "<<change1->len<<" in our read at " << pos+change1->off <<endl;
+	//        cout << "Have delete of "<<change1->len<<" in our read at " << pos+change1->off <<endl;
         ret=-change1->off;
       }
       else if(change1->op == DIFF_INSERT && change2->op==DIFF_DELETE) {
-        cout<<"Have insert of "<<change1->len<<" in our read at "<<pos+change1->off<<endl;
+	//        cout<<"Have insert of "<<change1->len<<" in our read at "<<pos+change1->off<<endl;
         ret=change1->off;
       }
     }
   }
  
-  printf("pos %u, d=%lu sn=%d\nUS:  %s\nREF: %s\n", pos, d, 
-         sn, fqr.d_nucleotides.c_str(), reference.c_str());
+  //  printf("pos %u, d=%lu sn=%d\nUS:  %s\nREF: %s\n", pos, d, 
+  //     sn, fqr.d_nucleotides.c_str(), reference.c_str());
 
   if(sn > 6)
     return 0;
@@ -402,19 +397,19 @@ int MBADiff(dnapos_t pos, const FastQRead& fqr, const string& reference)
 
     switch (e->op) {
     case DIFF_MATCH:
-      printf("MAT: ");
-      fwrite(fqr.d_nucleotides.c_str() + e->off, 1, e->len, stdout);
+      //      printf("MAT: ");
+      //      fwrite(fqr.d_nucleotides.c_str() + e->off, 1, e->len, stdout);
       break;
     case DIFF_INSERT:
-      printf("INS: ");
-      fwrite(reference.c_str() + e->off, 1, e->len, stdout);
+      //      printf("INS: ");
+      //      fwrite(reference.c_str() + e->off, 1, e->len, stdout);
       break;
     case DIFF_DELETE:
-      printf("DEL: ");
-      fwrite(fqr.d_nucleotides.c_str() + e->off, 1, e->len, stdout);
+      //      printf("DEL: ");
+      //      fwrite(fqr.d_nucleotides.c_str() + e->off, 1, e->len, stdout);
       break;
     }
-    printf("\n");
+    //    printf("\n");
   }
   varray_del(ses);
   return ret;
@@ -443,8 +438,6 @@ vector<dnapos_t> getTriplets(const vector<pair<dnapos_t, char>>& together, unsig
   vector<dnapos_t> ret;
   bool doPrint=false;
   for(unsigned int i = 0; i < together.size() - 2; ++i) {
-    if(2863073 < together[i].first && together[i].first < 2863273)
-      doPrint=true;
     if(together[i].second=='L' && together[i+1].second=='M' && together[i+2].second=='R' && 
        together[i+1].first - together[i].first < 60 && together[i+2].first - together[i+1].first < 60) {
       dnapos_t lpos;
@@ -535,6 +528,7 @@ void printUnmatched(FILE*fp, ReferenceGenome& rg, FASTQReader& fastq, const stri
     //rg.printFastQs(unm.pos, fastq);
   }
   fputs("\n", fp);
+  fflush(fp);
 }
 
 unsigned int variabilityCount(const ReferenceGenome& rg, dnapos_t position, const LociStats& lc, double* fraction)
@@ -652,9 +646,9 @@ int fuzzyFind(std::vector<uint64_t>* fqpositions, FASTQReader &fastq, ReferenceG
     }
   done:;
     if(!allMatches.empty()) {
-      cout<<"Have "<<allMatches.size()<<" different matches"<<endl;
+      //      cout<<"Have "<<allMatches.size()<<" different matches"<<endl;
       if(allMatches.size()==1) {
-        cout<<"  Position "<<allMatches.begin()->first<<" had score "<<allMatches.begin()->second.score<<endl;
+        // cout<<"  Position "<<allMatches.begin()->first<<" had score "<<allMatches.begin()->second.score<<endl;
         if(fqfrag.reversed != allMatches.begin()->second.reversed)
           fqfrag.reverse();
 
@@ -663,13 +657,13 @@ int fuzzyFind(std::vector<uint64_t>* fqpositions, FASTQReader &fastq, ReferenceG
       else {
         map<unsigned int, vector<pair<dnapos_t, bool>>> scores;
         for(auto match: allMatches) {
-          cout<<"  Position "<<match.first<<" had score "<<match.second.score<<endl;
+	  //          cout<<"  Position "<<match.first<<" had score "<<match.second.score<<endl;
           scores[match.second.score].push_back(make_pair(match.first, match.second.reversed));
         }
         
         const auto& first = scores.begin()->second;
         auto pick = first[random() % first.size()];
-        cout<<" Picking: "<< pick.first <<endl;
+	//        cout<<" Picking: "<< pick.first <<endl;
         if(fqfrag.reversed != pick.second)
           fqfrag.reverse();
         DNADiff(rg, pick.first, fqfrag);
@@ -688,6 +682,31 @@ int fuzzyFind(std::vector<uint64_t>* fqpositions, FASTQReader &fastq, ReferenceG
   return fuzzyFound;
 }
 
+typedef vector<accumulator_set<double, stats<tag::mean, tag::moment<2> > > > qstats_t;
+
+void printQualities(FILE* jsfp, const qstats_t& qstats)
+{
+  int i=0;
+  fprintf(jsfp, "qualities=[");
+  for(const auto& q : qstats) {
+    if(i)
+      fputs(",", jsfp);
+    fprintf(jsfp, "[%d, %f]", i, mean(q));
+    ++i;
+  }
+  fputs("];\n", jsfp);
+
+  i=0;
+  fprintf(jsfp, "qhilo=[");
+  for(const auto& q : qstats) {
+    if(i++)
+      fputs(",", jsfp);
+    fprintf(jsfp, "[%f, %f]", mean(q)-sqrt(moment<2>(q)), mean(q)+sqrt(moment<2>(q)));
+  }
+  fputs("];\n", jsfp);
+  fflush(jsfp);
+      
+}
 
 int main(int argc, char** argv)
 {
@@ -723,37 +742,21 @@ int main(int argc, char** argv)
 
   cerr<<"Performing exact matches of reads to reference genome"<<endl;
   boost::progress_display show_progress( filesize(argv[1]), cerr);
-
-  accumulator_set<double, stats<tag::mean, tag::median > > acc;
+ 
+  qstats_t qstats;
+  qstats.resize(fqfrag.d_nucleotides.size());
+  accumulator_set<double, stats<tag::mean, tag::moment<2> > > qstat;
 
   vector<uint64_t> unfoundReads;
-#if 0
-  vector<uint32_t> hashes;
-
   do { 
     show_progress += bytes;
     total++;
-
-    //    uint32_t hashed = hash(fqfrag.d_nucleotides.c_str(), fqfrag.d_nucleotides.length(), 0);
-    //hashes.push_back(hashed);
-
-  } while((bytes=fastq.getRead(&fqfrag)));
-
-  sort(hashes.begin(), hashes.end());
-
-  vector<uint32_t> matchingHashes = rg.getMatchingHashes(hashes);
-  cerr<<"Read "<<hashes.size()<<" hashes, found "<<matchingHashes.size()<<" possible matches"<<endl;
-#endif 
-#if 1  
-  do { 
-    show_progress += bytes;
-    total++;
-    /*
-    for(char c : fqfrag.d_quality) {
-      double i = c-33;
-      acc(i);
+    for(string::size_type pos = 0 ; pos < fqfrag.d_quality.size(); ++pos) {
+      double i = fqfrag.d_quality[pos]-33;
+      qstat(i);
+      qstats[pos](i);
     }
-    */
+    
     if(fqfrag.d_nucleotides.find('N') != string::npos) {
       withAny++;
       continue;
@@ -773,20 +776,19 @@ int main(int argc, char** argv)
       found++;
     }
   } while((bytes=fastq.getRead(&fqfrag)));
-#endif
-  cerr<< (boost::format("Total reads: %|40t| %10d (%.2f gigabps)") % total % (total*fqfrag.d_nucleotides.length()/1000000000.0)).str() <<endl;
-  cerr<< (boost::format("Excluded control reads: %|40t|-%10d") % phixFound).str() <<endl;
-  cerr<< (boost::format("Quality excluded: %|40t|-%10d") % qualityExcluded).str() <<endl;
-  cerr<< (boost::format("Ignored reads with N: %|40t|-%10d") % withAny).str()<<endl;
-  cerr<< (boost::format("Full matches: %|40t|-%10d (%.02f%%)\n") % found % (100.0*found/total)).str();
-  cerr<< (boost::format("Not found: %|40t|=%10d (%.02f%%)\n") % notFound % (notFound*100.0/total)).str();
 
-  cerr << (boost::format("Mean Q: %|40t|    %10.2f\n") % mean(acc)).str();
-  cerr << (boost::format("Median Q: %|40t|    %10.2f\n") % median(acc)).str();
+  cerr << (boost::format("Total reads: %|40t| %10d (%.2f gigabps)") % total % (total*fqfrag.d_nucleotides.length()/1000000000.0)).str() <<endl;
+  cerr << (boost::format("Excluded control reads: %|40t|-%10d") % phixFound).str() <<endl;
+  cerr << (boost::format("Quality excluded: %|40t|-%10d") % qualityExcluded).str() <<endl;
+  cerr << (boost::format("Ignored reads with N: %|40t|-%10d") % withAny).str()<<endl;
+  cerr << (boost::format("Full matches: %|40t|-%10d (%.02f%%)\n") % found % (100.0*found/total)).str();
+  cerr << (boost::format("Not fully matched: %|40t|=%10d (%.02f%%)\n") % notFound % (notFound*100.0/total)).str();
+
+  cerr << (boost::format("Mean Q: %|40t|    %10.2f +- %.2f\n") % mean(qstat) % sqrt(moment<2>(qstat))).str();
 
   rg.printCoverage(jsfp.get());
-  rg.printFastQs(45881, fastq);  
   
+  printQualities(jsfp.get(), qstats);
   printUnmatched(jsfp.get(), rg, fastq, "perfect");
   cout<<"---------"<<endl;
 
