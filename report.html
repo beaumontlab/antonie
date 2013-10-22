@@ -18,9 +18,10 @@ body {
 </head>
 
 <body>
-<div id="graphs">
+<div id="graphs" style="width:700px;">
 <div id="histo"></div></br>
 <div id="quality"></div></br>
+<div id="qhisto"></div></br>
 </div>
 </id>
 </body>
@@ -38,7 +39,7 @@ var qualities=[];
 <script>
 $(document).ready(function(){
 var plotoptions={
-	axes:{yaxis:{min:0}}, 
+	axes:{yaxis:{min:0}, xaxis:{}}, 
 	series:[ {color:'#1FAB78', showMarker: false, shadow: false, label: 'Depth'}, 
 		{color:'#FF0078', showMarker: false, shadow: false, label:  'Fuzzy Depth'}], 
 	legend: {show: true},
@@ -64,9 +65,20 @@ plotoptions.title="Histogram of depth";
 plotoptions.series[0].label="Frequency";
 $.jqplot('histo', [histo], plotoptions);
 
+plotoptions.axes.xaxis.min=0;
+plotoptions.axes.xaxis.max=150;
+plotoptions.title="Reported quality per offset of read";
+plotoptions.series[0].label="Reported Q-score";
+plotoptions.series[1].label="Actual Q-score";
+$.jqplot('quality', [qualities,correct], plotoptions);
+
 plotoptions.title="Distribution of Quality";
 plotoptions.series[0].label="Quality";
-$.jqplot('quality', [qualities], plotoptions);
+
+plotoptions.axes.xaxis.min=0;
+plotoptions.axes.xaxis.max=42;
+
+$.jqplot('qhisto', [qhisto], plotoptions);
 
  
 });

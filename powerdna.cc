@@ -15,7 +15,7 @@
 #include <errno.h>
 #include <math.h>
 #include <boost/format.hpp>
-#include <boost/bind.hpp>
+#include <array>
 #include <boost/accumulators/accumulators.hpp>
 #include <boost/accumulators/statistics/stats.hpp>
 #include <boost/accumulators/statistics/mean.hpp>
@@ -30,13 +30,12 @@
 #include <mba/diff.h>
 #include <mba/msgno.h>
 
-using namespace boost;
+using namespace std;
 using namespace boost::accumulators;
 
 extern "C" {
 #include "hash.h"
 }
-using namespace std;
 
 typedef uint32_t dnapos_t;
 unsigned int dnanpos = (uint32_t) -1;
@@ -464,12 +463,23 @@ vector<dnapos_t> getTriplets(const vector<pair<dnapos_t, char>>& together, unsig
 }
 
 map<dnapos_t, unsigned int> g_insertCounts;
+vector<unsigned int> g_correctMappings(150), g_wrongMappings(150);
+
+void printCorrectMappings(FILE* jsfp)
+{
+  fprintf(jsfp, "var correct=[");
+  for(unsigned int i=0; i< 150;++i) {
+    double total=g_correctMappings[i]+g_wrongMappings[i];
+    double error=g_wrongMappings[i]/total;
+    double qscore=-10*log(error)/log(10);
+    fprintf(jsfp, "%s[%d,%.2f]", i ? "," : "", i, qscore);
+    cout<<"total "<<total<<", error: "<<error<<", qscore: "<<qscore<<endl;
+  }
+  fprintf(jsfp,"];");
+}
 
 string DNADiff(ReferenceGenome& rg, dnapos_t pos, FastQRead& fqfrag)
 {
-  string diff;
-  diff.reserve(fqfrag.d_nucleotides.length());
-
   string reference = rg.snippet(pos, pos + fqfrag.d_nucleotides.length());
 
   int diffcount=0;
@@ -495,21 +505,32 @@ string DNADiff(ReferenceGenome& rg, dnapos_t pos, FastQRead& fqfrag)
       }
     }
   }
-  //  cout<<"US:  "<<fqfrag.d_nucleotides<<endl<<"DIF: ";
+
+  string diff;
+  diff.reserve(fqfrag.d_nucleotides.length());
+
   for(string::size_type i = 0; i < fqfrag.d_nucleotides.size() && i < reference.size();++i) {
     if(fqfrag.d_nucleotides[i] != reference[i]) {
       diff.append(1, fqfrag.d_quality[i] > '@' ? '!' : '^');
       if(fqfrag.d_quality[i]>'@' && diffcount < 5 && ( (!fqfrag.reversed && i > 14) || (fqfrag.reversed && i < (150-14) ) ) ) 
         locimap[pos+i].samples.push_back(boost::make_tuple(fqfrag.d_nucleotides[i], fqfrag.d_quality[i], fqfrag.reversed ^ (i>75))); // head or tail
+      
+      if(diffcount < 5)
+	g_wrongMappings[fqfrag.reversed ?  (149-i) : i]++;
     }
     else {
       diff.append(1, ' ');
       rg.cover(pos+i,fqfrag.d_quality[i]);
+      if(diffcount < 5)
+	g_correctMappings[fqfrag.reversed ?  (149-i) : i]++;
     }
   }
-
-  //  cout<<diff<<endl<<"REF: "<<b<<endl;
-  //  cout<<"QUA: "<<fqfrag.d_quality<<endl;
+  if(diffcount > 5) {
+    cout<<"US:  "<<fqfrag.d_nucleotides<<endl<<"DIF: ";
+    cout<<diff<<endl<<"REF: "<<reference<<endl;
+    cout<<"QUA: "<<fqfrag.d_quality<<endl;
+    cout<<endl;
+  }
   return diff;
 }
 
@@ -746,15 +767,16 @@ int main(int argc, char** argv)
   qstats_t qstats;
   qstats.resize(fqfrag.d_nucleotides.size());
   accumulator_set<double, stats<tag::mean, tag::moment<2> > > qstat;
-
+  vector<unsigned int> qcounts(256);
   vector<uint64_t> unfoundReads;
   do { 
     show_progress += bytes;
     total++;
     for(string::size_type pos = 0 ; pos < fqfrag.d_quality.size(); ++pos) {
-      double i = fqfrag.d_quality[pos]-33;
+      unsigned int i = fqfrag.d_quality[pos]-33;
       qstat(i);
       qstats[pos](i);
+      qcounts[i]++;
     }
     
     if(fqfrag.d_nucleotides.find('N') != string::npos) {
@@ -777,7 +799,15 @@ int main(int argc, char** argv)
     }
   } while((bytes=fastq.getRead(&fqfrag)));
 
-  cerr << (boost::format("Total reads: %|40t| %10d (%.2f gigabps)") % total % (total*fqfrag.d_nucleotides.length()/1000000000.0)).str() <<endl;
+  uint64_t totNucleotides=total*fqfrag.d_nucleotides.length();
+  fprintf(jsfp.get(), "qhisto=[");
+  for(int c=0; c < 255; ++c) {
+    fprintf(jsfp.get(), "%s[%d,%f]", c ? "," : "", (int)c, 1.0*qcounts[c]/totNucleotides);
+  }
+  fprintf(jsfp.get(),"];");
+
+
+  cerr << (boost::format("Total reads: %|40t| %10d (%.2f gigabps)") % total % (totNucleotides/1000000000.0)).str() <<endl;
   cerr << (boost::format("Excluded control reads: %|40t|-%10d") % phixFound).str() <<endl;
   cerr << (boost::format("Quality excluded: %|40t|-%10d") % qualityExcluded).str() <<endl;
   cerr << (boost::format("Ignored reads with N: %|40t|-%10d") % withAny).str()<<endl;
@@ -785,6 +815,10 @@ int main(int argc, char** argv)
   cerr << (boost::format("Not fully matched: %|40t|=%10d (%.02f%%)\n") % notFound % (notFound*100.0/total)).str();
 
   cerr << (boost::format("Mean Q: %|40t|    %10.2f +- %.2f\n") % mean(qstat) % sqrt(moment<2>(qstat))).str();
+
+  for(auto& i : g_correctMappings) {
+    i=found;
+  }
 
   rg.printCoverage(jsfp.get());
   
@@ -824,6 +858,8 @@ int main(int argc, char** argv)
   */
   cout<<"After sliding matching: "<<endl;
   printUnmatched(jsfp.get(), rg, fastq, "fuzzy");
+
+  printCorrectMappings(jsfp.get());
 
   cerr<<"Found "<<locimap.size()<<" varying loci"<<endl;
   uint64_t seriouslyVariable=0;
