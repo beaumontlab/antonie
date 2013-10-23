@@ -41,7 +41,9 @@ $(document).ready(function(){
 var plotoptions={
 	axes:{yaxis:{min:0}, xaxis:{}}, 
 	series:[ {color:'#1FAB78', showMarker: false, shadow: false, label: 'Depth'}, 
-		{color:'#FF0078', showMarker: false, shadow: false, label:  'Fuzzy Depth'}], 
+		{color:'#FF0078', showMarker: false, shadow: false, label:  'Fuzzy Depth'},
+		{color:'#00FF78', showMarker: false, shadow: false, label:  'Control'},
+		], 
 	legend: {show: true},
 	highlighter: {
 			show: true, 
@@ -70,7 +72,8 @@ plotoptions.axes.xaxis.max=150;
 plotoptions.title="Reported quality per offset of read";
 plotoptions.series[0].label="Reported Q-score";
 plotoptions.series[1].label="Actual Q-score";
-$.jqplot('quality', [qualities,correct], plotoptions);
+plotoptions.series[2].label="Control Q-score";
+$.jqplot('quality', [qualities,referenceQ,controlQ], plotoptions);
 
 plotoptions.title="Distribution of Quality";
 plotoptions.series[0].label="Quality";

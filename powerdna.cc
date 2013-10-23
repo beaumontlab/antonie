@@ -135,9 +135,11 @@ public:
   void index(int length);
   void printFastQs(dnapos_t pos, FASTQReader& fastq);
   vector<GenomeLocusMapping> d_mapping;
+  vector<unsigned int> d_correctMappings, d_wrongMappings;
 private:
   unsigned int d_indexlength;
   string d_genome;
+
 
   struct HashPos {
     HashPos(uint32_t hash_, dnapos_t pos) : d_hash(hash_), d_pos(pos)
@@ -162,7 +164,9 @@ ReferenceGenome::ReferenceGenome(const string& fname)
   if(!fp)
     throw runtime_error("Unable to open reference genome file '"+fname+"'");
   d_genome.reserve(filesize(fname.c_str()));  // slight overestimate which is great
-  
+  d_correctMappings.resize(150);
+  d_wrongMappings.resize(150);
+
   char line[256]="";
 
   sfgets(line, sizeof(line), fp);
@@ -463,19 +467,18 @@ vector<dnapos_t> getTriplets(const vector<pair<dnapos_t, char>>& together, unsig
 }
 
 map<dnapos_t, unsigned int> g_insertCounts;
-vector<unsigned int> g_correctMappings(150), g_wrongMappings(150);
 
-void printCorrectMappings(FILE* jsfp)
+void printCorrectMappings(FILE* jsfp, const ReferenceGenome& rg, const std::string& name)
 {
-  fprintf(jsfp, "var correct=[");
+  fprintf(jsfp, "var %s=[", name.c_str());
   for(unsigned int i=0; i< 150;++i) {
-    double total=g_correctMappings[i]+g_wrongMappings[i];
-    double error=g_wrongMappings[i]/total;
+    double total=rg.d_correctMappings[i] + rg.d_wrongMappings[i];
+    double error= rg.d_wrongMappings[i]/total;
     double qscore=-10*log(error)/log(10);
     fprintf(jsfp, "%s[%d,%.2f]", i ? "," : "", i, qscore);
     cout<<"total "<<total<<", error: "<<error<<", qscore: "<<qscore<<endl;
   }
-  fprintf(jsfp,"];");
+  fprintf(jsfp,"];\n");
 }
 
 string DNADiff(ReferenceGenome& rg, dnapos_t pos, FastQRead& fqfrag)
@@ -516,13 +519,13 @@ string DNADiff(ReferenceGenome& rg, dnapos_t pos, FastQRead& fqfrag)
         locimap[pos+i].samples.push_back(boost::make_tuple(fqfrag.d_nucleotides[i], fqfrag.d_quality[i], fqfrag.reversed ^ (i>75))); // head or tail
       
       if(diffcount < 5)
-	g_wrongMappings[fqfrag.reversed ?  (149-i) : i]++;
+	rg.d_wrongMappings[fqfrag.reversed ?  (149-i) : i]++;
     }
     else {
       diff.append(1, ' ');
       rg.cover(pos+i,fqfrag.d_quality[i]);
       if(diffcount < 5)
-	g_correctMappings[fqfrag.reversed ?  (149-i) : i]++;
+	rg.d_correctMappings[fqfrag.reversed ?  (149-i) : i]++;
     }
   }
   if(diffcount > 5) {
@@ -816,8 +819,12 @@ int main(int argc, char** argv)
 
   cerr << (boost::format("Mean Q: %|40t|    %10.2f +- %.2f\n") % mean(qstat) % sqrt(moment<2>(qstat))).str();
 
-  for(auto& i : g_correctMappings) {
+  for(auto& i : rg.d_correctMappings) {
     i=found;
+  }
+
+  for(auto& i : phix.d_correctMappings) {
+    i=phixFound;
   }
 
   rg.printCoverage(jsfp.get());
@@ -828,10 +835,13 @@ int main(int argc, char** argv)
 
   int keylen=11;
   rg.index(keylen);
+  phix.index(keylen);
 
   cerr<<"Performing sliding window partial matches"<<endl;
 
   fuzzyFound = fuzzyFind(&unfoundReads, fastq, rg, 11);
+  auto fuzzyPhixFound = fuzzyFind(&unfoundReads, fastq, phix, 11);
+  cerr<<fuzzyPhixFound<<" fuzzy @ phix"<<endl;
 
   cerr<<(boost::format("Fuzzy found: %|40t|-%10d\n")%fuzzyFound).str();  
   cerr<<(boost::format("Unmatchable reads:%|40t|=%10d (%.2f%%)\n") 
@@ -859,8 +869,8 @@ int main(int argc, char** argv)
   cout<<"After sliding matching: "<<endl;
   printUnmatched(jsfp.get(), rg, fastq, "fuzzy");
 
-  printCorrectMappings(jsfp.get());
-
+  printCorrectMappings(jsfp.get(), rg, "referenceQ");
+  printCorrectMappings(jsfp.get(), phix, "controlQ");
   cerr<<"Found "<<locimap.size()<<" varying loci"<<endl;
   uint64_t seriouslyVariable=0;
   boost::format fmt1("%-10d: %3d*%c ");
