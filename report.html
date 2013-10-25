@@ -1,12 +1,11 @@
 <html>
 <head>
-<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+<script type="text/javascript" src="ext/jquery.min.js"></script>
 <script type="text/javascript" src="ext/jquery.jqplot.min.js"></script>
 <script type="text/javascript" src="ext/plugins/jqplot.highlighter.min.js"></script>
 
 <link rel="stylesheet" type="text/css" href="ext/jquery.jqplot.min.css" />
 <script type="text/javascript" src="ext/plugins/jqplot.cursor.min.js"></script>
-<link rel="stylesheet" type="text/css" href="ext/examples/examples.min.css" />
 
 <style type="text/css">
 body {
@@ -14,10 +13,18 @@ body {
 	font-size: 14px;
 	margin: 1.2em;
 }
+
+.dna p {
+	font-family: Courier;
+	font-size: 6px;
+	margin: 1.2em;
+	white-space: pre;
+}
 </style>
 </head>
 
 <body>
+<div id="log"></div>
 <div id="graphs" style="width:700px;">
 <div id="histo"></div></br>
 <div id="quality"></div></br>
@@ -25,10 +32,8 @@ body {
 </div>
 </id>
 </body>
-
 <script>
-var perfect=[];
-var fuzzy=[];
+var region=[];
 var histo=[];
 var qualities=[];
 </script>
@@ -56,10 +61,10 @@ var plotoptions={
 	       } 
 	 };
   
-for(n=0; n < perfect.length; ++n) {
-	$("#graphs").append('<div id="unm'+n+'"></div><br/>');
-	plotoptions.title="Undermatched region "+n; 
-	$.jqplot('unm'+n,  [perfect[n],fuzzy[n]], plotoptions); 
+for(n=0; n < region.length; ++n) {
+	$("#graphs").append('<div id="region'+n+'"></div><br/>'+region[n].annotations+'<br/><div class="dna"><p>'+region[n].picture+"</p></div><hr/>");
+	plotoptions.title=region[n].name+" "+n+" ["+region[n].pos+"]"; 
+	$.jqplot('region'+n,  [region[n].depth], plotoptions); 
 }
  
 // plotoptions.axes.xaxis.min=0;
@@ -82,7 +87,7 @@ plotoptions.axes.xaxis.min=0;
 plotoptions.axes.xaxis.max=42;
 
 $.jqplot('qhisto', [qhisto], plotoptions);
-
+$("#log").html("<pre>"+powerdnaLog+"</pre>");
  
 });
 </script>
