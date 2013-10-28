@@ -25,6 +25,7 @@ body {
 
 <body>
 <div id="log"></div>
+<div id="toc"></div>
 <div id="graphs" style="width:700px;">
 <div id="histo"></div></br>
 <div id="quality"></div></br>
@@ -60,13 +61,17 @@ var plotoptions={
 	        showTooltip:false
 	       } 
 	 };
-  
+
+var table='<table border="1" cellpadding="4"><tr><th>Type</th><th>Locus</th><th>Annotation(s)</th></tr>';
+
 for(n=0; n < region.length; ++n) {
-	$("#graphs").append('<div id="region'+n+'"></div><br/>'+region[n].annotations+'<br/><div class="dna"><p>'+region[n].picture+"</p></div><hr/>");
+	$("#graphs").append('<a id="anchor'+n+'"></a><div id="region'+n+'"></div><br/>'+region[n].annotations+'<br/><div class="dna"><p>'+region[n].picture+"</p></div><hr/>");
 	plotoptions.title=region[n].name+" "+n+" ["+region[n].pos+"]"; 
 	$.jqplot('region'+n,  [region[n].depth], plotoptions); 
+	table+=('<tr><td><a href="#anchor'+n+'">'+region[n].name+' '+n+'</a></td><td>'+region[n].pos+'</td><td>'+region[n].annotations+'</td></tr>');
 }
- 
+$("#toc").html(table+"</table>");
+
 // plotoptions.axes.xaxis.min=0;
 plotoptions.title="Histogram of depth";
 plotoptions.series[0].label="Frequency";
