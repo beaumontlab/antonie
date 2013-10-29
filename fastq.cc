@@ -6,6 +6,13 @@
 
 using namespace std;
 
+FASTQReader::FASTQReader(const std::string& str) 
+{
+  d_fp = fopen(str.c_str(), "r");
+  if(!d_fp) 
+    throw std::runtime_error("Unable to open file '"+str+"' for FASTQ input");
+}
+
 bool FastQRead::exceedsQuality(unsigned int limit)
 {
   uint8_t q;

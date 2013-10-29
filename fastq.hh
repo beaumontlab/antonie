@@ -18,12 +18,7 @@ struct FastQRead
 class FASTQReader
 {
 public:
-  FASTQReader(const std::string& str) 
-  {
-    d_fp = fopen(str.c_str(), "r");
-    if(!d_fp) 
-      throw std::runtime_error("Unable to open file "+str+" for FASTQ inpuot");
-  }
+  FASTQReader(const std::string& str);
 
   void seek(uint64_t pos) 
   {
