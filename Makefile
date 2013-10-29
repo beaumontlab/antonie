@@ -2,7 +2,7 @@
 
 CXXFLAGS=-Wall -I. -Iext/libmba  -MMD -O3 $(CXX2011FLAGS) -pthread
 CFLAGS=-I. -Iext/libmba -O3 -MMD -pthread
-LDFLAGS=$(CXX2011FLAGS)
+LDFLAGS=$(CXX2011FLAGS) -lboost_program_options
 all: powerdna 16ssearcher
 
 -include *.d
@@ -13,7 +13,7 @@ strdiff: strdiff.o ext/libmba/libdiff.a
 	gcc strdiff.o ext/libmba/libdiff.a
 
 powerdna: $(POWERDNA_OBJECTS)
-	g++ $(LDFLAGS) $(POWERDNA_OBJECTS) -pthread -o $@
+	g++  $(POWERDNA_OBJECTS) $(LDFLAGS) -o $@
 
 16ssearcher: 16ssearcher.o hash.o misc.o fastq.o
 	g++ $(LDFLAGS) 16ssearcher.o hash.o misc.o fastq.o -lz -o $@

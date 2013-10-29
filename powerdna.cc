@@ -1,3 +1,6 @@
+/* (C) 2013 TU Delft
+   (C) 2013 Netherlabs Computer Consulting BV */
+
 #define __STDC_FORMAT_MACROS
 #include <stdio.h>
 #include <iostream>
@@ -24,6 +27,7 @@
 #include <boost/accumulators/statistics/moment.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/tuple/tuple_comparison.hpp>
+#include <boost/program_options.hpp>
 #include <boost/tuple/tuple.hpp>
 #include <memory>
 #include <sstream>
@@ -49,6 +53,8 @@ namespace io = boost::iostreams;
 typedef io::tee_device<std::ostream, std::ostringstream> TeeDevice;
 typedef io::stream< TeeDevice > TeeStream;
 TeeStream* g_log;
+
+namespace po = boost::program_options;
 
 struct FASTQMapping
 {
@@ -739,36 +745,50 @@ void printQualities(FILE* jsfp, const qstats_t& qstats)
   }
   fputs("];\n", jsfp);
   fflush(jsfp);
-      
 }
 
 int main(int argc, char** argv)
 {
+  po::options_description desc("Allowed options"), alloptions;
+  desc.add_options()
+    ("annotations,a", po::value<string>(),"read annotations for reference genome from this file")
+    ("reference,r", po::value<string>(), "read FASTA reference genome from this file")
+    ("fastq,f", po::value<string>(), "read FASTQ reads from sequencer from this file")
+    ("exclude,x", po::value<string>(), "Filter out reads that map to this FASTA")
+    ("help,h", "produce help message")
+    ("verbose,v", "be verbose");
+
+  alloptions.add(desc);
+  po::variables_map vm;
+  po::store(po::command_line_parser(argc, argv).options(alloptions).run(), vm);
+
+  po::notify(vm);
+
+  if(vm.count("help")) {
+    cout<<desc<<endl;
+    exit(EXIT_SUCCESS);
+  }
+
   srandom(time(0));
   ostringstream jsonlog;  
   TeeDevice td(cerr, jsonlog);
-
   g_log = new TeeStream(td);
 
-  if(argc!=3) {
-    fprintf(stderr, "Syntax: powerdna fastqfile fastafile\n");
-    exit(EXIT_FAILURE);
-  }
-  GeneAnnotationReader gar("NC_012660.csv");
+  GeneAnnotationReader gar(vm["annotations"].as<string>());
   (*g_log)<<"Done reading "<<gar.size()<<" annotations"<<endl;
   
-  FASTQReader fastq(argv[1]);
+  FASTQReader fastq(vm["fastq"].as<string>());
 
   unsigned int bytes=0;
   FastQRead fqfrag;
   bytes=fastq.getRead(&fqfrag); // get a read to index based on its size
   
-  ReferenceGenome rg(argv[2]);
+  ReferenceGenome rg(vm["reference"].as<string>());
 
   rg.index(fqfrag.d_nucleotides.size());
 
   (*g_log)<<"Loading positive control filter genome(s)"<<endl;
-  ReferenceGenome phix("phi-x174.fasta");
+  ReferenceGenome phix(vm["exclude"].as<string>());
   phix.index(fqfrag.d_nucleotides.size());
 
   dnapos_t pos;
@@ -778,7 +798,7 @@ int main(int argc, char** argv)
   unique_ptr<FILE, int(*)(FILE*)> jsfp(fopen("data.js","w"), fclose);
 
   (*g_log)<<"Performing exact matches of reads to reference genome"<<endl;
-  boost::progress_display show_progress( filesize(argv[1]), cerr);
+  boost::progress_display show_progress(filesize(vm["fastq"].as<string>().c_str()), cerr);
  
   qstats_t qstats;
   qstats.resize(fqfrag.d_nucleotides.size());
