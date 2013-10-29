@@ -2,6 +2,7 @@
    (C) 2013 Netherlabs Computer Consulting BV */
 
 #define __STDC_FORMAT_MACROS
+#include <tclap/CmdLine.h>
 #include <stdio.h>
 #include <iostream>
 #include <stdint.h>
@@ -29,7 +30,6 @@
 #include <boost/accumulators/statistics/moment.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/tuple/tuple_comparison.hpp>
-#include <boost/program_options.hpp>
 #include <boost/tuple/tuple.hpp>
 #include <memory>
 #include <sstream>
@@ -55,8 +55,6 @@ namespace io = boost::iostreams;
 typedef io::tee_device<std::ostream, std::ostringstream> TeeDevice;
 typedef io::stream< TeeDevice > TeeStream;
 TeeStream* g_log;
-
-namespace po = boost::program_options;
 
 struct FASTQMapping
 {
@@ -751,48 +749,39 @@ void printQualities(FILE* jsfp, const qstats_t& qstats)
 
 int main(int argc, char** argv)
 {
-  po::options_description desc("Allowed options"), alloptions;
-  desc.add_options()
-    ("annotations,a", po::value<string>()->default_value(""),"read annotations for reference genome from this file")
-    ("reference,r", po::value<string>(), "read FASTA reference genome from this file")
-    ("fastq,f", po::value<string>(), "read FASTQ reads from sequencer from this file")
-    ("exclude,x", po::value<string>(), "Filter out reads that map to this FASTA")
-    ("help,h", "produce help message")
-    ("verbose,v", "be verbose");
+  TCLAP::CmdLine cmd("Command description message", ' ', "0.9");
 
-  alloptions.add(desc);
-  po::variables_map vm;
-  po::store(po::command_line_parser(argc, argv).options(alloptions).run(), vm);
+  TCLAP::ValueArg<std::string> annotationsArg("a","annotations","read annotations for reference genome from this file",false, "", "filename", cmd);
+  TCLAP::ValueArg<std::string> referenceArg("r","reference","read annotations for reference genome from this file",true,"","string", cmd);
+  TCLAP::ValueArg<std::string> fastqArg("f","fastq","read annotations for reference genome from this file",true,"","string", cmd);
+  TCLAP::ValueArg<std::string> excludeArg("x","exclude","read annotations for reference genome from this file",false,"","string", cmd);
+  //TCLAP::SwitchArg helpSwitch("h","help","Print a helpful message", cmd, false);
 
-  po::notify(vm);
+  cmd.parse( argc, argv );
 
-  if(vm.count("help") || vm["reference"].empty() || vm["fastq"].empty()) {
-    cout<<desc<<endl;
-    exit(EXIT_SUCCESS);
-  }
-
+  
   srandom(time(0));
   ostringstream jsonlog;  
   TeeDevice td(cerr, jsonlog);
   g_log = new TeeStream(td);
 
-  GeneAnnotationReader gar(vm["annotations"].as<string>());
+  GeneAnnotationReader gar(annotationsArg.getValue());
   (*g_log)<<"Done reading "<<gar.size()<<" annotations"<<endl;
   
-  FASTQReader fastq(vm["fastq"].as<string>());
+  FASTQReader fastq(fastqArg.getValue());
 
   unsigned int bytes=0;
   FastQRead fqfrag;
   bytes=fastq.getRead(&fqfrag); // get a read to index based on its size
   
-  ReferenceGenome rg(vm["reference"].as<string>());
+  ReferenceGenome rg(referenceArg.getValue());
 
   rg.index(fqfrag.d_nucleotides.size());
   
   unique_ptr<ReferenceGenome> phix;
 
-  if(!vm["exclude"].empty()) {
-    phix = unique_ptr<ReferenceGenome>{new ReferenceGenome(vm["exclude"].as<string>())};
+  if(!excludeArg.getValue().empty()) {
+    phix = unique_ptr<ReferenceGenome>{new ReferenceGenome(excludeArg.getValue())};
     
     (*g_log)<<"Loading positive control filter genome(s)"<<endl;
     
@@ -806,7 +795,7 @@ int main(int argc, char** argv)
   unique_ptr<FILE, int(*)(FILE*)> jsfp(fopen("data.js","w"), fclose);
 
   (*g_log)<<"Performing exact matches of reads to reference genome"<<endl;
-  boost::progress_display show_progress(filesize(vm["fastq"].as<string>().c_str()), cerr);
+  boost::progress_display show_progress(filesize(fastqArg.getValue().c_str()), cerr);
  
   qstats_t qstats;
   qstats.resize(fqfrag.d_nucleotides.size());
