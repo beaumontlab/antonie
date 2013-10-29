@@ -6,10 +6,12 @@
 #include <iostream>
 #include <stdint.h>
 #include <map>
+#include <unordered_map>
 #include <vector>
 #include <string>
 #include <string.h>
 #include <stdexcept>
+#include <forward_list>
 #include <inttypes.h>
 #include <boost/progress.hpp>
 #include <algorithm>
@@ -34,7 +36,7 @@
 #include "geneannotated.hh"
 #include "misc.hh"
 #include "fastq.hh"
-// #include <thread>
+
 #include <mba/diff.h>
 #include <mba/msgno.h>
 
@@ -67,7 +69,7 @@ struct FASTQMapping
 struct GenomeLocusMapping
 {
   GenomeLocusMapping() : coverage(0) {}
-  vector<FASTQMapping> d_fastqs;
+  forward_list<FASTQMapping> d_fastqs;
   unsigned int coverage;
 };
 
@@ -143,7 +145,7 @@ public:
     fqm.pos=fqfrag.position;
     fqm.reverse = fqfrag.reversed;
     fqm.indel = indel;
-    d_mapping[pos].d_fastqs.push_back(fqm);
+    d_mapping[pos].d_fastqs.push_front(fqm);
     //    cout<<"Adding mapping at pos "<<pos<<", indel = "<<indel<<", reverse= "<<fqm.reverse<<endl;
   }
 
@@ -165,9 +167,9 @@ public:
     vector<boost::tuple<char,char,char>> samples;
   };
 
-  typedef map<dnapos_t, LociStats> locimap_t;
+  typedef unordered_map<dnapos_t, LociStats> locimap_t;
   locimap_t d_locimap;
-  map<dnapos_t, unsigned int> d_insertCounts;
+  unordered_map<dnapos_t, unsigned int> d_insertCounts;
 private:
   unsigned int d_indexlength;
   string d_genome;
@@ -751,7 +753,7 @@ int main(int argc, char** argv)
 {
   po::options_description desc("Allowed options"), alloptions;
   desc.add_options()
-    ("annotations,a", po::value<string>(),"read annotations for reference genome from this file")
+    ("annotations,a", po::value<string>()->default_value(""),"read annotations for reference genome from this file")
     ("reference,r", po::value<string>(), "read FASTA reference genome from this file")
     ("fastq,f", po::value<string>(), "read FASTQ reads from sequencer from this file")
     ("exclude,x", po::value<string>(), "Filter out reads that map to this FASTA")
@@ -764,7 +766,7 @@ int main(int argc, char** argv)
 
   po::notify(vm);
 
-  if(vm.count("help")) {
+  if(vm.count("help") || vm["reference"].empty() || vm["fastq"].empty()) {
     cout<<desc<<endl;
     exit(EXIT_SUCCESS);
   }
@@ -786,10 +788,16 @@ int main(int argc, char** argv)
   ReferenceGenome rg(vm["reference"].as<string>());
 
   rg.index(fqfrag.d_nucleotides.size());
+  
+  unique_ptr<ReferenceGenome> phix;
 
-  (*g_log)<<"Loading positive control filter genome(s)"<<endl;
-  ReferenceGenome phix(vm["exclude"].as<string>());
-  phix.index(fqfrag.d_nucleotides.size());
+  if(!vm["exclude"].empty()) {
+    phix = unique_ptr<ReferenceGenome>{new ReferenceGenome(vm["exclude"].as<string>())};
+    
+    (*g_log)<<"Loading positive control filter genome(s)"<<endl;
+    
+    phix->index(fqfrag.d_nucleotides.size());
+  }
 
   dnapos_t pos;
 
@@ -821,7 +829,7 @@ int main(int argc, char** argv)
     }
     pos = rg.getReadPosBoth(&fqfrag);
     if(pos == dnanpos ) {
-      if(phix.getReadPosBoth(&fqfrag)!=dnanpos) {
+      if(phix && phix->getReadPosBoth(&fqfrag)!=dnanpos) {
         phixFound++;
       }
       else {
@@ -856,8 +864,10 @@ int main(int argc, char** argv)
     i=found;
   }
 
-  for(auto& i : phix.d_correctMappings) {
-    i=phixFound;
+  if(phix) {
+    for(auto& i : phix->d_correctMappings) {
+      i=phixFound;
+    }
   }
 
   rg.printCoverage(jsfp.get());
@@ -867,12 +877,15 @@ int main(int argc, char** argv)
 
   int keylen=11;
   rg.index(keylen);
-  phix.index(keylen);
+  if(phix)
+    phix->index(keylen);
 
   (*g_log)<<"Performing sliding window partial matches"<<endl;
 
   fuzzyFound = fuzzyFind(&unfoundReads, fastq, rg, 11);
-  auto fuzzyPhixFound = fuzzyFind(&unfoundReads, fastq, phix, 11);
+  uint32_t fuzzyPhixFound = 0;
+  if(phix)
+    fuzzyPhixFound=fuzzyFind(&unfoundReads, fastq, *phix, 11);
   // (*g_log)<<fuzzyPhixFound<<" fuzzy @ phix"<<endl;
 
   (*g_log)<<(boost::format("Fuzzy found: %|40t|-%10d\n")%fuzzyFound).str();  
@@ -888,7 +901,8 @@ int main(int argc, char** argv)
   }
 
   printCorrectMappings(jsfp.get(), rg, "referenceQ");
-  printCorrectMappings(jsfp.get(), phix, "controlQ");
+  if(phix)
+    printCorrectMappings(jsfp.get(), *phix, "controlQ");
   (*g_log)<<"Found "<<rg.d_locimap.size()<<" varying loci"<<endl;
   uint64_t seriouslyVariable=0;
   boost::format fmt1("%-10d: %3d*%c ");

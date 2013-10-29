@@ -11,9 +11,12 @@ using namespace std;
 
 GeneAnnotationReader::GeneAnnotationReader(const std::string& fname)
 {
+  if(fname.empty())
+    return;
+
   FILE* fp=fopen(fname.c_str(), "r");
   if(!fp)
-    throw runtime_error("Unable to open "+fname+" for gene annotation reading");
+    throw runtime_error("Unable to open '"+fname+"' for gene annotation reading");
 
   string line;
   GeneAnnotation ga;
