@@ -10,7 +10,7 @@
 <style type="text/css">
 body {
 	font-family: Verdana,Arial,Helvetica,sans-serif;
-	font-size: 14px;
+	font-size: 12px;
 	margin: 1.2em;
 }
 
@@ -29,6 +29,7 @@ body {
 <div id="graphs" style="width:700px;">
 <div id="histo"></div></br>
 <div id="quality"></div></br>
+<div id="gcratios"></div></br>
 <div id="qhisto"></div></br>
 </div>
 </id>
@@ -78,7 +79,7 @@ plotoptions.series[0].label="Frequency";
 $.jqplot('histo', [histo], plotoptions);
 
 plotoptions.axes.xaxis.min=0;
-plotoptions.axes.xaxis.max=150;
+// plotoptions.axes.xaxis.max=150;
 plotoptions.title="Reported quality per offset of read";
 plotoptions.series[0].label="Reported Q-score";
 plotoptions.series[1].label="Actual Q-score";
@@ -92,6 +93,10 @@ if(typeof referenceQ == 'undefined')
 
 	
 $.jqplot('quality', [qualities,referenceQ,controlQ], plotoptions);
+
+plotoptions.title="GC-content per read position";
+plotoptions.series[0].label="GC-content";
+$.jqplot('gcratios', [gcRatios], plotoptions);
 
 plotoptions.title="Distribution of Quality";
 plotoptions.series[0].label="Quality";

@@ -1,6 +1,6 @@
 -include sysdeps/$(shell uname).inc
 
-CXXFLAGS=-Wall -I. -Iext/libmba  -MMD -O3 $(CXX2011FLAGS) -pthread
+CXXFLAGS=-Wall -I. -Iext/libmba  -MMD -O3 $(CXX2011FLAGS) -pthread -ggdb
 CFLAGS=-I. -Iext/libmba -O3 -MMD -pthread
 LDFLAGS=$(CXX2011FLAGS) 
 all: powerdna 16ssearcher

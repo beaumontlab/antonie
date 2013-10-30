@@ -115,6 +115,14 @@ public:
       if(!positions.empty()) {
         int rpos=random() % positions.size();
         cover(positions[rpos], fq->d_nucleotides.size(), fq->d_quality);
+	for(string::size_type i = 0 ; i < fq->d_nucleotides.size(); ++i) {
+	  char c = fq->d_nucleotides[i];
+	  if(c=='G' || c=='C')
+	    d_gcMappings[ fq->reversed ? (fq->d_nucleotides.size() - 1) - i : i ]++;
+	  else
+	    d_taMappings[ fq->reversed ? (fq->d_nucleotides.size() - 1) - i : i ]++;
+	}
+
         return positions[rpos];
       }
       fq->reverse();
@@ -157,8 +165,9 @@ public:
   void index(unsigned int length);
 
   string getMatchingFastQs(dnapos_t pos, FASTQReader& fastq); 
+  string getMatchingFastQs(dnapos_t start, dnapos_t stop,  FASTQReader& fastq); 
   vector<GenomeLocusMapping> d_mapping;
-  vector<unsigned int> d_correctMappings, d_wrongMappings;
+  vector<unsigned int> d_correctMappings, d_wrongMappings, d_gcMappings, d_taMappings;
   vector<Unmatched> d_unmRegions;
   struct LociStats
   {
@@ -222,6 +231,8 @@ void ReferenceGenome::index(unsigned int length)
   if(length > d_correctMappings.size()) {
     d_correctMappings.resize(length);
     d_wrongMappings.resize(length);
+    d_taMappings.resize(length);
+    d_gcMappings.resize(length);
   }
 
   d_index.clear();
@@ -244,21 +255,22 @@ void ReferenceGenome::index(unsigned int length)
   //  (*g_log)<<"Average hash fill: "<<1.0*d_genome.length()/d_index.size()<<endl;
 }
 
-string ReferenceGenome::getMatchingFastQs(dnapos_t pos, FASTQReader& fastq) 
+string ReferenceGenome::getMatchingFastQs(dnapos_t pos, FASTQReader& fastq)
+{
+  return getMatchingFastQs(pos > 150 ? pos-150 : 0, pos+150, fastq);
+}
+
+string ReferenceGenome::getMatchingFastQs(dnapos_t start, dnapos_t stop, FASTQReader& fastq) 
 {
   ostringstream os;
-  if(pos < 150)
-    pos = 0;
-  else
-    pos -= 150;
-  
-  string reference=snippet(pos, pos+300);
+  dnapos_t pos = (start + stop) / 2;
+  string reference=snippet(start, stop+150);
   unsigned int insertPos=0;
-  for(unsigned int i = 0 ; i < 251; ++i) {
+  for(unsigned int i = 0 ; i < 150 + stop - start; ++i) {
     if(i==75)
       os << reference << endl;
     string spacer(i, ' ');
-    for(auto& fqm : d_mapping[pos+i].d_fastqs) {
+    for(auto& fqm : d_mapping[start+i].d_fastqs) {
       fastq.seek(fqm.pos);
       FastQRead fqr;
       fastq.getRead(&fqr);
@@ -301,8 +313,6 @@ string ReferenceGenome::getMatchingFastQs(dnapos_t pos, FASTQReader& fastq)
   return os.str();
 }
 
-
-
 vector<uint32_t> ReferenceGenome::getMatchingHashes(const vector<uint32_t>& hashes)
 {
   struct cmp
@@ -338,7 +348,12 @@ void ReferenceGenome::printCoverage(FILE* jsfp)
   for(string::size_type pos = 0; pos < d_mapping.size(); ++pos) {
     cov = d_mapping[pos].coverage;
     bool noCov = cov < 2;
-    covhisto[cov]++;
+    if(cov > covhisto.size()) {
+      cerr<<"anomalous coverage: "<<cov<<endl;
+    }
+    else {
+      covhisto[cov]++;
+    }
     totCoverage += cov;
 
     if(noCov) {
@@ -390,7 +405,7 @@ void ReferenceGenome::printCoverage(FILE* jsfp)
 int MBADiff(dnapos_t pos, const FastQRead& fqr, const string& reference)
 {
   string::size_type n, m, d;
-  int sn, i;
+  int sn;
   struct varray *ses = varray_new(sizeof(struct diff_edit), NULL);
   
   n = reference.length();
@@ -401,6 +416,33 @@ int MBADiff(dnapos_t pos, const FastQRead& fqr, const string& reference)
     return EXIT_FAILURE;
   }
   int ret=0;
+
+#if 0
+  if(pos > 3422100 && pos < 3422300) {
+    printf("pos %u, d=%lu sn=%d\nUS:  %s\nREF: %s\n", pos, d, 
+	   sn, fqr.d_nucleotides.c_str(), reference.c_str());
+
+    for (int i = 0; i < sn; i++) {
+      struct diff_edit *e = (struct diff_edit*)varray_get(ses, i);
+      
+      switch (e->op) {
+      case DIFF_MATCH:
+	printf("MAT: ");
+	fwrite(fqr.d_nucleotides.c_str() + e->off, 1, e->len, stdout);
+	break;
+      case DIFF_INSERT:
+	printf("INS: ");
+	fwrite(reference.c_str() + e->off, 1, e->len, stdout);
+	break;
+      case DIFF_DELETE:
+	printf("DEL: ");
+	fwrite(fqr.d_nucleotides.c_str() + e->off, 1, e->len, stdout);
+	break;
+      }
+      printf("\n");
+    }
+  }
+#endif 
   if(sn == 4 && d == 2) {
     struct diff_edit *match1 = (struct diff_edit*)varray_get(ses, 0),
       *change1=(struct diff_edit*)varray_get(ses, 1), 
@@ -418,36 +460,12 @@ int MBADiff(dnapos_t pos, const FastQRead& fqr, const string& reference)
       }
     }
   }
- 
-  //  printf("pos %u, d=%lu sn=%d\nUS:  %s\nREF: %s\n", pos, d, 
-  //     sn, fqr.d_nucleotides.c_str(), reference.c_str());
+
+  varray_del(ses);
 
   if(sn > 6)
     return 0;
 
-
-  // should have 4 components, a MATCH, an INSERT/DELETE followed by a MATCH, followed by a DELETE/INSERT (inverse)
-
-  for (i = 0; i < sn; i++) {
-    struct diff_edit *e = (struct diff_edit*)varray_get(ses, i);
-
-    switch (e->op) {
-    case DIFF_MATCH:
-      //      printf("MAT: ");
-      //      fwrite(fqr.d_nucleotides.c_str() + e->off, 1, e->len, stdout);
-      break;
-    case DIFF_INSERT:
-      //      printf("INS: ");
-      //      fwrite(reference.c_str() + e->off, 1, e->len, stdout);
-      break;
-    case DIFF_DELETE:
-      //      printf("DEL: ");
-      //      fwrite(fqr.d_nucleotides.c_str() + e->off, 1, e->len, stdout);
-      break;
-    }
-    //    printf("\n");
-  }
-  varray_del(ses);
   return ret;
 }
 
@@ -491,7 +509,7 @@ vector<dnapos_t> getTriplets(const vector<pair<dnapos_t, char>>& together, unsig
 void printCorrectMappings(FILE* jsfp, const ReferenceGenome& rg, const std::string& name)
 {
   fprintf(jsfp, "var %s=[", name.c_str());
-  for(unsigned int i=0; i< 150;++i) {
+  for(unsigned int i=0; i < rg.d_correctMappings.size() ;++i) {
     double total=rg.d_correctMappings[i] + rg.d_wrongMappings[i];
     double error= rg.d_wrongMappings[i]/total;
     double qscore=-10*log(error)/log(10);
@@ -500,6 +518,19 @@ void printCorrectMappings(FILE* jsfp, const ReferenceGenome& rg, const std::stri
   }
   fprintf(jsfp,"];\n");
 }
+
+void printGCMappings(FILE* jsfp, const ReferenceGenome& rg, const std::string& name)
+{
+  fprintf(jsfp, "var %s=[", name.c_str());
+  for(unsigned int i=0; i < rg.d_correctMappings.size() ;++i) {
+    double total=rg.d_gcMappings[i] + rg.d_taMappings[i];
+    double ratio= rg.d_gcMappings[i]/total;
+
+    fprintf(jsfp, "%s[%d,%.2f]", i ? "," : "", i, ratio);
+  }
+  fprintf(jsfp,"];\n");
+}
+
 
 string DNADiff(ReferenceGenome& rg, dnapos_t pos, FastQRead& fqfrag)
 {
@@ -532,20 +563,29 @@ string DNADiff(ReferenceGenome& rg, dnapos_t pos, FastQRead& fqfrag)
   string diff;
   diff.reserve(fqfrag.d_nucleotides.length());
 
+  unsigned int readMapPos;
   for(string::size_type i = 0; i < fqfrag.d_nucleotides.size() && i < reference.size();++i) {
-    if(fqfrag.d_nucleotides[i] != reference[i]) {
+    readMapPos = fqfrag.reversed ? ((fqfrag.d_nucleotides.length()- 1) - i) : i;
+    char c =  fqfrag.d_nucleotides[i];
+    if(c=='G' || c=='C')
+      rg.d_gcMappings[readMapPos]++;
+    else
+      rg.d_taMappings[readMapPos]++;
+
+    if(c != reference[i]) {
       diff.append(1, fqfrag.d_quality[i] > '@' ? '!' : '^');
-      if(fqfrag.d_quality[i]>'@' && diffcount < 5 && ( (!fqfrag.reversed && i > 14) || (fqfrag.reversed && i < (150-14) ) ) ) 
-        rg.d_locimap[pos+i].samples.push_back(boost::make_tuple(fqfrag.d_nucleotides[i], fqfrag.d_quality[i], fqfrag.reversed ^ (i>75))); // head or tail
+      if(fqfrag.d_quality[i]>'@' && diffcount < 5 && ( (!fqfrag.reversed && i > 14) || (fqfrag.reversed && i < (fqfrag.d_nucleotides.length()-14) ) ) ) 
+        rg.d_locimap[pos+i].samples.push_back(boost::make_tuple(fqfrag.d_nucleotides[i], fqfrag.d_quality[i], 
+								fqfrag.reversed ^ (i > fqfrag.d_nucleotides.length()/2))); // head or tail
       
       if(diffcount < 5)
-	rg.d_wrongMappings[fqfrag.reversed ?  (149-i) : i]++;
+	rg.d_wrongMappings[readMapPos]++;
     }
     else {
       diff.append(1, ' ');
       rg.cover(pos+i,fqfrag.d_quality[i]);
       //  if(diffcount < 5)
-	rg.d_correctMappings[fqfrag.reversed ?  (149-i) : i]++;
+	rg.d_correctMappings[readMapPos]++;
     }
   }
   //  if(diffcount > 5) {
@@ -557,16 +597,22 @@ string DNADiff(ReferenceGenome& rg, dnapos_t pos, FastQRead& fqfrag)
   return diff;
 }
 
+void emitRegion(FILE*fp, ReferenceGenome& rg, FASTQReader& fastq, GeneAnnotationReader& gar, const string& name, unsigned int index, dnapos_t start, dnapos_t stop);
 
-void emitRegion(FILE*fp, ReferenceGenome& rg, FASTQReader& fastq, GeneAnnotationReader& gar, const string& name, unsigned int index, dnapos_t dnapos)
+void emitRegion(FILE*fp, ReferenceGenome& rg, FASTQReader& fastq, GeneAnnotationReader& gar, const string& name, unsigned int index, dnapos_t start)
 {
+  emitRegion(fp, rg, fastq, gar, name, index, start-200, start +200);
+}
+void emitRegion(FILE*fp, ReferenceGenome& rg, FASTQReader& fastq, GeneAnnotationReader& gar, const string& name, unsigned int index, dnapos_t start, dnapos_t stop)
+{
+  dnapos_t dnapos = (start+stop)/2;
   fprintf(fp, "region[%d]={name:'%s', pos: %d, depth: [", index, name.c_str(), dnapos);
-  for(dnapos_t pos = dnapos - 200; pos < dnapos + 200; ++pos) {
-    if(pos != dnapos - 200) 
+  for(dnapos_t pos = start; pos < stop; ++pos) {
+    if(pos != start) 
       fprintf(fp, ", ");
     fprintf(fp, "[%d, %d]", pos, rg.d_mapping[pos].coverage);
   }
-  string picture=rg.getMatchingFastQs(dnapos, fastq);
+  string picture=rg.getMatchingFastQs(start, stop, fastq);
   replace_all(picture, "\n", "\\n");
   
   string annotations;
@@ -777,7 +823,7 @@ int main(int argc, char** argv)
   TCLAP::ValueArg<std::string> referenceArg("r","reference","read annotations for reference genome from this file",true,"","string", cmd);
   TCLAP::ValueArg<std::string> fastqArg("f","fastq","read annotations for reference genome from this file",true,"","string", cmd);
   TCLAP::ValueArg<std::string> excludeArg("x","exclude","read annotations for reference genome from this file",false,"","string", cmd);
-  //TCLAP::SwitchArg helpSwitch("h","help","Print a helpful message", cmd, false);
+  TCLAP::SwitchArg unmatchedDumpSwitch("u","unmatched-dump","Create a dump of unmatched reads (unfound.fastq)", cmd, false);
 
   cmd.parse( argc, argv );
 
@@ -882,9 +928,7 @@ int main(int argc, char** argv)
   }
 
   rg.printCoverage(jsfp.get());
-  
   printQualities(jsfp.get(), qstats);
-
 
   int keylen=11;
   rg.index(keylen);
@@ -893,10 +937,10 @@ int main(int argc, char** argv)
 
   (*g_log)<<"Performing sliding window partial matches"<<endl;
 
-  fuzzyFound = fuzzyFind(&unfoundReads, fastq, rg, 11);
+  fuzzyFound = fuzzyFind(&unfoundReads, fastq, rg, keylen);
   uint32_t fuzzyPhixFound = 0;
   if(phix)
-    fuzzyPhixFound=fuzzyFind(&unfoundReads, fastq, *phix, 11);
+    fuzzyPhixFound=fuzzyFind(&unfoundReads, fastq, *phix, keylen);
   // (*g_log)<<fuzzyPhixFound<<" fuzzy @ phix"<<endl;
 
   (*g_log)<<(boost::format("Fuzzy found: %|40t|-%10d\n")%fuzzyFound).str();  
@@ -904,24 +948,32 @@ int main(int argc, char** argv)
   (*g_log)<<(boost::format("Unmatchable reads:%|40t|=%10d (%.2f%%)\n") 
          % unfoundReads.size() % (100.0*unfoundReads.size()/total)).str();
 
-  // writeUnmatchedReads(unfoundReads, fastq);
+  if(unmatchedDumpSwitch.getValue())
+    writeUnmatchedReads(unfoundReads, fastq);
 
   //  (*g_log)<<"After sliding matching: "<<endl;
   rg.printCoverage(jsfp.get());
   int index=0;
+
+  emitRegion(jsfp.get(), rg, fastq, gar, "Mathia", index++,848830, 849333 );
+  emitRegion(jsfp.get(), rg, fastq, gar, "Mathi2", index++,848730, 849433 );
+  /*
   for(auto unm : rg.d_unmRegions) {
     emitRegion(jsfp.get(), rg, fastq, gar, "Undermatched", index++, unm.pos);
   }
-
+  */
+  printGCMappings(jsfp.get(), rg, "gcRatios");
   printCorrectMappings(jsfp.get(), rg, "referenceQ");
   if(phix)
     printCorrectMappings(jsfp.get(), *phix, "controlQ");
+
   (*g_log)<<"Found "<<rg.d_locimap.size()<<" varying loci"<<endl;
   uint64_t seriouslyVariable=0;
   boost::format fmt1("%-10d: %3d*%c ");
   string fmt2("                  ");
   int aCount, cCount, tCount, gCount;
   double fraction;
+  /*
   for(auto& locus : rg.d_locimap) {
     unsigned int varcount=variabilityCount(rg, locus.first, locus.second, &fraction);
     if(varcount < 20) 
@@ -1028,7 +1080,7 @@ int main(int argc, char** argv)
       cout<<rg.getMatchingFastQs(position, fastq);
     }
   }
-
+  */
   g_log->flush();
   string log = jsonlog.str();
   replace_all(log, "\n", "\\n");
