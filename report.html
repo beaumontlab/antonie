@@ -83,6 +83,14 @@ plotoptions.title="Reported quality per offset of read";
 plotoptions.series[0].label="Reported Q-score";
 plotoptions.series[1].label="Actual Q-score";
 plotoptions.series[2].label="Control Q-score";
+
+if(typeof controlQ == 'undefined')
+	controlQ=[];
+
+if(typeof referenceQ == 'undefined')
+	referenceQ=[];
+
+	
 $.jqplot('quality', [qualities,referenceQ,controlQ], plotoptions);
 
 plotoptions.title="Distribution of Quality";
@@ -92,7 +100,9 @@ plotoptions.axes.xaxis.min=0;
 plotoptions.axes.xaxis.max=42;
 
 $.jqplot('qhisto', [qhisto], plotoptions);
-$("#log").html("<pre>"+powerdnaLog+"</pre>");
+
+if(typeof powerdnaLog != 'undefined')
+	$("#log").html("<pre>"+powerdnaLog+"</pre>");
  
 });
 </script>
