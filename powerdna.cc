@@ -154,7 +154,7 @@ public:
     return d_genome.substr(start, stop-start);
   }
   void printCoverage(FILE* jsfp);
-  void index(int length);
+  void index(unsigned int length);
 
   string getMatchingFastQs(dnapos_t pos, FASTQReader& fastq); 
   vector<GenomeLocusMapping> d_mapping;
@@ -197,8 +197,6 @@ ReferenceGenome::ReferenceGenome(const string& fname)
   if(!fp)
     throw runtime_error("Unable to open reference genome file '"+fname+"'");
   d_genome.reserve(filesize(fname.c_str()));  // slight overestimate which is great
-  d_correctMappings.resize(150);
-  d_wrongMappings.resize(150);
 
   char line[256]="";
 
@@ -219,8 +217,13 @@ ReferenceGenome::ReferenceGenome(const string& fname)
   d_indexlength=0;
 }
 
-void ReferenceGenome::index(int length)
+void ReferenceGenome::index(unsigned int length)
 {
+  if(length > d_correctMappings.size()) {
+    d_correctMappings.resize(length);
+    d_wrongMappings.resize(length);
+  }
+
   d_index.clear();
   d_index.reserve(d_genome.length());
   d_indexlength=length;
@@ -364,10 +367,17 @@ void ReferenceGenome::printCoverage(FILE* jsfp)
   (*g_log) << (boost::format("Average depth: %|40t|    %10.2f\n") % (1.0*totCoverage/d_mapping.size())).str();
   (*g_log) << (boost::format("Undercovered nucleotides: %|40t| %10d (%.2f%%), %d ranges\n") % noCoverages % (noCoverages*100.0/d_mapping.size()) % d_unmRegions.size()).str();
 
+  // snip off the all-zero part at the end
+  for(auto iter = covhisto.rbegin(); iter != covhisto.rend(); ++iter) {
+    if(*iter!=0) {
+      covhisto.resize(covhisto.size() - (iter - covhisto.rbegin()));
+      break;
+    }
+  }
   uint64_t total = std::accumulate(covhisto.begin(), covhisto.end(), 0);
-
+  
   fprintf(jsfp, "var histo=[");
-  for(unsigned int i = 0; i < 250; i++ ) 
+  for(unsigned int i = 0; i < covhisto.size(); i++ ) 
   {
     if(i)
       fputc(',', jsfp);
@@ -724,6 +734,18 @@ int fuzzyFind(std::vector<uint64_t>* fqpositions, FASTQReader &fastq, ReferenceG
 
 typedef vector<accumulator_set<double, stats<tag::mean, tag::moment<2> > > > qstats_t;
 
+void writeUnmatchedReads(const vector<uint64_t>& unfoundReads, FASTQReader& fastq)
+{
+  FILE *fp=fopen("unfound.fastq", "w");
+  FastQRead fqfrag;
+  for(const auto& pos :  unfoundReads) {
+    fastq.seek(pos);
+    fastq.getRead(&fqfrag);
+    fprintf(fp, "%s\n%s\n", fqfrag.d_nucleotides.c_str(), fqfrag.d_quality.c_str());
+  }
+  fclose(fp);
+}
+
 void printQualities(FILE* jsfp, const qstats_t& qstats)
 {
   int i=0;
@@ -882,6 +904,8 @@ int main(int argc, char** argv)
   (*g_log)<<(boost::format("Unmatchable reads:%|40t|=%10d (%.2f%%)\n") 
          % unfoundReads.size() % (100.0*unfoundReads.size()/total)).str();
 
+  // writeUnmatchedReads(unfoundReads, fastq);
+
   //  (*g_log)<<"After sliding matching: "<<endl;
   rg.printCoverage(jsfp.get());
   int index=0;
@@ -1005,15 +1029,12 @@ int main(int argc, char** argv)
     }
   }
 
-  for(auto& i : {1728496, 2282802, 1301900,5946604 }) {
-    cout<<"Delete at "<<i<<endl;
-    cout<<rg.getMatchingFastQs(i, fastq);
-  }
-
   g_log->flush();
   string log = jsonlog.str();
   replace_all(log, "\n", "\\n");
   fprintf(jsfp.get(), "var powerdnaLog=\"%s\";\n", log.c_str());
+
+
 
   exit(EXIT_SUCCESS);
 }
@@ -1030,12 +1051,5 @@ int main(int argc, char** argv)
   rg.printFastQs(5718000, fastq);  
   */
   /*
-  FILE *fp=fopen("unfound.fastq", "w");
-  for(const auto& pos :  unfoundReads) {
-    fastq.seek(pos);
-    fastq.getRead(&fqfrag);
-    fprintf(fp, "%s\n%s\n", fqfrag.d_nucleotides.c_str(), fqfrag.d_quality.c_str());
-  }
-  fclose(fp);
   */
 #endif
