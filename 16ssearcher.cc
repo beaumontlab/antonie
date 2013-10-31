@@ -140,7 +140,7 @@ int main(int argc, char** argv)
 {
   Search16S s16("./gg_13_5.fasta.gz", 150);
   cout<<"Done reading"<<endl;
-  FASTQReader fq("tot.fastq");
+  FASTQReader fq("tot.fastq", 33);
   FastQRead fqfrag;
   unsigned int num=0;
   while(fq.getRead(&fqfrag)) {

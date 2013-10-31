@@ -18,15 +18,17 @@ struct FastQRead
 class FASTQReader
 {
 public:
-  FASTQReader(const std::string& str);
+  FASTQReader(const std::string& str, unsigned int qoffset, unsigned int snipLeft=0, unsigned int snipRight=0);
 
   void seek(uint64_t pos) 
   {
     fseek(d_fp, pos, SEEK_SET);
   }
 
-  unsigned int getRead(FastQRead* fq, unsigned int size=0);
+  unsigned int getRead(FastQRead* fq);
 private:
   FILE *d_fp;
+  unsigned int d_qoffset;
+  unsigned int d_snipLeft, d_snipRight;
 };
 

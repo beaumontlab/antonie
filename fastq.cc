@@ -6,18 +6,20 @@
 
 using namespace std;
 
-FASTQReader::FASTQReader(const std::string& str) 
+FASTQReader::FASTQReader(const std::string& str, unsigned int qoffset, unsigned int snipLeft, unsigned int snipRight) 
+  :  d_snipLeft{snipLeft}, d_snipRight{snipRight} 
 {
   d_fp = fopen(str.c_str(), "r");
   if(!d_fp) 
     throw std::runtime_error("Unable to open file '"+str+"' for FASTQ input");
+  d_qoffset=qoffset;
 }
 
 bool FastQRead::exceedsQuality(unsigned int limit)
 {
   uint8_t q;
   for(string::size_type pos = 0 ; pos < d_quality.size(); ++pos) {
-    q = d_quality[pos] - 33;
+    q = d_quality[pos];
     if(q < limit)
       return false;
   }
@@ -31,7 +33,7 @@ void FastQRead::reverse()
   reversed = !reversed;
 }
 
-unsigned int FASTQReader::getRead(FastQRead* fq, unsigned int size)
+unsigned int FASTQReader::getRead(FastQRead* fq)
 {
   uint64_t pos = ftell(d_fp);
   char line[256]="";
@@ -43,14 +45,23 @@ unsigned int FASTQReader::getRead(FastQRead* fq, unsigned int size)
   sfgets(line, sizeof(line), d_fp);
   chomp(line);
   
-  if(size)
-    fq->d_nucleotides.assign(line, line+size);
+  if(d_snipLeft || d_snipRight)
+    fq->d_nucleotides.assign(line + d_snipLeft, strlen(line) -d_snipLeft-d_snipRight);
   else
     fq->d_nucleotides.assign(line);
   sfgets(line, sizeof(line), d_fp);
   sfgets(line, sizeof(line), d_fp);
   chomp(line);
-  fq->d_quality=line;
+
+  if(d_snipLeft || d_snipRight)
+    fq->d_quality.assign(line + d_snipLeft, strlen(line)-d_snipLeft-d_snipRight);
+  else
+    fq->d_quality.assign(line);
+
+  for(auto& c : fq->d_quality) {
+    c -= d_qoffset;
+  }
+
   fq->reversed=0;
   fq->position=pos;
   return ftell(d_fp) - pos;
