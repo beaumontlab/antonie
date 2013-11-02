@@ -9,6 +9,7 @@ struct FastQRead
   FastQRead() : reversed(false), position(0) {}
   std::string d_nucleotides;
   std::string d_quality;
+  std::string d_header;
   bool exceedsQuality(unsigned int);
   void reverse();
   bool reversed;
