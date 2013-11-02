@@ -82,7 +82,7 @@ class ReferenceGenome
 public:
   ReferenceGenome(const string& fname);
   dnapos_t size() const {
-    return d_genome.size();
+    return d_genome.size() - 1; // we pad at the beginning so we are 1 based..
   }
   vector<uint32_t> getMatchingHashes(const vector<uint32_t>& hashes);
   vector<dnapos_t> getReadPositions(const std::string& nucleotides)
