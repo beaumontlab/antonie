@@ -74,7 +74,7 @@ for(n=0; n < region.length; ++n) {
 }
 $("#toc").html(table+"</table>");
 
-// plotoptions.axes.xaxis.min=0;
+plotoptions.axes.xaxis.min=0;
 plotoptions.title="Histogram of depth";
 plotoptions.series[0].label="Frequency";
 $.jqplot('histo', [histo], plotoptions);
