@@ -61,16 +61,16 @@ struct varray {
 	ref_t bins[16];                                 /* 0 to 2^20 elements */
 };
 
-LIBMBA_API int varray_init(struct varray *va, size_t membsize, struct allocator *al);
-LIBMBA_API int varray_reinit(struct varray *va, struct allocator *al);
-LIBMBA_API int varray_deinit(struct varray *va);
-LIBMBA_API struct varray *varray_new(size_t membsize, struct allocator *al);
-LIBMBA_API int varray_del(void *va);
-LIBMBA_API int varray_release(struct varray *va, unsigned int from);
-LIBMBA_API void *varray_get(struct varray *va, unsigned int idx);
-LIBMBA_API int varray_index(struct varray *va, void *elem);
-LIBMBA_API void varray_iterate(void *va, iter_t *iter);
-LIBMBA_API void *varray_next(void *va, iter_t *iter);
+extern int varray_init(struct varray *va, size_t membsize, struct allocator *al);
+extern int varray_reinit(struct varray *va, struct allocator *al);
+extern int varray_deinit(struct varray *va);
+extern struct varray *varray_new(size_t membsize, struct allocator *al);
+extern int varray_del(void *va);
+extern int varray_release(struct varray *va, unsigned int from);
+extern void *varray_get(struct varray *va, unsigned int idx);
+extern int varray_index(struct varray *va, void *elem);
+extern void varray_iterate(void *va, iter_t *iter);
+extern void *varray_next(void *va, iter_t *iter);
 
 #ifdef __cplusplus
 }

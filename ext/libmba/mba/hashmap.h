@@ -50,31 +50,31 @@ struct hashmap {
 	ref_t table;
 };
 
-LIBMBA_API unsigned long hash_str(const void *str, void *context);
-LIBMBA_API unsigned long hash_wcs(const void *wcs, void *context);
-LIBMBA_API int cmp_str(const void *object1, const void *object2, void *context);
-LIBMBA_API int cmp_wcs(const void *object1, const void *object2, void *context);
+extern unsigned long hash_str(const void *str, void *context);
+extern unsigned long hash_wcs(const void *wcs, void *context);
+extern int cmp_str(const void *object1, const void *object2, void *context);
+extern int cmp_wcs(const void *object1, const void *object2, void *context);
 
-LIBMBA_API int hashmap_init(struct hashmap *h,
+extern int hashmap_init(struct hashmap *h,
 		unsigned int load_factor,
 		hash_fn hash,
 		cmp_fn cmp,
 		void *context,
 		struct allocator *al);
 
-LIBMBA_API int hashmap_deinit(struct hashmap *h, del_fn key_del, del_fn data_del, void *context);
-LIBMBA_API struct hashmap *hashmap_new(hash_fn hash, cmp_fn cmp, void *context, struct allocator *al);
-LIBMBA_API int hashmap_del(struct hashmap *h, del_fn key_del, del_fn data_del, void *context);
-LIBMBA_API int hashmap_clear(struct hashmap *h, del_fn key_del, del_fn data_del, void *context);
-LIBMBA_API int hashmap_clean(struct hashmap *h);
+extern int hashmap_deinit(struct hashmap *h, del_fn key_del, del_fn data_del, void *context);
+extern struct hashmap *hashmap_new(hash_fn hash, cmp_fn cmp, void *context, struct allocator *al);
+extern int hashmap_del(struct hashmap *h, del_fn key_del, del_fn data_del, void *context);
+extern int hashmap_clear(struct hashmap *h, del_fn key_del, del_fn data_del, void *context);
+extern int hashmap_clean(struct hashmap *h);
 
-LIBMBA_API int hashmap_put(struct hashmap *h, void *key, void *data);
-LIBMBA_API int hashmap_is_empty(struct hashmap *h);
-LIBMBA_API unsigned int hashmap_size(struct hashmap *h);
-LIBMBA_API void *hashmap_get(const struct hashmap *h, const void *key);
-LIBMBA_API void hashmap_iterate(void *h, iter_t *iter);
-LIBMBA_API void *hashmap_next(void *h, iter_t *iter);
-LIBMBA_API int hashmap_remove(struct hashmap *h, void **key, void **data);
+extern int hashmap_put(struct hashmap *h, void *key, void *data);
+extern int hashmap_is_empty(struct hashmap *h);
+extern unsigned int hashmap_size(struct hashmap *h);
+extern void *hashmap_get(const struct hashmap *h, const void *key);
+extern void hashmap_iterate(void *h, iter_t *iter);
+extern void *hashmap_next(void *h, iter_t *iter);
+extern int hashmap_remove(struct hashmap *h, void **key, void **data);
 
 #ifdef __cplusplus
 }
