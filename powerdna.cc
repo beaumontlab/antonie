@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <iostream>
 #include <stdint.h>
+#include <stdlib.h>
 #include <map>
 #include <unordered_map>
 #include <vector>
@@ -28,6 +29,7 @@
 #include <boost/accumulators/statistics/stats.hpp>
 #include <boost/accumulators/statistics/mean.hpp>
 #include <boost/accumulators/statistics/moment.hpp>
+#include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/tuple/tuple_comparison.hpp>
 #include <boost/tuple/tuple.hpp>
@@ -43,6 +45,7 @@
 using namespace std;
 using namespace boost::accumulators;
 using namespace boost::algorithm;
+using boost::lexical_cast;
 
 extern "C" {
 #include "hash.h"
@@ -171,6 +174,7 @@ public:
   typedef unordered_map<dnapos_t, LociStats> locimap_t;
   locimap_t d_locimap;
   unordered_map<dnapos_t, unsigned int> d_insertCounts;
+  string d_name;
 private:
   unsigned int d_indexlength;
   string d_genome;
@@ -209,6 +213,10 @@ ReferenceGenome::ReferenceGenome(const string& fname)
   if(line[0] != '>') 
     throw runtime_error("Input not FASTA");
   (*g_log)<<"Reading FASTA reference genome of '"<<line+1<<"'\n";
+  char* spacepos=strchr(line+1, ' ');
+  if(spacepos)
+    *spacepos=0;
+  d_name=line+1;
 
   d_genome="*"; // this gets all our offsets ""right""
   while(fgets(line, sizeof(line), fp)) {
@@ -245,8 +253,9 @@ void ReferenceGenome::index(unsigned int length)
   uint64_t diff = 0;
 
   for(auto iter = d_index.begin(); iter!= d_index.end() ; ++iter) {
-    if(iter != d_index.begin() && iter->d_hash != prev(iter)->d_hash)
+    if(iter != d_index.begin() && iter->d_hash != prev(iter)->d_hash) {
       diff++;
+    }
   }
   (*g_log)<<"Average hash fill: "<<1.0*d_genome.length()/diff<<endl;
 }
@@ -542,8 +551,81 @@ void printGCMappings(FILE* jsfp, const ReferenceGenome& rg, const std::string& n
   fprintf(jsfp,"];\n");
 }
 
+class SAMWriter
+{
+public:
+  SAMWriter(const std::string& fname, const std::string& genome, dnapos_t len);
+  ~SAMWriter()
+  {
+    if(d_fp)
+      fclose(d_fp);
+  }
+  void write(dnapos_t dnapos, const FastQRead& fqfrag, int indel=0);
 
-string DNADiff(ReferenceGenome& rg, dnapos_t pos, FastQRead& fqfrag, int qlimit, FILE* samfp)
+private:
+  FILE* d_fp;
+  string d_fname;
+  string d_genome;
+};
+
+
+SAMWriter::SAMWriter(const std::string& fname, const std::string& genome, dnapos_t len) : d_fname(fname), d_genome(genome)
+{
+  d_fp = fopen(fname.c_str(), "w");
+  if(!d_fp) 
+    throw runtime_error("Unable to open '"+fname+"' for writing SAM file"+strerror(errno));
+
+  fprintf(d_fp, "@HD\tVN:1.0\tSO:unsorted\n");
+  fprintf(d_fp, "@SQ\tSN:%s\tLN:%u\n", d_genome.c_str(), len);
+  fprintf(d_fp, "@PG\tID:powerdna\tPN:powerdna\tVN:0.0.0\n");  
+}
+
+void SAMWriter::write(dnapos_t pos, const FastQRead& fqfrag, int indel)
+{
+  if(d_fp) {
+    string header;
+    string::size_type spacepos = fqfrag.d_header.find(' ');
+    if(spacepos != string::npos)
+      header = fqfrag.d_header.substr(0, spacepos);
+    else
+      header = fqfrag.d_header;
+
+    string quality = fqfrag.d_quality;
+    for(auto& c : quality) {
+      c+=33; // we always output Sanger
+    }
+
+    string cigar;
+    if(!indel) {
+      cigar = lexical_cast<string>(fqfrag.d_nucleotides.length());
+      cigar.append(1,'M');
+    }
+    else if(indel < 0) {
+      cigar = lexical_cast<string>(-indel);
+      cigar.append(1,'M');
+      cigar += "1D";
+      cigar += lexical_cast<string>(fqfrag.d_nucleotides.length()+indel);
+      cigar.append(1,'M');
+    }
+    else if(indel > 0) {
+      cigar = lexical_cast<string>(indel);
+      cigar.append(1,'M');
+      cigar += "1I";
+      cigar += lexical_cast<string>(fqfrag.d_nucleotides.length()-1-indel);
+      cigar.append(1,'M');
+
+    }
+	
+    fprintf(d_fp, "%s\t%u\t%s\t%u\t42\t%s\t*\t0\t0\t%s\t%s\n",
+	    header.c_str(), 
+	    fqfrag.reversed ? 0x10: 0,
+	    d_genome.c_str(), pos, cigar.c_str(),
+	    fqfrag.d_nucleotides.c_str(), quality.c_str());
+  }
+  
+}
+
+string DNADiff(ReferenceGenome& rg, dnapos_t pos, FastQRead& fqfrag, int qlimit, SAMWriter* sw)
 {
   string reference = rg.snippet(pos, pos + fqfrag.d_nucleotides.length());
 
@@ -555,32 +637,23 @@ string DNADiff(ReferenceGenome& rg, dnapos_t pos, FastQRead& fqfrag, int qlimit,
 
   if(diffcount < 5) {
     rg.mapFastQ(pos, fqfrag);
-    if(samfp) {
-      fqfrag.d_header.resize(fqfrag.d_header.find(' ')); // XXX
-      string quality = fqfrag.d_quality;
-      for(auto& c : quality) {
-	c+=33; // XXX
-      }
-
-      fprintf(samfp, "%s\t0\t%s\t%u\t42\t%uM\t*\t0\t0\t%s\t%s\n",
-	      fqfrag.d_header.c_str(), 
-	      "ENA|AM181176|AM181176.4", pos, (unsigned int)fqfrag.d_nucleotides.length(), 
-	      fqfrag.d_nucleotides.c_str(), quality.c_str());
-    }
-
+    if(sw)
+      sw->write(pos, fqfrag);
   }
   else {
-    int res=MBADiff(pos, fqfrag, reference);
-    if(res) {
-      rg.mapFastQ(pos, fqfrag, res);
+    int indel=MBADiff(pos, fqfrag, reference);
+    if(indel) {
+      rg.mapFastQ(pos, fqfrag, indel);
+      if(sw)
+	sw->write(pos, fqfrag, indel); 
       diffcount=1;
-      if(res > 0) { // our read has an insert at this position
-        fqfrag.d_nucleotides.erase(res, 1); // this makes things align again
-        fqfrag.d_quality.erase(res, 1); 
-        rg.d_insertCounts[pos+res]++;
+      if(indel > 0) { // our read has an insert at this position
+        fqfrag.d_nucleotides.erase(indel, 1); // this makes things align again
+        fqfrag.d_quality.erase(indel, 1); 
+        rg.d_insertCounts[pos+indel]++;
       } else {      // our read has an erase at this position
-        fqfrag.d_nucleotides.insert(-res, 1, 'X');
-        fqfrag.d_quality.insert(-res, 1, 'X');
+        fqfrag.d_nucleotides.insert(-indel, 1, 'X');
+        fqfrag.d_quality.insert(-indel, 1, 'X');
       }
     }
   }
@@ -704,7 +777,7 @@ dnapos_t halfFind(const std::vector<int64_t>& fqpositions, FASTQReader &fastq, R
 }
 
 
-int fuzzyFind(std::vector<uint64_t>* fqpositions, FASTQReader &fastq, ReferenceGenome& rg, FILE* samfp, int keylen, int qlimit)
+int fuzzyFind(std::vector<uint64_t>* fqpositions, FASTQReader &fastq, ReferenceGenome& rg, SAMWriter* sw, int keylen, int qlimit)
 {
   boost::progress_display fuzzyProgress(fqpositions->size(), cerr);
   vector<uint64_t> stillUnfound;
@@ -772,7 +845,7 @@ int fuzzyFind(std::vector<uint64_t>* fqpositions, FASTQReader &fastq, ReferenceG
         if(fqfrag.reversed != allMatches.begin()->second.reversed)
           fqfrag.reverse();
 
-	DNADiff(rg, allMatches.begin()->first, fqfrag, qlimit, samfp);
+	DNADiff(rg, allMatches.begin()->first, fqfrag, qlimit, sw);
       } 
       else {
         map<unsigned int, vector<pair<dnapos_t, bool>>> scores;
@@ -786,7 +859,7 @@ int fuzzyFind(std::vector<uint64_t>* fqpositions, FASTQReader &fastq, ReferenceG
 	//        cout<<" Picking: "<< pick.first <<endl;
         if(fqfrag.reversed != pick.second)
           fqfrag.reverse();
-        DNADiff(rg, pick.first, fqfrag, qlimit, samfp);
+        DNADiff(rg, pick.first, fqfrag, qlimit, sw);
       }
       fuzzyFound++;
     }
@@ -892,10 +965,7 @@ int main(int argc, char** argv)
   uint64_t withAny=0, found=0, notFound=0, total=0, qualityExcluded=0, fuzzyFound=0, phixFound=0;
 
   unique_ptr<FILE, int(*)(FILE*)> jsfp(fopen("data.js","w"), fclose);
-  unique_ptr<FILE, int(*)(FILE*)> samfp(fopen("data.sam","w"), fclose);
-  fprintf(samfp.get(), "@HD\tVN:1.0\tSO:unsorted\n");
-  fprintf(samfp.get(), "@SQ\tSN:%s\tLN:%u\n", "ENA|AM181176|AM181176.4", rg.size());
-  fprintf(samfp.get(), "@PG\tID:powerdna\tPN:powerdna\tVN:0.0.0\n");
+  SAMWriter sw("data.sam", rg.d_name, rg.size());
 
   (*g_log)<<"Performing exact matches of reads to reference genome"<<endl;
   boost::progress_display show_progress(filesize(fastqArg.getValue().c_str()), cerr);
@@ -945,17 +1015,8 @@ int main(int argc, char** argv)
       }
     }
     else {
-      rg.mapFastQ(pos, fqfrag);
-      fqfrag.d_header.resize(fqfrag.d_header.find(' ')); // XXX
-      string quality = fqfrag.d_quality;
-      for(auto& c : quality) {
-	c+=33;  // XXX
-      }
-      fprintf(samfp.get(), "%s\t0\t%s\t%u\t42\t%uM\t*\t0\t0\t%s\t%s\n",
-	      fqfrag.d_header.c_str(), 
-	      "ENA|AM181176|AM181176.4", pos, (unsigned int)fqfrag.d_nucleotides.length(),   // XXX
-	      fqfrag.d_nucleotides.c_str(), quality.c_str());
-
+      rg.mapFastQ(pos, fqfrag);					
+      sw.write(pos, fqfrag);
       found++;
     }
   } while((bytes=fastq.getRead(&fqfrag)));
@@ -1013,7 +1074,7 @@ int main(int argc, char** argv)
 
   (*g_log)<<"Performing sliding window partial matches"<<endl;
 
-  fuzzyFound = fuzzyFind(&unfoundReads, fastq, rg, samfp.get(), keylen, qlimit);
+  fuzzyFound = fuzzyFind(&unfoundReads, fastq, rg, &sw, keylen, qlimit);
   uint32_t fuzzyPhixFound = 0;
   if(phix) {
     (*g_log)<<"Performing sliding window partial matches for control/exclude"<<endl;
