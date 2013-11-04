@@ -884,7 +884,12 @@ void writeUnmatchedReads(const vector<uint64_t>& unfoundReads, FASTQReader& fast
   for(const auto& pos :  unfoundReads) {
     fastq.seek(pos);
     fastq.getRead(&fqfrag);
-    fprintf(fp, "%s\n%s\n", fqfrag.d_nucleotides.c_str(), fqfrag.d_quality.c_str());
+
+    for(auto& c : fqfrag.d_quality) {
+      c+=33; // we always output Sanger
+    }
+
+    fprintf(fp, "@%s\n%s\n+\n%s\n", fqfrag.d_header.c_str(), fqfrag.d_nucleotides.c_str(), fqfrag.d_quality.c_str());
   }
   fclose(fp);
 }
