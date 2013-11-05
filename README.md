@@ -3,12 +3,12 @@ ANTONIE
 Antonie is an integrated, robust, reliable and fast processor of DNA reads,
 mostly from Next Generation Sequencing platforms. 
 
-Antonie is open source software.
+Antonie is open source software, and we welcome contributions!
 
 Initial focus is on automatically & quickly producing the most useful
 results on prokaryotic sized genomes. A second goal is to make the program
-robust against bad input: out of the box it will refuse to draw conclusions
-based on low quality or unnaturally distributed data.
+robust against bad input: out of the box it should refuse to draw conclusions
+based on low quality or unnaturally distributed data. 
 
 Antonie is named after [Antonie van
 Leeuwenhoek](http://en.wikipedia.org/wiki/Antonie_van_Leeuwenhoek), the
@@ -22,6 +22,7 @@ hubert.
 
 For more information, please see:
 
+ * [Bionanoscience department](http://www.tnw.tudelft.nl/en/about-faculty/departments/bionanoscience/)
  * [Bertus Beaumont Lab](http://bertusbeaumontlab.tudelft.nl/)
  * [bert hubert](http://ds9a.nl/)
 
@@ -34,6 +35,12 @@ Currently, Antonie can map the FASTQ output of sequencers to a FASTA
 reference genome.  In addition, it can also exclude known contaminants, like
 for example PhiX. Finally, if annotation of the reference genome is available, 
 features found by Antonie will be annotated.
+
+Antonie performs similar functions as for example
+[bowtie](http://bowtie-bio.sourceforge.net/index.shtml), except somewhat
+faster for small genomes, while also performing some analysis usually
+performed further downstream, for example by
+[fastqc](http://www.bioinformatics.babraham.ac.uk/projects/fastqc/).
 
 The output of Antonie is:
 
@@ -56,7 +63,7 @@ In addition, there are graphs of:
 
 So as a formula:
 
-FASTQ + FASTA + ANNOTATIONS -> JSON + SAM
+FASTQ + FASTA + ANNOTATIONS -> JSON + SAM -> PRETTY HTML
 
 ![First graphs](http://ds9a.nl/antonie/antonie1.png)
 
@@ -97,6 +104,8 @@ there. Alternatively, paste output from 'unfound.fastq' into BLAST.
 
 Finally, in 'data.js', all interesting features found are encoded in JSON format. To view this,
 point your browser at 'report.html', and it will source 'data.js' and print pretty graphs.
+
+Try 'antonie --help' for a full listing of options.
 
 Sample output:
 
@@ -139,4 +148,10 @@ Sample output:
 	Found 872 loci with at least one insert in a read
 	Found 3 serious inserts
 
+FUTURE DIRECTION
+================
+We are aiming for compatability with the [Galaxy
+Project](http://galaxyproject.org/).  In addition, the program needs to
+automate its detection of quality, and not draw conclusions on bad data, but 
+suggest filtering instead.
 
