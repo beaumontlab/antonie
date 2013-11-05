@@ -1,10 +1,11 @@
 ANTONIE
 =======
 Antonie is an integrated, robust, reliable and fast processor of DNA reads,
-mostly from Next Generation Sequencing platforms.  It is currently focussed
-on prokaryotic and other small genomes.
+mostly from Next Generation Sequencing platforms (typically Illumina, but we
+strive to be multiplatform).  It is currently focussed on prokaryotic and
+other small genomes.
 
-Antonie is open source software, and we welcome contributions!
+Antonie is free open source software, and we welcome contributions!
 
 Initial focus is on automatically & quickly producing the most useful
 results on prokaryotic sized genomes. A second goal is to make the program
@@ -87,21 +88,18 @@ Antonie depends on Boost being installed at compile time, but not at runtime.
 
 LIMITATIONS
 ===========
-The current algorithm is fast on common hardware, but needs around 200MB of
-memory for a typical prokaryote.  It also assumes it is aligning against a
-single chromosome.  Combined, this means that right now, eukaryotic
-processing is hard to do using Antonie.
 
-Additionally, Antonie does not yet benefit from the position information that
-can be inferred from paired end reads, and in fact you'll have to concatenate both
-paired reads first.
-
-Also, Antonie can't yet deal with reads of varying lengths.
-
-Our HTML is known not to be displayed correctly on some versions of Internet Explorer.
-
-Finally, Antonie may be of limited use for reads shorter than 75
-nucleotides, as it hasn't been tried in that domain a lot yet.
+ * The current algorithm is fast on common hardware, but needs around 200MB of
+   memory for a typical prokaryote.  It also assumes it is aligning against a
+   single chromosome.  Combined, this means that right now, eukaryotic
+   processing is hard to do using Antonie.
+ * Additionally, Antonie does not yet benefit from the position information that
+   can be inferred from paired end reads, and in fact you'll have to concatenate both
+   paired reads first.
+ * Antonie can't yet deal with reads of varying lengths.
+ * Our HTML is known not to be displayed correctly on some versions of Internet Explorer.
+ * Finally, Antonie may be of limited use for reads shorter than 75
+   nucleotides, as it hasn't been tried in that domain a lot yet.
 
 SAMPLE USE
 ==========
@@ -195,7 +193,11 @@ And the resulting report should look like this <http://ds9a.nl/antonie/SRR956947
 
 FUTURE DIRECTION
 ================
-We are aiming for compatibility with the [Galaxy
-Project](http://galaxyproject.org/).  In addition, the program needs to
-automate its detection of quality, and not draw conclusions on bad data, but 
-suggest filtering instead.
+
+ * We are aiming for compatibility with the [Galaxy
+   Project](http://galaxyproject.org/).
+ * The program needs to automate its detection of quality, and not draw conclusions on bad data, but 
+   suggest filtering instead.
+ * BAM file output (smaller, compressed version of SAM)
+ * Automated post-analysis of unmatched reads against Golomb compressed set of common contaminants
+ * Utilize the extra information in paired-end reads
