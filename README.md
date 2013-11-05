@@ -46,7 +46,7 @@ performed further downstream, for example by
 The output of Antonie is:
 
  * A JSON-compatible file with analysis, graphs, data, log, annotations
- * A pretty webpage displaying the JSON data
+ * A pretty webpage displaying the JSON data ([sample](http://ds9a.nl/antonie/SRR956947/report.html))
  * SAM file, mapping the reads to the reference genome
 
 The analysis includes calls for:
