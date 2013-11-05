@@ -36,7 +36,7 @@ void FastQRead::reverse()
 unsigned int FASTQReader::getRead(FastQRead* fq)
 {
   uint64_t pos = ftell(d_fp);
-  char line[256]="";
+  char line[1024]="";
   if(!fgets(line, sizeof(line), d_fp)) 
     return 0;
   if(line[0] != '@')
