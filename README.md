@@ -98,6 +98,8 @@ paired reads first.
 
 Also, Antonie can't yet deal with reads of varying lengths.
 
+Our HTML is known not to be displayed correctly on some versions of Internet Explorer.
+
 Finally, Antonie may be of limited use for reads shorter than 75
 nucleotides, as it hasn't been tried in that domain a lot yet.
 
@@ -189,11 +191,11 @@ Once the SRA is converted to FASTQ, run Antonie like this:
 
 > $ antonie -f SRR956947.fastq -a Escherichia\_coli\_K\_12\_substr\_\_MG1655\_uid57779/\*.gff -r Escherichia\_coli\_K\_12\_substr\_\_MG1655\_uid57779/\*.fna > report
 
-And the resulting report should look like this <http://ds9a.nl/antonie/SRR956947/report.htm>
+And the resulting report should look like this <http://ds9a.nl/antonie/SRR956947/report.html>
 
 FUTURE DIRECTION
 ================
-We are aiming for compatability with the [Galaxy
+We are aiming for compatibility with the [Galaxy
 Project](http://galaxyproject.org/).  In addition, the program needs to
 automate its detection of quality, and not draw conclusions on bad data, but 
 suggest filtering instead.
