@@ -20,8 +20,9 @@ GeneAnnotationReader::GeneAnnotationReader(const std::string& fname)
     throw runtime_error("Unable to open '"+fname+"' for gene annotation reading");
 
   string line;
-  GeneAnnotation ga;
+
   while(stringfgets(fp, &line)) {
+    GeneAnnotation ga;
     if(line[0]=='#') {
       //      cerr<<"Annotations from: "<<line;
       continue;
@@ -42,6 +43,7 @@ GeneAnnotationReader::GeneAnnotationReader(const std::string& fname)
 	break;
       case 6:
 	ga.strand = (*p=='+');
+	break;
       case 2:
 	ga.type=p;
 	break;
@@ -63,7 +65,7 @@ GeneAnnotationReader::GeneAnnotationReader(const std::string& fname)
     ga.tag.clear();
 
     for(const auto& val : attributes) {
-      if(val.first=="Note" || val.first=="Name" || val.first=="Product") {
+      if(val.first=="Note" || val.first=="Name" || val.first=="Product" || val.first=="product") {
 	ga.tag.append(val.second);
 	ga.tag.append(" ");
       }

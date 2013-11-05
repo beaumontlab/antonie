@@ -284,12 +284,12 @@ string ReferenceGenome::getMatchingFastQs(dnapos_t start, dnapos_t stop, FASTQRe
         insertPos=i+fqm.indel;
       } else if(fqm.indel < 0) {      // our read has an erase at this position
         fqr.d_nucleotides.insert(-fqm.indel, 1, 'X');
-        fqr.d_quality.insert(-fqm.indel, 1, 'X');
+        fqr.d_quality.insert(-fqm.indel, 1, 40);
       }
       
       if(fqm.indel <= 0 && insertPos && i > insertPos) {
         fqr.d_nucleotides.insert(0, 1, '<');
-        fqr.d_quality.insert(0, 1, 'X');
+        fqr.d_quality.insert(0, 1, 40);
       }
       os << spacer;
       int offset=0;
@@ -1094,7 +1094,7 @@ int main(int argc, char** argv)
     cout<<endl<<fmt2;
     for(auto j = locus.second.samples.begin(); 
         j != locus.second.samples.end(); ++j) {
-      cout<<get<1>(*j);
+      cout<<((char)(get<1>(*j)+33));
     }
     cout<<endl<<fmt2;
     for(auto j = locus.second.samples.begin(); 
