@@ -7,7 +7,7 @@ all: powerdna 16ssearcher
 
 -include *.d
 
-POWERDNA_OBJECTS = powerdna.o hash.o geneannotated.o misc.o fastq.o ext/libmba/libdiff.a
+POWERDNA_OBJECTS = powerdna.o hash.o geneannotated.o misc.o fastq.o saminfra.o ext/libmba/libdiff.a
 
 strdiff: strdiff.o ext/libmba/libdiff.a
 	gcc strdiff.o ext/libmba/libdiff.a
