@@ -6,10 +6,13 @@ mostly from Next Generation Sequencing platforms.
 Antonie is open source software.
 
 Initial focus is on automatically & quickly producing the most useful
-results on prokaryotic sized genomes.
+results on prokaryotic sized genomes. A second goal is to make the program
+robust against bad input: out of the box it will refuse to draw conclusions
+based on low quality or unnaturally distributed data.
 
-Antonie is named after Antonie van Leeuwenhoek, the Delft inventor of
-microscopes and the discoverer of bacteria.
+Antonie is named after [Antonie van
+Leeuwenhoek](http://en.wikipedia.org/wiki/Antonie_van_Leeuwenhoek), the
+Delft inventor of microscopes and the discoverer of bacteria.
 
 AUTHORS
 =======
@@ -21,6 +24,9 @@ For more information, please see:
 
  * [Bertus Beaumont Lab](http://bertusbeaumontlab.tudelft.nl/)
  * [bert hubert](http://ds9a.nl/)
+
+Please contact us at a.w.r.hubert at tudelft dot nl, or report issues
+through our Github page on <https://github.com/beaumontlab/antonie>.
 
 CAPABILITIES
 ============
@@ -69,8 +75,8 @@ LIMITATIONS
 ===========
 The current algorithm is fast on common hardware, but needs around 200MB of
 memory for a typical prokaryote.  It also assumes it is aligning against a
-single chromosome.  Combined, this means that eukaryotic processing is
-currently hard to do using Antonie.
+single chromosome.  Combined, this means that right now, eukaryotic
+processing hard to do using Antonie.
 
 SAMPLE USE
 ==========
@@ -81,10 +87,16 @@ This will align the reads from 'tot.fastq' against the Pseudomonas SBW25
 reference genome, while stripping out any PhiX reads. Annotations will be read from
 'NC_012660.csv'. A human readable, but large, text based report will be written to 'report'.
 
-Meanwhile, unmatched reads from 'tot.fastq' will be written to 'unmatched.fastq'. 
+The mapping will be saved as 'data.sam', and can for example be viewed in
+[Tablet](http://bioinf.scri.ac.uk/tablet/) from the James Hutton Institute,
+or post-processed using [samtools](http://samtools.sourceforge.net/).
+
+Meanwhile, unmatched reads from 'tot.fastq' will be written to 'unfound.fastq', and could
+for example be reprocessed against another reference file to see what is in
+there. Alternatively, paste output from 'unfound.fastq' into BLAST.
 
 Finally, in 'data.js', all interesting features found are encoded in JSON format. To view this,
-point your browser at 'report.html', and it will source 'data'js' and print pretty graphs.
+point your browser at 'report.html', and it will source 'data.js' and print pretty graphs.
 
 Sample output:
 
