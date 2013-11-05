@@ -27,7 +27,7 @@
 #include <boost/accumulators/accumulators.hpp>
 #include <boost/accumulators/statistics/stats.hpp>
 #include <boost/accumulators/statistics/mean.hpp>
-#include <boost/accumulators/statistics/moment.hpp>
+#include <boost/accumulators/statistics/variance.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/lexical_cast.hpp>
 #include <memory>
@@ -45,11 +45,9 @@ using namespace std;
 using namespace boost::accumulators;
 using namespace boost::algorithm;
 
-
 extern "C" {
 #include "hash.h"
 }
-
 
 namespace io = boost::iostreams;
 typedef io::tee_device<std::ostream, std::ostringstream> TeeDevice;
@@ -801,7 +799,7 @@ int fuzzyFind(std::vector<uint64_t>* fqpositions, FASTQReader &fastq, ReferenceG
   return fuzzyFound;
 }
 
-typedef vector<accumulator_set<double, stats<tag::mean, tag::moment<2> > > > qstats_t;
+typedef vector<accumulator_set<double, stats<tag::mean, tag::variance > > > qstats_t;
 
 void writeUnmatchedReads(const vector<uint64_t>& unfoundReads, FASTQReader& fastq)
 {
@@ -837,7 +835,7 @@ void printQualities(FILE* jsfp, const qstats_t& qstats)
   for(const auto& q : qstats) {
     if(i++)
       fputs(",", jsfp);
-    fprintf(jsfp, "[%f, %f]", mean(q)-sqrt(moment<2>(q)), mean(q)+sqrt(moment<2>(q)));
+    fprintf(jsfp, "[%f, %f]", mean(q)-sqrt(variance(q)), mean(q)+sqrt(variance(q)));
   }
   fputs("];\n", jsfp);
   fflush(jsfp);
@@ -845,7 +843,7 @@ void printQualities(FILE* jsfp, const qstats_t& qstats)
 
 int main(int argc, char** argv)
 {
-  TCLAP::CmdLine cmd("Command description message", ' ', "0.9");
+  TCLAP::CmdLine cmd("Command description message", ' ', "0.0");
 
   TCLAP::ValueArg<std::string> annotationsArg("a","annotations","read annotations for reference genome from this file",false, "", "filename", cmd);
   TCLAP::ValueArg<std::string> referenceArg("r","reference","read annotations for reference genome from this file",true,"","string", cmd);
@@ -907,7 +905,7 @@ int main(int argc, char** argv)
 
   qstats_t qstats;
   qstats.resize(fqfrag.d_nucleotides.size());
-  accumulator_set<double, stats<tag::mean, tag::moment<2> > > qstat;
+  accumulator_set<double, stats<tag::mean, tag::variance > > qstat;
   vector<unsigned int> qcounts(256);
   vector<uint64_t> unfoundReads;
   do { 
@@ -971,11 +969,11 @@ int main(int argc, char** argv)
     if(readOffset >= fqfrag.d_nucleotides.length() - 4)
       break;
 
-    accumulator_set<double, stats<tag::mean, tag::moment<2> > > acc;
+    accumulator_set<double, stats<tag::mean, tag::variance > > acc;
     for(auto& count : kmer) {
       acc(count);
     }
-    fprintf(jsfp.get(), "%s[%d, %f]", readOffset ? "," : "", readOffset, sqrt(moment<2>(acc)));
+    fprintf(jsfp.get(), "%s[%d, %f]", readOffset ? "," : "", readOffset, sqrt(variance(acc)) / mean(acc) );
     readOffset++;
   }
   fprintf(jsfp.get(), "];\n");
@@ -990,7 +988,7 @@ int main(int argc, char** argv)
   (*g_log) << (boost::format("Full matches: %|40t|-%10d (%.02f%%)\n") % found % (100.0*found/total)).str();
   (*g_log) << (boost::format("Not fully matched: %|40t|=%10d (%.02f%%)\n") % notFound % (notFound*100.0/total)).str();
 
-  (*g_log) << (boost::format("Mean Q: %|40t|    %10.2f +- %.2f\n") % mean(qstat) % sqrt(moment<2>(qstat))).str();
+  (*g_log) << (boost::format("Mean Q: %|40t|    %10.2f +- %.2f\n") % mean(qstat) % sqrt(variance(qstat))).str();
 
   for(auto& i : rg.d_correctMappings) {
     i=found;

@@ -19,8 +19,8 @@ Delft inventor of microscopes and the discoverer of bacteria.
 AUTHORS
 =======
 Antonie is developed at the Bertus Beaumontlab of the Bionanoscience
-Department of Delft University of Technology.  The lead author is bert
-hubert.
+Department of Delft University of Technology.  The lead author is Bert
+Hubert.
 
 For more information, please see:
 

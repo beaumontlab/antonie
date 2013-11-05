@@ -96,8 +96,11 @@ if(typeof referenceQ == 'undefined')
 if(typeof gcRatios == 'undefined')
 	gcRatios=[];
 
+plotoptions.series[0].rendererOptions={};
+plotoptions.series[0].rendererOptions.bandData=qhilo;
 	
 $.jqplot('quality', [qualities,referenceQ,controlQ], plotoptions);
+plotoptions.series[0].rendererOptions={};
 
 plotoptions.title="GC-content per read position";
 plotoptions.series[0].label="GC-content";
