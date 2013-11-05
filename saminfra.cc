@@ -21,7 +21,7 @@ SAMWriter::SAMWriter(const std::string& fname, const std::string& genomeName, dn
 
   fprintf(d_fp, "@HD\tVN:1.0\tSO:unsorted\n");
   fprintf(d_fp, "@SQ\tSN:%s\tLN:%u\n", d_genomeName.c_str(), len);
-  fprintf(d_fp, "@PG\tID:powerdna\tPN:powerdna\tVN:0.0.0\n");  
+  fprintf(d_fp, "@PG\tID:antonie\tPN:antonie\tVN:0.0.0\n");  
 }
 
 void SAMWriter::write(dnapos_t pos, const FastQRead& fqfrag, int indel)

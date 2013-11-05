@@ -1155,7 +1155,7 @@ int main(int argc, char** argv)
   g_log->flush();
   string log = jsonlog.str();
   replace_all(log, "\n", "\\n");
-  fprintf(jsfp.get(), "var powerdnaLog=\"%s\";\n", log.c_str());
+  fprintf(jsfp.get(), "var antonieLog=\"%s\";\n", log.c_str());
 
   exit(EXIT_SUCCESS);
 }
