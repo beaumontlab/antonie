@@ -33,12 +33,12 @@ CAPABILITIES
 ============
 Currently, Antonie can map the FASTQ output of sequencers to a FASTA
 reference genome.  In addition, it can also exclude known contaminants, like
-for example PhiX. Finally, if annotation of the reference genome is available, 
-features found by Antonie will be annotated.
+for example PhiX.  Finally, if GFF3 annotation of the reference genome is
+available, features found by Antonie will be annotated.
 
 Antonie performs similar functions as for example
 [bowtie](http://bowtie-bio.sourceforge.net/index.shtml), except somewhat
-faster for small genomes, while also performing some analysis usually
+faster for small genomes, while also performing some of the analysis usually
 performed further downstream, for example by
 [fastqc](http://www.bioinformatics.babraham.ac.uk/projects/fastqc/).
 
@@ -50,7 +50,7 @@ The output of Antonie is:
 
 The analysis includes calls for:
 
- * SNPs
+ * SNPs ('undercovered regions')
  * Indels
  * Metagenomically variable loci
 
@@ -63,7 +63,7 @@ In addition, there are graphs of:
 
 So as a formula:
 
-FASTQ + FASTA + ANNOTATIONS -> JSON + SAM -> PRETTY HTML
+FASTQ + FASTA + GFF3 -> JSON + SAM -> PRETTY HTML
 
 ![First graphs](http://ds9a.nl/antonie/antonie1.png)
 
@@ -91,22 +91,26 @@ memory for a typical prokaryote.  It also assumes it is aligning against a
 single chromosome.  Combined, this means that right now, eukaryotic
 processing hard to do using Antonie.
 
+Additionally, Antonie does not yet benefit from the position information that
+can be inferred from paired end reads.
+
 SAMPLE USE
 ==========
 
-> $ antonie -f tot.fastq -r PfSBW25\_genome\_FASTA.fa -b 15 -x phi-x174.fasta -a NC_012660.csv -u > report
+> $ antonie -f tot.fastq -r PfSBW25\_genome\_FASTA.fna -b 15 -x phi-x174.fasta -a NC_012660.gff -u > report
 
 This will align the reads from 'tot.fastq' against the Pseudomonas SBW25
 reference genome, while stripping out any PhiX reads. Annotations will be read from
-'NC_012660.csv'. A human readable, but large, text based report will be written to 'report'.
+'NC_012660.gff'. A human readable, but large, text based report will be written to 'report'.
 
 The mapping will be saved as 'data.sam', and can for example be viewed in
 [Tablet](http://bioinf.scri.ac.uk/tablet/) from the James Hutton Institute,
 or post-processed using [samtools](http://samtools.sourceforge.net/).
 
-Meanwhile, unmatched reads from 'tot.fastq' will be written to 'unfound.fastq', and could
-for example be reprocessed against another reference file to see what is in
-there. Alternatively, paste output from 'unfound.fastq' into BLAST.
+Meanwhile, because we passed -u, unmatched reads from 'tot.fastq' will be
+written to 'unfound.fastq', and could for example be reprocessed against
+another reference file to see what is in there.  Alternatively, paste output
+from 'unfound.fastq' into BLAST.
 
 Finally, in 'data.js', all interesting features found are encoded in JSON format. To view this,
 point your browser at 'report.html', and it will source 'data.js' and print pretty graphs.
@@ -154,10 +158,33 @@ Sample output:
 	Found 872 loci with at least one insert in a read
 	Found 3 serious inserts
 
+GETTING SAMPLE DATA
+===================
+Reference materials can be found from <ftp://ftp.ncbi.nlm.nih.gov/genomes/Bacteria/>  
+The .fna file is FASTA, and corresponds to our '-f' field.  
+The .gff file is GFF3, and contains annotations understood by our '-a' field.
+
+As an example, for "Escherichia coli str. K-12 substr. MG1655", head to
+<ftp://ftp.ncbi.nlm.nih.gov/genomes/Bacteria/Escherichia_coli_K_12_substr__MG1655_uid57779/>
+
+To get sample FASTQ, read the 'species' line from the .gff file, and visit 
+the URL found there.  This may present you with a series of substrains, or
+directly give you a listing of Entrez records.
+
+From there, find SRA or Sequence Read Archive files. SRA is a compressed representation 
+of FASTQ, to convert SRA to FASTQ, use 'fastq_dump' the SRA toolkit which can be found on 
+<http://www.ncbi.nlm.nih.gov/Traces/sra/?view=software>.
+
+For K12 MG1655, this may work: <http://www.ncbi.nlm.nih.gov/sra/SRX339396>, which will lead you to:
+<ftp://ftp-trace.ncbi.nlm.nih.gov/sra/sra-instant/reads/ByRun/sra/SRR/SRR956/SRR956947>
+
+Once the SRA is converted to FASTQ, run Antonie like this:
+
+> $ antonie -f SRR956947.fastq -a Escherichia\_coli\_K\_12\_substr\_\_MG1655\_uid57779/\*.gff -r Escherichia\_coli\_K\_12\_substr\_\_MG1655\_uid57779/\*.fna > report
+
 FUTURE DIRECTION
 ================
 We are aiming for compatability with the [Galaxy
 Project](http://galaxyproject.org/).  In addition, the program needs to
 automate its detection of quality, and not draw conclusions on bad data, but 
 suggest filtering instead.
-
