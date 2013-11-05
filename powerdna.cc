@@ -15,24 +15,20 @@
 #include <stdexcept>
 #include <forward_list>
 #include <inttypes.h>
-#include <boost/progress.hpp>
 #include <algorithm>
 #include <numeric>
 #include <unistd.h>
 #include <errno.h>
 #include <math.h>
+#include <boost/progress.hpp>
 #include <boost/format.hpp>
 #include <boost/iostreams/tee.hpp>
 #include <boost/iostreams/stream.hpp>
-#include <array>
 #include <boost/accumulators/accumulators.hpp>
 #include <boost/accumulators/statistics/stats.hpp>
 #include <boost/accumulators/statistics/mean.hpp>
 #include <boost/accumulators/statistics/moment.hpp>
-#include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
-#include <boost/tuple/tuple_comparison.hpp>
-#include <boost/tuple/tuple.hpp>
 #include <memory>
 #include <sstream>
 #include "geneannotated.hh"
@@ -168,7 +164,7 @@ public:
   vector<Unmatched> d_unmRegions;
   struct LociStats
   {
-    vector<boost::tuple<char,char,char>> samples;
+    vector<std::tuple<char,char,char>> samples;
   };
 
   typedef unordered_map<dnapos_t, LociStats> locimap_t;
@@ -669,7 +665,7 @@ string DNADiff(ReferenceGenome& rg, dnapos_t pos, FastQRead& fqfrag, int qlimit,
     if(c != reference[i]) {
       diff.append(1, fqfrag.d_quality[i] > qlimit ? '!' : '^');
       if(fqfrag.d_quality[i] > qlimit && diffcount < 5) 
-        rg.d_locimap[pos+i].samples.push_back(boost::make_tuple(fqfrag.d_nucleotides[i], fqfrag.d_quality[i], 
+        rg.d_locimap[pos+i].samples.push_back(std::make_tuple(fqfrag.d_nucleotides[i], fqfrag.d_quality[i], 
 								fqfrag.reversed ^ (i > fqfrag.d_nucleotides.length()/2))); // head or tail
       
       if(diffcount < 5)
@@ -691,12 +687,7 @@ string DNADiff(ReferenceGenome& rg, dnapos_t pos, FastQRead& fqfrag, int qlimit,
   return diff;
 }
 
-void emitRegion(FILE*fp, ReferenceGenome& rg, FASTQReader& fastq, GeneAnnotationReader& gar, const string& name, unsigned int index, dnapos_t start, dnapos_t stop);
 
-void emitRegion(FILE*fp, ReferenceGenome& rg, FASTQReader& fastq, GeneAnnotationReader& gar, const string& name, unsigned int index, dnapos_t start)
-{
-  emitRegion(fp, rg, fastq, gar, name, index, start-200, start +200);
-}
 void emitRegion(FILE*fp, ReferenceGenome& rg, FASTQReader& fastq, GeneAnnotationReader& gar, const string& name, unsigned int index, dnapos_t start, dnapos_t stop)
 {
   dnapos_t dnapos = (start+stop)/2;
@@ -721,6 +712,12 @@ void emitRegion(FILE*fp, ReferenceGenome& rg, FASTQReader& fastq, GeneAnnotation
   fflush(fp);
 }
 
+void emitRegion(FILE*fp, ReferenceGenome& rg, FASTQReader& fastq, GeneAnnotationReader& gar, const string& name, unsigned int index, dnapos_t start)
+{
+  emitRegion(fp, rg, fastq, gar, name, index, start-200, start +200);
+}
+
+
 unsigned int variabilityCount(const ReferenceGenome& rg, dnapos_t position, const ReferenceGenome::LociStats& lc, double* fraction)
 {
   vector<int> counts(256);
@@ -729,8 +726,8 @@ unsigned int variabilityCount(const ReferenceGenome& rg, dnapos_t position, cons
   int forwardCount=0;
 
   for(auto& j : lc.samples) {
-    counts[j.get<0>()]++;
-    if(j.get<2>())
+    counts[get<0>(j)]++;
+    if(get<2>(j))
       forwardCount++;
   }
   sort(counts.begin(), counts.end());
@@ -1145,9 +1142,9 @@ int main(int argc, char** argv)
     sort(locus.second.samples.begin(), locus.second.samples.end());
 
     seriouslyVariable++;
-    for(vector<boost::tuple<char,char,char> >::const_iterator j = locus.second.samples.begin(); 
+    for(auto j = locus.second.samples.begin(); 
         j != locus.second.samples.end(); ++j) {
-      c=j->get<0>();
+      c=get<0>(*j);
       switch(c) {
       case 'A':
         aCount++;
@@ -1166,14 +1163,14 @@ int main(int argc, char** argv)
       cout<<c;
     }
     cout<<endl<<fmt2;
-    for(vector<boost::tuple<char,char,char> >::const_iterator j = locus.second.samples.begin(); 
+    for(auto j = locus.second.samples.begin(); 
         j != locus.second.samples.end(); ++j) {
-      cout<<j->get<1>();
+      cout<<get<1>(*j);
     }
     cout<<endl<<fmt2;
-    for(vector<boost::tuple<char,char,char> >::const_iterator j = locus.second.samples.begin(); 
+    for(auto j = locus.second.samples.begin(); 
         j != locus.second.samples.end(); ++j) {
-      cout<< (j->get<2>() ? 'R' : '.');
+      cout<< (get<2>(*j) ? 'R' : '.');
     }
 
     int tot=locus.second.samples.size() + rg.d_mapping[locus.first].coverage;
