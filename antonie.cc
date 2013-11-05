@@ -29,6 +29,7 @@
 #include <boost/accumulators/statistics/mean.hpp>
 #include <boost/accumulators/statistics/moment.hpp>
 #include <boost/algorithm/string.hpp>
+#include <boost/lexical_cast.hpp>
 #include <memory>
 #include <sstream>
 #include "geneannotated.hh"
@@ -88,7 +89,7 @@ public:
   {
     vector<dnapos_t> ret;
     if(nucleotides.length() != d_indexlength)
-      throw runtime_error("Attempting to find a read of length we've not indexed for");
+      throw runtime_error("Attempting to find a read of length we've not indexed for ("+boost::lexical_cast<string>(nucleotides.length())+")");
       
     uint32_t hashval = hash(nucleotides.c_str(), nucleotides.length(), 0);
     HashPos hp(hashval, 0);
@@ -890,7 +891,7 @@ int main(int argc, char** argv)
     
     phix->index(fqfrag.d_nucleotides.size());
   }
-
+  g_log->flush();
   dnapos_t pos;
 
   uint64_t withAny=0, found=0, notFound=0, total=0, qualityExcluded=0, fuzzyFound=0, phixFound=0;

@@ -1,7 +1,8 @@
 ANTONIE
 =======
 Antonie is an integrated, robust, reliable and fast processor of DNA reads,
-mostly from Next Generation Sequencing platforms. 
+mostly from Next Generation Sequencing platforms.  It is currently focussed
+on prokaryotic and other small genomes.
 
 Antonie is open source software, and we welcome contributions!
 
@@ -95,6 +96,11 @@ Additionally, Antonie does not yet benefit from the position information that
 can be inferred from paired end reads, and in fact you'll have to concatenate both
 paired reads first.
 
+Also, Antonie can't yet deal with reads of varying lengths.
+
+Finally, Antonie may be of limited use for reads shorter than 75
+nucleotides, as it hasn't been tried in that domain a lot yet.
+
 SAMPLE USE
 ==========
 
@@ -162,8 +168,8 @@ Sample output:
 GETTING SAMPLE DATA
 ===================
 Reference materials can be found from <ftp://ftp.ncbi.nlm.nih.gov/genomes/Bacteria/>  
-The .fna file is FASTA, and corresponds to our '-f' field.  
-The .gff file is GFF3, and contains annotations understood by our '-a' (and -x) field
+The .fna file is FASTA, and corresponds to our '-f' and '-x' fields.  
+The .gff file is GFF3, and contains annotations understood by our '-a' field.
 
 As an example, for "Escherichia coli str. K-12 substr. MG1655", head to
 <ftp://ftp.ncbi.nlm.nih.gov/genomes/Bacteria/Escherichia_coli_K_12_substr__MG1655_uid57779/>

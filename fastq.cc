@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <string.h>
 #include "misc.hh"
-
+#include <boost/lexical_cast.hpp>
 using namespace std;
 
 FASTQReader::FASTQReader(const std::string& str, unsigned int qoffset, unsigned int snipLeft, unsigned int snipRight) 
@@ -62,6 +62,8 @@ unsigned int FASTQReader::getRead(FastQRead* fq)
     fq->d_quality.assign(line);
 
   for(auto& c : fq->d_quality) {
+    if((unsigned int)c < d_qoffset)
+      throw runtime_error("Attempting to parse a quality code of val "+boost::lexical_cast<string>((int)c)+" which is < our quality offset");
     c -= d_qoffset;
   }
 
