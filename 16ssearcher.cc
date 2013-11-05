@@ -17,7 +17,6 @@ using namespace std;
 
 string compactify(const std::string& text)
 {
-  int pos;
   unsigned char c=0;
   unsigned char t=0;
   string ret;

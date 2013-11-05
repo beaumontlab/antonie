@@ -4,7 +4,12 @@ CXXFLAGS=-Wall -I. -Iext/libmba  -MMD -O3 $(CXX2011FLAGS)
 CFLAGS=-I. -Iext/libmba -O3 -MMD 
 LDFLAGS=$(CXX2011FLAGS) 
 
-all: antonie 16ssearcher
+PROGRAMS=antonie 16ssearcher
+
+all: ext/libmba/libdiff.a $(PROGRAMS)
+
+ext/libmba/libdiff.a:
+	cd ext/libmba/; make
 
 -include *.d
 
@@ -17,5 +22,7 @@ antonie: $(ANTONIE_OBJECTS)
 	$(CXX) $(LDFLAGS) 16ssearcher.o hash.o misc.o fastq.o -lz -o $@
 
 clean:
-	rm -f *~ *.o *.d powerdna
+	rm -f *~ *.o *.d $(PROGRAMS)
+	cd ext/libmba/;	make clean
+
 

@@ -76,7 +76,13 @@ CODE
 Antonie is written in C++ and has no external dependencies. It can be distributed as 
 a single file for Mac, Linux and Windows platforms. 
 
-To compile, get a recent C++ compiler, and run 'make'. 
+To compile, get a recent C++ compiler, and run 'make':
+
+	$ git clone git@github.com:beaumontlab/antonie.git
+	$ cd antonie
+	$ make
+
+Antonie depends on Boost being installed at compile time, but not at runtime.
 
 LIMITATIONS
 ===========
