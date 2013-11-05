@@ -89,15 +89,16 @@ LIMITATIONS
 The current algorithm is fast on common hardware, but needs around 200MB of
 memory for a typical prokaryote.  It also assumes it is aligning against a
 single chromosome.  Combined, this means that right now, eukaryotic
-processing hard to do using Antonie.
+processing is hard to do using Antonie.
 
 Additionally, Antonie does not yet benefit from the position information that
-can be inferred from paired end reads.
+can be inferred from paired end reads, and in fact you'll have to concatenate both
+paired reads first.
 
 SAMPLE USE
 ==========
 
-> $ antonie -f tot.fastq -r PfSBW25\_genome\_FASTA.fna -b 15 -x phi-x174.fasta -a NC_012660.gff -u > report
+> $ antonie -f tot.fastq -r PfSBW25\_genome\_FASTA.fna -x phi-x174.fasta -a NC_012660.gff -u > report
 
 This will align the reads from 'tot.fastq' against the Pseudomonas SBW25
 reference genome, while stripping out any PhiX reads. Annotations will be read from
@@ -162,7 +163,7 @@ GETTING SAMPLE DATA
 ===================
 Reference materials can be found from <ftp://ftp.ncbi.nlm.nih.gov/genomes/Bacteria/>  
 The .fna file is FASTA, and corresponds to our '-f' field.  
-The .gff file is GFF3, and contains annotations understood by our '-a' field.
+The .gff file is GFF3, and contains annotations understood by our '-a' (and -x) field
 
 As an example, for "Escherichia coli str. K-12 substr. MG1655", head to
 <ftp://ftp.ncbi.nlm.nih.gov/genomes/Bacteria/Escherichia_coli_K_12_substr__MG1655_uid57779/>
@@ -181,6 +182,8 @@ For K12 MG1655, this may work: <http://www.ncbi.nlm.nih.gov/sra/SRX339396>, whic
 Once the SRA is converted to FASTQ, run Antonie like this:
 
 > $ antonie -f SRR956947.fastq -a Escherichia\_coli\_K\_12\_substr\_\_MG1655\_uid57779/\*.gff -r Escherichia\_coli\_K\_12\_substr\_\_MG1655\_uid57779/\*.fna > report
+
+And the resulting report should look like this <http://ds9a.nl/antonie/SRR956947/report.htm>
 
 FUTURE DIRECTION
 ================

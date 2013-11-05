@@ -265,10 +265,10 @@ string ReferenceGenome::getMatchingFastQs(dnapos_t start, dnapos_t stop, FASTQRe
 {
   ostringstream os;
 
-  string reference=snippet(start, stop+150);
+  string reference=snippet(start, stop);
   unsigned int insertPos=0;
   for(unsigned int i = 0 ; i < 150 + stop - start; ++i) {
-    if(i==75)
+    if(i== (stop-start)/2)
       os << reference << endl;
     string spacer(i, ' ');
     for(auto& fqm : d_mapping[start+i].d_fastqs) {
@@ -1024,11 +1024,6 @@ int main(int argc, char** argv)
   //  (*g_log)<<"After sliding matching: "<<endl;
   rg.printCoverage(jsfp.get());
   int index=0;
-
-  /*
-  emitRegion(jsfp.get(), rg, fastq, gar, "Mathia", index++,848830, 849333 );
-  emitRegion(jsfp.get(), rg, fastq, gar, "Mathi2", index++,848730, 849433 );
-  */
 
   for(auto unm : rg.d_unmRegions) {
     emitRegion(jsfp.get(), rg, fastq, gar, "Undermatched", index++, unm.pos);
