@@ -172,10 +172,9 @@ public:
   locimap_t d_locimap;
   unordered_map<dnapos_t, unsigned int> d_insertCounts;
   string d_name;
-private:
   unsigned int d_indexlength;
+private:
   string d_genome;
-
   struct HashPos {
     HashPos(uint32_t hash_, dnapos_t pos) : d_hash(hash_), d_pos(pos)
     {}
@@ -894,7 +893,8 @@ int main(int argc, char** argv)
   g_log->flush();
   dnapos_t pos;
 
-  uint64_t withAny=0, found=0, notFound=0, total=0, qualityExcluded=0, fuzzyFound=0, phixFound=0;
+  uint64_t withAny=0, found=0, notFound=0, total=0, qualityExcluded=0, fuzzyFound=0, 
+    phixFound=0, differentLength=0;
 
   unique_ptr<FILE, int(*)(FILE*)> jsfp(fopen("data.js","w"), fclose);
   SAMWriter sw("data.sam", rg.d_name, rg.size());
@@ -934,6 +934,11 @@ int main(int argc, char** argv)
     if(fqfrag.d_nucleotides.find('N') != string::npos) {
       unfoundReads.push_back(fqfrag.position);
       withAny++;
+      continue;
+    }
+    if(fqfrag.d_nucleotides.length() != rg.d_indexlength) {
+      differentLength++;
+      unfoundReads.push_back(fqfrag.position);
       continue;
     }
     pos = rg.getReadPosBoth(&fqfrag, qlimit);
@@ -981,6 +986,7 @@ int main(int argc, char** argv)
   (*g_log) << (boost::format("Excluded control reads: %|40t|-%10d") % phixFound).str() <<endl;
   (*g_log) << (boost::format("Quality excluded: %|40t|-%10d") % qualityExcluded).str() <<endl;
   (*g_log) << (boost::format("Ignored reads with N: %|40t|-%10d") % withAny).str()<<endl;
+  (*g_log) << (boost::format("Different length reads: %|40t|-%10d") % differentLength).str() <<endl;
   (*g_log) << (boost::format("Full matches: %|40t|-%10d (%.02f%%)\n") % found % (100.0*found/total)).str();
   (*g_log) << (boost::format("Not fully matched: %|40t|=%10d (%.02f%%)\n") % notFound % (notFound*100.0/total)).str();
 
