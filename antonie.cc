@@ -75,6 +75,51 @@ struct Unmatched
   dnapos_t pos;
 };
 
+class DuplicateCounter
+{
+public:
+  DuplicateCounter(int estimate=1000000)
+  {
+    d_hashes.reserve(estimate);
+  }
+  void feedString(const std::string& str);
+  void clear();
+  typedef map<uint64_t,uint64_t> counts_t;
+
+  counts_t getCounts();
+private:
+  vector<uint32_t> d_hashes;
+};
+
+void DuplicateCounter::feedString(const std::string& str)
+{
+  uint32_t hashval = hash(str.c_str(), str.length(), 0);
+  d_hashes.push_back(hashval);
+}
+
+DuplicateCounter::counts_t DuplicateCounter::getCounts()
+{
+  counts_t ret;
+  sort(d_hashes.begin(), d_hashes.end());
+  uint64_t repeatCount=1;
+  for(auto iter = next(d_hashes.begin()) ; iter != d_hashes.end(); ++iter) {
+    if(*prev(iter) != *iter) {
+      ++ret[repeatCount];
+      repeatCount=1;
+    }
+    else
+      repeatCount++;
+  }
+  ++ret[repeatCount]; 
+  return ret;
+}
+
+void DuplicateCounter::clear()
+{
+  d_hashes.clear();
+  d_hashes.shrink_to_fit();
+}
+
 class ReferenceGenome
 {
 public:
@@ -545,10 +590,14 @@ void printGCMappings(FILE* jsfp, const ReferenceGenome& rg, const std::string& n
   fprintf(jsfp,"];\n");
 }
 
+struct qtally
+{
+  qtally() : correct{0}, incorrect{0}{}
+  uint64_t correct;
+  uint64_t incorrect;
+};
 
-
-
-string DNADiff(ReferenceGenome& rg, dnapos_t pos, FastQRead& fqfrag, int qlimit, SAMWriter* sw)
+string DNADiff(ReferenceGenome& rg, dnapos_t pos, FastQRead& fqfrag, int qlimit, SAMWriter* sw, vector<qtally>* qqcounts)
 {
   string reference = rg.snippet(pos, pos + fqfrag.d_nucleotides.length());
 
@@ -595,14 +644,18 @@ string DNADiff(ReferenceGenome& rg, dnapos_t pos, FastQRead& fqfrag, int qlimit,
         rg.d_locimap[pos+i].samples.push_back(std::make_tuple(fqfrag.d_nucleotides[i], fqfrag.d_quality[i], 
 								fqfrag.reversed ^ (i > fqfrag.d_nucleotides.length()/2))); // head or tail
       
-      if(diffcount < 5)
+      if(diffcount < 5) {
+	(*qqcounts)[(unsigned int)fqfrag.d_quality[i]].incorrect++;
 	rg.d_wrongMappings[readMapPos]++;
+      }
     }
     else {
       diff.append(1, ' ');
       rg.cover(pos+i,fqfrag.d_quality[i], qlimit);
-      if(diffcount < 5)
+      if(diffcount < 5) {
+	(*qqcounts)[(unsigned int)fqfrag.d_quality[i]].correct++;
 	rg.d_correctMappings[readMapPos]++;
+      }
     }
   }
   //  if(diffcount > 5) {
@@ -700,8 +753,7 @@ dnapos_t halfFind(const std::vector<int64_t>& fqpositions, FASTQReader &fastq, R
   return fqpositions.size()  - stillUnfound.size();
 }
 
-
-int fuzzyFind(std::vector<uint64_t>* fqpositions, FASTQReader &fastq, ReferenceGenome& rg, SAMWriter* sw, int keylen, int qlimit)
+int fuzzyFind(std::vector<uint64_t>* fqpositions, FASTQReader &fastq, ReferenceGenome& rg, SAMWriter* sw, vector<qtally>* qqcounts, int keylen, int qlimit)
 {
   boost::progress_display fuzzyProgress(fqpositions->size(), cerr);
   vector<uint64_t> stillUnfound;
@@ -769,7 +821,7 @@ int fuzzyFind(std::vector<uint64_t>* fqpositions, FASTQReader &fastq, ReferenceG
         if(fqfrag.reversed != allMatches.begin()->second.reversed)
           fqfrag.reverse();
 
-	DNADiff(rg, allMatches.begin()->first, fqfrag, qlimit, sw);
+	DNADiff(rg, allMatches.begin()->first, fqfrag, qlimit, sw, qqcounts);
       } 
       else {
         map<unsigned int, vector<pair<dnapos_t, bool>>> scores;
@@ -783,7 +835,7 @@ int fuzzyFind(std::vector<uint64_t>* fqpositions, FASTQReader &fastq, ReferenceG
 	//        cout<<" Picking: "<< pick.first <<endl;
         if(fqfrag.reversed != pick.second)
           fqfrag.reverse();
-        DNADiff(rg, pick.first, fqfrag, qlimit, sw);
+        DNADiff(rg, pick.first, fqfrag, qlimit, sw, qqcounts);
       }
       fuzzyFound++;
     }
@@ -840,6 +892,8 @@ void printQualities(FILE* jsfp, const qstats_t& qstats)
   fputs("];\n", jsfp);
   fflush(jsfp);
 }
+
+
 
 int main(int argc, char** argv)
 {
@@ -908,6 +962,10 @@ int main(int argc, char** argv)
   accumulator_set<double, stats<tag::mean, tag::variance > > qstat;
   vector<unsigned int> qcounts(256);
   vector<uint64_t> unfoundReads;
+
+  vector<qtally> qqcounts(256);
+
+  DuplicateCounter dc;
   do { 
     show_progress += bytes;
     total++;
@@ -917,7 +975,7 @@ int main(int argc, char** argv)
       qstats[pos](i);
       qcounts[i]++;
     }
-    
+    dc.feedString(fqfrag.d_nucleotides);
     for(string::size_type i = 0 ; i < fqfrag.d_nucleotides.size(); ++i) {
       char c = fqfrag.d_nucleotides[i];
       if(c=='G' || c=='C')
@@ -950,6 +1008,9 @@ int main(int argc, char** argv)
       }
     }
     else {
+      for(auto c : fqfrag.d_quality) {
+	qqcounts[c].correct++;
+      }
       rg.mapFastQ(pos, fqfrag);					
       sw.write(pos, fqfrag);
       found++;
@@ -963,6 +1024,13 @@ int main(int argc, char** argv)
   }
   fprintf(jsfp.get(),"];\n");
 
+  fprintf(jsfp.get(), "var dupcounts=[");
+  auto duplicates = dc.getCounts();
+  for(auto iter = duplicates.begin(); iter != duplicates.end(); ++iter) {
+    fprintf(jsfp.get(), "%s[%ld,%ld]", (iter!=duplicates.begin()) ? "," : "", iter->first, iter->second);
+  }
+  fprintf(jsfp.get(),"];\n");
+  dc.clear(); // might save some memory..
   fprintf(jsfp.get(), "var kmerstats=[");
   unsigned int readOffset=0;
   for(const auto& kmer :  rg.d_kmerMappings) {
@@ -1010,11 +1078,11 @@ int main(int argc, char** argv)
 
   (*g_log)<<"Performing sliding window partial matches"<<endl;
 
-  fuzzyFound = fuzzyFind(&unfoundReads, fastq, rg, &sw, keylen, qlimit);
+  fuzzyFound = fuzzyFind(&unfoundReads, fastq, rg, &sw, &qqcounts, keylen, qlimit);
   uint32_t fuzzyPhixFound = 0;
   if(phix) {
     (*g_log)<<"Performing sliding window partial matches for control/exclude"<<endl;
-    fuzzyPhixFound=fuzzyFind(&unfoundReads, fastq, *phix, 0, keylen, qlimit);
+    fuzzyPhixFound=fuzzyFind(&unfoundReads, fastq, *phix, 0, &qqcounts, keylen, qlimit);
   }
   // (*g_log)<<fuzzyPhixFound<<" fuzzy @ phix"<<endl;
 
@@ -1037,6 +1105,17 @@ int main(int argc, char** argv)
   printCorrectMappings(jsfp.get(), rg, "referenceQ");
   if(phix)
     printCorrectMappings(jsfp.get(), *phix, "controlQ");
+  fprintf(jsfp.get(), "var qqdata=[");
+  bool printedYet=false;
+  for(auto coinco = qqcounts.begin() ; coinco != qqcounts.end(); ++coinco) {
+    if(coinco->incorrect && coinco->correct) {
+      fprintf(jsfp.get(), "%s[%ld, %f]", 
+	      printedYet ?  "," : "", 
+	      coinco - qqcounts.begin(), -10.0*log(1.0*coinco->incorrect / (coinco->correct + coinco->incorrect))/log(10.0));
+      printedYet=true;
+    }
+  }
+  fprintf(jsfp.get(), "];\n");
 
   (*g_log)<<"Found "<<rg.d_locimap.size()<<" varying loci"<<endl;
   uint64_t seriouslyVariable=0;
