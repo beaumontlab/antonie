@@ -1,6 +1,6 @@
 -include sysdeps/$(shell uname).inc
 
-CXXFLAGS=-Wall -I. -Iext/libmba  -MMD -O3 $(CXX2011FLAGS)  -ggdb
+CXXFLAGS=-Wall -I. -Iext/libmba  -MMD -O3 $(CXX2011FLAGS)
 CFLAGS=-I. -Iext/libmba -O3 -MMD 
 LDFLAGS=$(CXX2011FLAGS) 
 

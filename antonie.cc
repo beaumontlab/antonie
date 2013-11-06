@@ -30,6 +30,7 @@
 #include <boost/accumulators/statistics/variance.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/lexical_cast.hpp>
+#include <fenv.h>
 #include <memory>
 #include <sstream>
 #include "geneannotated.hh"
@@ -310,7 +311,7 @@ string ReferenceGenome::getMatchingFastQs(dnapos_t start, dnapos_t stop, FASTQRe
 
   string reference=snippet(start, stop);
   unsigned int insertPos=0;
-  for(unsigned int i = 0 ; i < 150 + stop - start; ++i) {
+  for(unsigned int i = 0 ; i < stop - start; ++i) {
     if(i== (stop-start)/2)
       os << reference << endl;
     string spacer(i, ' ');
@@ -569,6 +570,8 @@ void printCorrectMappings(FILE* jsfp, const ReferenceGenome& rg, const std::stri
 {
   fprintf(jsfp, "var %s=[", name.c_str());
   for(unsigned int i=0; i < rg.d_correctMappings.size() ;++i) {
+    if(!rg.d_correctMappings[i] || !rg.d_wrongMappings[i])
+      continue;
     double total=rg.d_correctMappings[i] + rg.d_wrongMappings[i];
     double error= rg.d_wrongMappings[i]/total;
     double qscore=-10*log(error)/log(10);
@@ -652,10 +655,10 @@ string DNADiff(ReferenceGenome& rg, dnapos_t pos, FastQRead& fqfrag, int qlimit,
     else {
       diff.append(1, ' ');
       rg.cover(pos+i,fqfrag.d_quality[i], qlimit);
-      if(diffcount < 5) {
+      //      if(diffcount < 5) {
 	(*qqcounts)[(unsigned int)fqfrag.d_quality[i]].correct++;
 	rg.d_correctMappings[readMapPos]++;
-      }
+	//}
     }
   }
   //  if(diffcount > 5) {
@@ -877,7 +880,7 @@ void printQualities(FILE* jsfp, const qstats_t& qstats)
   for(const auto& q : qstats) {
     if(i)
       fputs(",", jsfp);
-    fprintf(jsfp, "[%d, %f]", i, mean(q));
+    fprintf(jsfp, "[%d, %f]", i, -10.0*log(mean(q)));
     ++i;
   }
   fputs("];\n", jsfp);
@@ -887,7 +890,7 @@ void printQualities(FILE* jsfp, const qstats_t& qstats)
   for(const auto& q : qstats) {
     if(i++)
       fputs(",", jsfp);
-    fprintf(jsfp, "[%f, %f]", mean(q)-sqrt(variance(q)), mean(q)+sqrt(variance(q)));
+    fprintf(jsfp, "[%f, %f]", -10.0*log(mean(q)) - sqrt(-10.0*log(variance(q))), -10.0*log(mean(q))+sqrt(-10.0*log(variance(q))));
   }
   fputs("];\n", jsfp);
   fflush(jsfp);
@@ -897,6 +900,8 @@ void printQualities(FILE* jsfp, const qstats_t& qstats)
 
 int main(int argc, char** argv)
 {
+  feenableexcept(FE_DIVBYZERO | FE_INVALID); 
+
   TCLAP::CmdLine cmd("Command description message", ' ', "0.0");
 
   TCLAP::ValueArg<std::string> annotationsArg("a","annotations","read annotations for reference genome from this file",false, "", "filename", cmd);
@@ -946,7 +951,7 @@ int main(int argc, char** argv)
   dnapos_t pos;
 
   uint64_t withAny=0, found=0, notFound=0, total=0, qualityExcluded=0, fuzzyFound=0, 
-    phixFound=0, differentLength=0;
+    phixFound=0, differentLength=0, tooFrequent=0;
 
   unique_ptr<FILE, int(*)(FILE*)> jsfp(fopen("data.js","w"), fclose);
   SAMWriter sw("data.sam", rg.d_name, rg.size());
@@ -966,16 +971,26 @@ int main(int argc, char** argv)
   vector<qtally> qqcounts(256);
 
   DuplicateCounter dc;
+  uint32_t theHash;
+  map<uint32_t, uint32_t> seenAlready;
   do { 
     show_progress += bytes;
     total++;
     for(string::size_type pos = 0 ; pos < fqfrag.d_quality.size(); ++pos) {
-      unsigned int i = fqfrag.d_quality[pos];
-      qstat(i);
-      qstats[pos](i);
+      int i = fqfrag.d_quality[pos];
+      qstat(exp(-i/10.0));
+      //cerr<<i<<", "<<exp(-1.0*i/10.0)<<", "<<exp(0)<<endl;
+      qstats[pos](exp(-i/10.0));
       qcounts[i]++;
     }
     dc.feedString(fqfrag.d_nucleotides);
+    theHash=hash(fqfrag.d_nucleotides.c_str(), fqfrag.d_nucleotides.size(), 0);
+    if(++seenAlready[theHash] > 4) {
+      tooFrequent++;
+      continue;
+    }
+
+
     for(string::size_type i = 0 ; i < fqfrag.d_nucleotides.size(); ++i) {
       char c = fqfrag.d_nucleotides[i];
       if(c=='G' || c=='C')
@@ -1016,7 +1031,7 @@ int main(int argc, char** argv)
       found++;
     }
   } while((bytes=fastq.getRead(&fqfrag)));
-
+  
   uint64_t totNucleotides=total*fqfrag.d_nucleotides.length();
   fprintf(jsfp.get(), "qhisto=[");
   for(int c=0; c < 255; ++c) {
@@ -1052,11 +1067,13 @@ int main(int argc, char** argv)
   (*g_log) << (boost::format("Excluded control reads: %|40t|-%10d") % phixFound).str() <<endl;
   (*g_log) << (boost::format("Quality excluded: %|40t|-%10d") % qualityExcluded).str() <<endl;
   (*g_log) << (boost::format("Ignored reads with N: %|40t|-%10d") % withAny).str()<<endl;
+  (*g_log) << (boost::format("Too frequent reads: %|40t| %10d (%.02f%%)") % tooFrequent % (100.0*tooFrequent/total)).str() <<endl;
   (*g_log) << (boost::format("Different length reads: %|40t|-%10d") % differentLength).str() <<endl;
   (*g_log) << (boost::format("Full matches: %|40t|-%10d (%.02f%%)\n") % found % (100.0*found/total)).str();
   (*g_log) << (boost::format("Not fully matched: %|40t|=%10d (%.02f%%)\n") % notFound % (notFound*100.0/total)).str();
+  (*g_log) << (boost::format("Mean Q: %|40t|    %10.2f +- %.2f\n") % (-10.0*log(mean(qstat))) % sqrt(-10.0*log(variance(qstat)))).str();
 
-  (*g_log) << (boost::format("Mean Q: %|40t|    %10.2f +- %.2f\n") % mean(qstat) % sqrt(variance(qstat))).str();
+  seenAlready.clear();
 
   for(auto& i : rg.d_correctMappings) {
     i=found;

@@ -60,8 +60,10 @@ In addition, there are graphs of:
 
  * Distribution of reported Phred scores (global, per read position)
  * Distribution of actually measured Phred scores 
+ * Q-Q plot of empirical versus reported Phred scores
  * K-mer variability per read position
  * GC-content per read position
+ * Duplication count of reads
 
 So as a formula:
 
@@ -97,6 +99,7 @@ LIMITATIONS
    can be inferred from paired end reads, and in fact you'll have to concatenate both
    paired reads first.
  * Antonie can't yet deal with reads of varying lengths.
+ * We only do indels of 1 nucleotide as of now
  * Our HTML is known not to be displayed correctly on some versions of Internet Explorer.
  * Finally, Antonie may be of limited use for reads shorter than 75
    nucleotides, as it hasn't been tried in that domain a lot yet.
@@ -197,7 +200,8 @@ FUTURE DIRECTION
  * We are aiming for compatibility with the [Galaxy
    Project](http://galaxyproject.org/).
  * The program needs to automate its detection of quality, and not draw conclusions on bad data, but 
-   suggest filtering instead.
+   suggest filtering instead: "Antonie is unhappy with the Phred scores at positions < 12".
  * BAM file output (smaller, compressed version of SAM)
  * Automated post-analysis of unmatched reads against Golomb compressed set of common contaminants
  * Utilize the extra information in paired-end reads
+ * Detect indels of >1 nucleotide
