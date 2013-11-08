@@ -105,7 +105,7 @@ DuplicateCounter::counts_t DuplicateCounter::getCounts()
   uint64_t repeatCount=1;
   for(auto iter = next(d_hashes.begin()) ; iter != d_hashes.end(); ++iter) {
     if(*prev(iter) != *iter) {
-      ++ret[repeatCount];
+      ++ret[min(repeatCount, (decltype(repeatCount))20)];
       repeatCount=1;
     }
     else
