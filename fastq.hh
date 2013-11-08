@@ -11,6 +11,7 @@ struct FastQRead
   std::string d_quality;
   std::string d_header;
   bool exceedsQuality(unsigned int);
+  std::string getSangerQualityString() const;
   void reverse();
   bool reversed;
   uint64_t position;

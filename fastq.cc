@@ -26,6 +26,14 @@ bool FastQRead::exceedsQuality(unsigned int limit)
   return true;
 }
 
+string FastQRead::getSangerQualityString() const
+{
+  string quality{d_quality};
+  for(auto& c : quality) 
+    c+=33;
+  return quality;
+}
+
 void FastQRead::reverse()
 {
   reverseNucleotides(&d_nucleotides);
