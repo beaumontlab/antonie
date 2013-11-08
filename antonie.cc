@@ -328,7 +328,7 @@ string ReferenceGenome::getMatchingFastQs(dnapos_t start, dnapos_t stop, FASTQRe
         insertPos=i+fqm.indel;
       } else if(fqm.indel < 0) {      // our read has an erase at this position
         fqr.d_nucleotides.insert(-fqm.indel, 1, 'X');
-        fqr.d_quality.insert(-fqm.indel, 1, 40);
+        fqr.d_quality.insert(-fqm.indel, 1, 42);
       }
       
       if(fqm.indel <= 0 && insertPos && i > insertPos) {
@@ -627,7 +627,7 @@ string DNADiff(ReferenceGenome& rg, dnapos_t pos, FastQRead& fqfrag, int qlimit,
         rg.d_insertCounts[pos+indel]++;
       } else {      // our read has an erase at this position
         fqfrag.d_nucleotides.insert(-indel, 1, 'X');
-        fqfrag.d_quality.insert(-indel, 1, 'X');
+        fqfrag.d_quality.insert(-indel, 1, 40);
       }
     }
   }
