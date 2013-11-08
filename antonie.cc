@@ -198,7 +198,7 @@ public:
     }
     return d_genome.substr(start, stop-start);
   }
-  void printCoverage(FILE* jsfp);
+  void printCoverage(FILE* jsfp, const std::string& fname);
   void index(unsigned int length);
 
   string getMatchingFastQs(dnapos_t pos, FASTQReader& fastq); 
@@ -378,8 +378,7 @@ vector<uint32_t> ReferenceGenome::getMatchingHashes(const vector<uint32_t>& hash
   return intersec;
 }
 
-
-void ReferenceGenome::printCoverage(FILE* jsfp)
+void ReferenceGenome::printCoverage(FILE* jsfp, const std::string& histoName)
 {
   uint64_t totCoverage=0, noCoverages=0;
   unsigned int cov;
@@ -436,7 +435,7 @@ void ReferenceGenome::printCoverage(FILE* jsfp)
   }
   uint64_t total = std::accumulate(covhisto.begin(), covhisto.end(), 0);
   
-  fprintf(jsfp, "var histo=[");
+  fprintf(jsfp, "var %s=[", histoName.c_str());
   for(unsigned int i = 0; i < covhisto.size(); i++ ) 
   {
     if(i)
@@ -648,7 +647,8 @@ string DNADiff(ReferenceGenome& rg, dnapos_t pos, FastQRead& fqfrag, int qlimit,
 								fqfrag.reversed ^ (i > fqfrag.d_nucleotides.length()/2))); // head or tail
       
       if(diffcount < 5) {
-	(*qqcounts)[(unsigned int)fqfrag.d_quality[i]].incorrect++;
+	unsigned int q = (unsigned int)fqfrag.d_quality[i];
+	(*qqcounts)[q].incorrect++;
 	rg.d_wrongMappings[readMapPos]++;
       }
     }
@@ -1034,7 +1034,7 @@ int main(int argc, char** argv)
   
   uint64_t totNucleotides=total*fqfrag.d_nucleotides.length();
   fprintf(jsfp.get(), "qhisto=[");
-  for(int c=0; c < 255; ++c) {
+  for(int c=0; c < 50; ++c) {
     fprintf(jsfp.get(), "%s[%d,%f]", c ? "," : "", (int)c, 1.0*qcounts[c]/totNucleotides);
   }
   fprintf(jsfp.get(),"];\n");
@@ -1042,7 +1042,7 @@ int main(int argc, char** argv)
   fprintf(jsfp.get(), "var dupcounts=[");
   auto duplicates = dc.getCounts();
   for(auto iter = duplicates.begin(); iter != duplicates.end(); ++iter) {
-    fprintf(jsfp.get(), "%s[%ld,%ld]", (iter!=duplicates.begin()) ? "," : "", iter->first, iter->second);
+    fprintf(jsfp.get(), "%s[%ld,%f]", (iter!=duplicates.begin()) ? "," : "", iter->first, 1.0*iter->second/total);
   }
   fprintf(jsfp.get(),"];\n");
   dc.clear(); // might save some memory..
@@ -1085,7 +1085,7 @@ int main(int argc, char** argv)
     }
   }
 
-  rg.printCoverage(jsfp.get());
+  rg.printCoverage(jsfp.get(), "fullHisto");
   printQualities(jsfp.get(), qstats);
 
   int keylen=11;
@@ -1112,7 +1112,7 @@ int main(int argc, char** argv)
     writeUnmatchedReads(unfoundReads, fastq);
 
   //  (*g_log)<<"After sliding matching: "<<endl;
-  rg.printCoverage(jsfp.get());
+  rg.printCoverage(jsfp.get(), "fuzzyHisto");
   int index=0;
 
   for(auto unm : rg.d_unmRegions) {
@@ -1125,10 +1125,19 @@ int main(int argc, char** argv)
   fprintf(jsfp.get(), "var qqdata=[");
   bool printedYet=false;
   for(auto coinco = qqcounts.begin() ; coinco != qqcounts.end(); ++coinco) {
-    if(coinco->incorrect && coinco->correct) {
-      fprintf(jsfp.get(), "%s[%ld, %f]", 
+    if(coinco->incorrect || coinco->correct) {
+      double qscore;
+      if(coinco->incorrect && coinco->correct)
+	qscore = -10.0*log(1.0*coinco->incorrect / (coinco->correct + coinco->incorrect))/log(10.0);
+      else if(coinco->correct == 0)
+	qscore=0;
+      else
+	qscore=41; // "highest score possible"
+
+      fprintf(jsfp.get(), "%s[%ld, %f, %ld]", 
 	      printedYet ?  "," : "", 
-	      coinco - qqcounts.begin(), -10.0*log(1.0*coinco->incorrect / (coinco->correct + coinco->incorrect))/log(10.0));
+	      coinco - qqcounts.begin(), qscore,
+	      coinco->incorrect + coinco->correct);
       printedYet=true;
     }
   }
