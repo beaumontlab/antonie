@@ -149,7 +149,7 @@ public:
     return ret;
   }
   
-  dnapos_t getReadPosBoth(FastQRead* fq, int qlimit) // tries both
+  dnapos_t getReadPosBoth(FastQRead* fq, int qlimit) // tries original & complement
   {
     vector<dnapos_t> positions;
     string nucleotides;
@@ -211,7 +211,7 @@ public:
   {
     vector<std::tuple<char,char,char>> samples;
   };
-
+  dnapos_t d_aCount, d_cCount, d_gCount, d_tCount;
   typedef unordered_map<dnapos_t, LociStats> locimap_t;
   locimap_t d_locimap;
   unordered_map<dnapos_t, unsigned int> d_insertCounts;
@@ -264,6 +264,14 @@ ReferenceGenome::ReferenceGenome(const string& fname)
     d_genome.append(line);
   }
   
+  d_aCount = d_cCount = d_gCount = d_tCount = 0;
+  for(auto c : d_genome) {
+    if(c=='A') ++d_aCount;
+    else if(c=='C') ++d_cCount;
+    else if(c=='G') ++d_gCount;
+    else if(c=='T') ++d_tCount;
+  }
+
   d_mapping.resize(d_genome.size());
   d_indexlength=0;
 }
@@ -935,7 +943,7 @@ int main(int argc, char** argv)
   bytes=fastq.getRead(&fqfrag); // get a read to index based on its size
   
   ReferenceGenome rg(referenceArg.getValue());
-
+  (*g_log)<<"GC Content of reference genome: "<<100.0*(rg.d_cCount + rg.d_gCount)/(rg.d_cCount + rg.d_gCount + rg.d_aCount + rg.d_tCount)<<"%"<<endl;
   rg.index(fqfrag.d_nucleotides.size());
   
   unique_ptr<ReferenceGenome> phix;
@@ -1144,7 +1152,7 @@ int main(int argc, char** argv)
   fprintf(jsfp.get(), "];\n");
 
   (*g_log)<<"Found "<<rg.d_locimap.size()<<" varying loci"<<endl;
-  uint64_t seriouslyVariable=0;
+  uint64_t significantlyVariable=0;
   boost::format fmt1("%-10d: %3d*%c ");
   string fmt2("                  ");
   int aCount, cCount, tCount, gCount;
@@ -1175,7 +1183,7 @@ int main(int argc, char** argv)
     cout<< (fmt1 % locus.first % rg.d_mapping[locus.first].coverage % rg.snippet(locus.first, locus.first+1) ).str();
     sort(locus.second.samples.begin(), locus.second.samples.end());
 
-    seriouslyVariable++;
+    significantlyVariable++;
     for(auto j = locus.second.samples.begin(); 
         j != locus.second.samples.end(); ++j) {
       c=get<0>(*j);
@@ -1222,7 +1230,7 @@ int main(int argc, char** argv)
 
     cout<<rg.getMatchingFastQs(locus.first, fastq);
   }
-  (*g_log)<<"Found "<<seriouslyVariable<<" seriously variable loci"<<endl;
+  (*g_log)<<"Found "<<significantlyVariable<<" significantly variable loci"<<endl;
   (*g_log)<<"Found "<<rg.d_insertCounts.size()<<" loci with at least one insert in a read"<<endl;
   struct revsort
   {
@@ -1231,13 +1239,13 @@ int main(int argc, char** argv)
   };
   map<unsigned int, vector<dnapos_t>, revsort> topInserts;
   
-  unsigned int seriousInserts=0;
+  unsigned int significantInserts=0;
   for(const auto& insloc : rg.d_insertCounts) {
     topInserts[insloc.second].push_back(insloc.first);
     if(insloc.second > 10)
-      seriousInserts++;
+      significantInserts++;
   }
-  (*g_log)<<"Found "<<seriousInserts<<" serious inserts"<<endl;
+  (*g_log)<<"Found "<<significantInserts<<" significant inserts"<<endl;
   
   for(const auto& insert : topInserts) {
     if(insert.first < 10)
