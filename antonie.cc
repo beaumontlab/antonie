@@ -611,10 +611,14 @@ string DNADiff(ReferenceGenome& rg, dnapos_t pos, FastQRead& fqfrag, int qlimit,
 {
   string reference = rg.snippet(pos, pos + fqfrag.d_nucleotides.length());
 
-  int diffcount=0;
+  double diffcount=0;
   for(string::size_type i = 0; i < fqfrag.d_nucleotides.size() && i < reference.size();++i) {
-    if(fqfrag.d_nucleotides[i] != reference[i] && fqfrag.d_quality[i] > qlimit) 
-      diffcount++;
+    if(fqfrag.d_nucleotides[i] != reference[i]) {
+      if(fqfrag.d_quality[i] > qlimit) 
+	diffcount++;
+      else
+	diffcount+=0.5;
+    }
   }
 
   if(diffcount < 5) {
@@ -871,12 +875,7 @@ void writeUnmatchedReads(const vector<uint64_t>& unfoundReads, FASTQReader& fast
   for(const auto& pos :  unfoundReads) {
     fastq.seek(pos);
     fastq.getRead(&fqfrag);
-
-    for(auto& c : fqfrag.d_quality) {
-      c+=33; // we always output Sanger
-    }
-
-    fprintf(fp, "@%s\n%s\n+\n%s\n", fqfrag.d_header.c_str(), fqfrag.d_nucleotides.c_str(), fqfrag.d_quality.c_str());
+    fprintf(fp, "@%s\n%s\n+\n%s\n", fqfrag.d_header.c_str(), fqfrag.d_nucleotides.c_str(), fqfrag.getSangerQualityString().c_str());
   }
   fclose(fp);
 }
