@@ -44,9 +44,15 @@ work, please cite xyz.
 <div id="log"></div>
 
 <div class="chart" id="kmer" >
-<h3>K-Mer diversity &amp; GC content across reads</h3>
+<h3>K-Mer diversity across reads</h3>
   <svg></svg>
 </div>
+
+<div class="chart" id="gc" >
+<h3>GC content across reads</h3>
+  <svg></svg>
+</div>
+
 
 <div class="chart" id="qreads" >
 <h3>Reported quality &amp; empirically observed quality across reads</h3>
@@ -101,7 +107,7 @@ if(typeof antonieLog == 'undefined')
 if(typeof fuzzyHisto == 'undefined')
 	fuzzyHisto = [];
 
-function getPoints(item1, name1, item2, name2) {
+function getPoints(item1, name1, item2, name2, item3, name3, item4, name4) {
   var ret = [
     {
       values: [],
@@ -113,11 +119,27 @@ function getPoints(item1, name1, item2, name2) {
     ret[0].values.push({x: item1[i][0], y: item1[i][1] }); 
   }
   if(typeof item2 != 'undefined') {
-  	ret.push({      values: [],      key: name2,      color: "#0f7f0e",    });
+  	ret.push({      values: [],      key: name2,      color: "#0f7f0e"    });
 	for (var i = 0; i < item2.length; i++) {
 		ret[1].values.push({x: item2[i][0], y: item2[i][1] }); 
 	}
   }
+
+  if(typeof item3 != 'undefined') {
+  	ret.push({      values: [],      key: name3,      color: "#cccccc"    });
+	for (var i = 0; i < item3.length; i++) {
+		ret[2].values.push({x: item3[i][0], y: item3[i][1] }); 
+	}
+  }
+
+  if(typeof item4 != 'undefined') {
+  	ret.push({      values: [],      key: name4,      color: "#cccccc"    });
+	for (var i = 0; i < item4.length; i++) {
+		ret[3].values.push({x: item4[i][0], y: item4[i][1] }); 
+	}
+  }
+
+
 
   return ret;
 }
@@ -143,7 +165,41 @@ nv.addGraph(function() {
     ;
 
   d3.select('#kmer svg')
-    .datum(getPoints(kmerstats, "K-mer diversity", gcRatios, "GC"))
+    .datum(getPoints(kmerstats, "K-mer diversity"))
+    .call(chart);
+
+  nv.utils.windowResize(chart.update);
+  return chart;
+});
+
+var gconst=[];
+
+nv.addGraph(function() {
+  var chart = nv.models.lineChart()
+  .options({
+    margin: {left: 100, bottom: 75},
+    x: function(d,i) { return i},
+    showXAxis: true,
+    showYAxis: true,
+    transitionDuration: 250
+  })
+  .forceY([0])
+  ;
+
+  chart.xAxis
+    .axisLabel("Position (n)")
+    .tickFormat(d3.format(',d'));
+  chart.yAxis
+    .axisLabel('Ratio')
+    .tickFormat(d3.format(',.2f'))
+    ;
+
+  for(i=0 ; i != gcRatios.length; ++i) {
+  	gconst[i]=[i,genomeGCRatio];
+  }
+
+  d3.select('#gc svg')
+    .datum(getPoints(gcRatios, "GC Content", gconst, "Genome average"))
     .call(chart);
 
   nv.utils.windowResize(chart.update);
@@ -173,7 +229,7 @@ nv.addGraph(function() {
     ;
 
   d3.select('#qreads svg')
-    .datum(getPoints(qualities, "reported", referenceQ, "empirical"))
+    .datum(getPoints(qualities, "reported", referenceQ, "empirical", qlo, "Low reported range", qhi, "High reported range"))
     .call(chart);
 
   nv.utils.windowResize(chart.update);

@@ -24,10 +24,6 @@
 #include <boost/format.hpp>
 #include <boost/iostreams/tee.hpp>
 #include <boost/iostreams/stream.hpp>
-#include <boost/accumulators/accumulators.hpp>
-#include <boost/accumulators/statistics/stats.hpp>
-#include <boost/accumulators/statistics/mean.hpp>
-#include <boost/accumulators/statistics/variance.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/lexical_cast.hpp>
 #include "dnamisc.hh"
@@ -44,7 +40,7 @@
 #include "saminfra.hh"
 
 using namespace std;
-using namespace boost::accumulators;
+
 using namespace boost::algorithm;
 
 extern "C" {
@@ -239,8 +235,6 @@ private:
   index_t d_index;
 };
 
-
-
 ReferenceGenome::ReferenceGenome(const string& fname)
 {
   FILE* fp = fopen(fname.c_str(), "r");
@@ -400,6 +394,23 @@ string jsonVector(const vector<T>& v, const std::string& name,
 }
 
 
+template<typename T>
+string jsonVectorD(const vector<T>& v, const std::string& name, 
+		  std::function<double(double)> yAdjust = [](double d){return d;},
+		  std::function<double(int)> xAdjust = [](int i){return 1.0*i;})
+{
+  ostringstream ret;
+  ret << "var "<<name<<"=[";
+  for(auto iter = v.begin(); iter != v.end(); ++iter) {
+    if(iter != v.begin())
+      ret<<',';
+    ret << '[' << xAdjust(iter - v.begin()) <<','<< yAdjust(*iter)<<']';
+  }
+  ret <<"];\n";
+  return ret.str();
+}
+
+
 vector<uint32_t> ReferenceGenome::getMatchingHashes(const vector<uint32_t>& hashes)
 {
   struct cmp
@@ -483,13 +494,17 @@ uint32_t kmerMapper(const std::string& str, int offset, int unsigned len)
 {
   uint32_t ret=0;
   const char *c=str.c_str() + offset;
-  static string ntides{"ACGT"};
   string::size_type val;
-  for(string::size_type i = 0; i != len; ++i) {
+  for(string::size_type i = 0; i != len; ++i, ++c) {
     ret<<=2;
-    val= ntides.find(*c++);
-    if(val != string::npos)
-      ret |= val;
+    if(*c=='A') val=0;
+    else if(*c=='C') val=1;
+    else if(*c=='G') val=2;
+    else if(*c=='T') val=3;
+    else 
+      continue;
+
+    ret |= val;
   }
   return ret;
 }
@@ -607,7 +622,7 @@ void printCorrectMappings(FILE* jsfp, const ReferenceGenome& rg, const std::stri
       continue;
     double total=rg.d_correctMappings[i] + rg.d_wrongMappings[i];
     double error= rg.d_wrongMappings[i]/total;
-    double qscore=-10*log(error)/log(10);
+    double qscore=-10*log10(error);
     fprintf(jsfp, "%s[%d,%.2f]", i ? "," : "", i, qscore);
     //    cout<<"total "<<total<<", error: "<<error<<", qscore: "<<qscore<<endl;
   }
@@ -892,7 +907,7 @@ int fuzzyFind(std::vector<uint64_t>* fqpositions, FASTQReader &fastq, ReferenceG
   return fuzzyFound;
 }
 
-typedef vector<accumulator_set<double, stats<tag::mean, tag::variance > > > qstats_t;
+typedef vector<VarMeanEstimator> qstats_t;
 
 void writeUnmatchedReads(const vector<uint64_t>& unfoundReads, FASTQReader& fastq)
 {
@@ -914,26 +929,42 @@ void printQualities(FILE* jsfp, const qstats_t& qstats)
   for(const auto& q : qstats) {
     if(i)
       fputs(",", jsfp);
-    fprintf(jsfp, "[%d, %f]", i, -10.0*log(mean(q)));
+    fprintf(jsfp, "[%d, %f]", i, -10.0*log10(mean(q)));
     ++i;
   }
   fputs("];\n", jsfp);
 
-  i=0;
-  fprintf(jsfp, "qhilo=[");
+  vector<double> qlo, qhi;
   for(const auto& q : qstats) {
-    if(i++)
-      fputs(",", jsfp);
-    fprintf(jsfp, "[%f, %f]", -10.0*log(mean(q)) - sqrt(-10.0*log(variance(q))), -10.0*log(mean(q))+sqrt(-10.0*log(variance(q))));
+    qlo.push_back(-10.0*log10(mean(q)) - sqrt(-10.0*log10(variance(q))));
+    qhi.push_back(-10.0*log10(mean(q)) +sqrt(-10.0*log10(variance(q))));
   }
-  fputs("];\n", jsfp);
+
+  fputs((jsonVectorD(qlo,"qlo")+jsonVectorD(qhi, "qhi")).c_str(), jsfp);
+
   fflush(jsfp);
 }
 
+double qToErr(unsigned int i) 
+{
+  static vector<double> answers;
+  
+  if(answers.empty()) {
+    for(int n = 0; n < 60 ; ++n) {
+      answers.push_back(exp10(-n/10.0));
+    }
+  }
+  if(i > answers.size()) {
+    throw runtime_error("Can't calculate error rate for Q "+boost::lexical_cast<string>(i));
+  }
+
+  return answers[i];
+}
 
 
 int main(int argc, char** argv)
 {
+
 #ifndef __APPLE__
   feenableexcept(FE_DIVBYZERO | FE_INVALID); 
 #endif 
@@ -944,6 +975,7 @@ int main(int argc, char** argv)
   TCLAP::ValueArg<std::string> referenceArg("r","reference","read annotations for reference genome from this file",true,"","string", cmd);
   TCLAP::ValueArg<std::string> fastqArg("f","fastq","read annotations for reference genome from this file",true,"","string", cmd);
   TCLAP::ValueArg<std::string> excludeArg("x","exclude","read annotations for reference genome from this file",false,"","string", cmd);
+  TCLAP::ValueArg<std::string> samFileArg("s","sam-file","Write the assembly to the named SAM file",false,"","filename", cmd);
   TCLAP::ValueArg<int> qualityOffsetArg("q","quality-offset","Quality offset in fastq. 33 for Sanger.",false, 33,"offset", cmd);
   TCLAP::ValueArg<int> beginSnipArg("b","begin-snip","Number of nucleotides to snip from begin of reads",false, 0,"nucleotides", cmd);
   TCLAP::ValueArg<int> endSnipArg("e","end-snip","Number of nucleotides to snip from end of reads",false, 0,"nucleotides", cmd);
@@ -972,9 +1004,14 @@ int main(int argc, char** argv)
   bytes=fastq.getRead(&fqfrag); // get a read to index based on its size
   
   ReferenceGenome rg(referenceArg.getValue());
-  (*g_log)<<"GC Content of reference genome: "<<100.0*(rg.d_cCount + rg.d_gCount)/(rg.d_cCount + rg.d_gCount + rg.d_aCount + rg.d_tCount)<<"%"<<endl;
+  double genomeGCRatio = 1.0*(rg.d_cCount + rg.d_gCount)/(rg.d_cCount + rg.d_gCount + rg.d_aCount + rg.d_tCount);
+  (*g_log)<<"GC Content of reference genome: "<<100.0*genomeGCRatio<<"%"<<endl;
   rg.index(fqfrag.d_nucleotides.size());
   
+  unique_ptr<FILE, int(*)(FILE*)> jsfp(fopen("data.js","w"), fclose);
+
+  fprintf(jsfp.get(), "var genomeGCRatio=%f;\n", genomeGCRatio);
+
   unique_ptr<ReferenceGenome> phix;
 
   if(!excludeArg.getValue().empty()) {
@@ -990,8 +1027,7 @@ int main(int argc, char** argv)
   uint64_t withAny=0, found=0, notFound=0, total=0, qualityExcluded=0, fuzzyFound=0, 
     phixFound=0, differentLength=0, tooFrequent=0;
 
-  unique_ptr<FILE, int(*)(FILE*)> jsfp(fopen("data.js","w"), fclose);
-  SAMWriter sw("data.sam", rg.d_name, rg.size());
+  SAMWriter sw(samFileArg.getValue(), rg.d_name, rg.size());
 
   (*g_log)<<"Performing exact matches of reads to reference genome"<<endl;
   boost::progress_display show_progress(filesize(fastqArg.getValue().c_str()), cerr);
@@ -1001,7 +1037,7 @@ int main(int argc, char** argv)
 
   qstats_t qstats;
   qstats.resize(fqfrag.d_nucleotides.size());
-  accumulator_set<double, stats<tag::mean, tag::variance > > qstat;
+  VarMeanEstimator qstat;
   vector<unsigned int> qcounts(256);
   vector<uint64_t> unfoundReads;
   vector<qtally> qqcounts(256);
@@ -1015,9 +1051,9 @@ int main(int argc, char** argv)
     total++;
     for(string::size_type pos = 0 ; pos < fqfrag.d_quality.size(); ++pos) {
       int i = fqfrag.d_quality[pos];
-      qstat(exp(-i/10.0));
-      //cerr<<i<<", "<<exp(-1.0*i/10.0)<<", "<<exp(0)<<endl;
-      qstats[pos](exp(-i/10.0));
+      double err = qToErr(i);
+      qstat(err);
+      qstats[pos](err);
       qcounts[i]++;
     }
     dc.feedString(fqfrag.d_nucleotides);
@@ -1030,7 +1066,7 @@ int main(int argc, char** argv)
     }
 
     gchisto[round(fqfrag.d_nucleotides.size()*getGCContent(fqfrag.d_nucleotides))]++;
-
+    bool hadN=false;
     for(string::size_type i = 0 ; i < fqfrag.d_nucleotides.size(); ++i) {
       char c = fqfrag.d_nucleotides[i];
       if(c=='G' || c=='C')
@@ -1040,9 +1076,11 @@ int main(int argc, char** argv)
 
       if(fqfrag.d_nucleotides.size() - i > 4)
 	rg.d_kmerMappings[i][kmerMapper(fqfrag.d_nucleotides, i, 4)]++;
+      if(c=='N')
+	hadN=true;
     }
 
-    if(fqfrag.d_nucleotides.find('N') != string::npos) {
+    if(hadN) {
       unfoundReads.push_back(fqfrag.position);
       withAny++;
       continue;
@@ -1106,7 +1144,7 @@ int main(int argc, char** argv)
     if(readOffset >= fqfrag.d_nucleotides.length() - 4)
       break;
 
-    accumulator_set<double, stats<tag::mean, tag::variance > > acc;
+    VarMeanEstimator acc;
     for(auto& count : kmer) {
       acc(count);
     }
@@ -1126,7 +1164,8 @@ int main(int argc, char** argv)
   (*g_log) << (boost::format("Different length reads: %|40t|-%10d") % differentLength).str() <<endl;
   (*g_log) << (boost::format("Full matches: %|40t|-%10d (%.02f%%)\n") % found % (100.0*found/total)).str();
   (*g_log) << (boost::format("Not fully matched: %|40t|=%10d (%.02f%%)\n") % notFound % (notFound*100.0/total)).str();
-  (*g_log) << (boost::format("Mean Q: %|40t|    %10.2f +- %.2f\n") % (-10.0*log(mean(qstat))) % sqrt(-10.0*log(variance(qstat)))).str();
+  (*g_log) << (boost::format("Mean Q: %|40t|    %10.2f +- %.2f\n") % (-10.0*log10(mean(qstat))) 
+	       % sqrt(-10.0*log10(variance(qstat)) )).str();
 
   seenAlready.clear();
 
@@ -1183,7 +1222,7 @@ int main(int argc, char** argv)
     if(coinco->incorrect || coinco->correct) {
       double qscore;
       if(coinco->incorrect && coinco->correct)
-	qscore = -10.0*log(1.0*coinco->incorrect / (coinco->correct + coinco->incorrect))/log(10.0);
+	qscore = -10.0*log10(1.0*coinco->incorrect / (coinco->correct + coinco->incorrect));
       else if(coinco->correct == 0)
 	qscore=0;
       else
