@@ -96,8 +96,6 @@ var region=[];
 </script>
 <script src="data.js"></script>
 <script>
-
-d3.select("#log").html("<pre>"+antonieLog+"</pre>");
 if(typeof referenceQ == 'undefined')
 	referenceQ=[];
 
@@ -109,6 +107,7 @@ if(typeof antonieLog == 'undefined')
 	
 if(typeof fuzzyHisto == 'undefined')
 	fuzzyHisto = [];
+d3.select("#log").html("<pre>"+antonieLog+"</pre>");
 
 function getPoints(item1, name1, item2, name2, item3, name3, item4, name4) {
   var ret = [
@@ -384,7 +383,6 @@ nv.addGraph(function() {
   	dupgraph.values[i].label= dupcounts[i][0];
   	dupgraph.values[i].value = dupcounts[i][1]*100.0;
   }
-  console.log(dupgraph);
   d3.select('#dups svg')
     .datum([dupgraph])
     .call(chart);
@@ -411,8 +409,8 @@ for(i = 0 ; i < region.length; ++i) {
 	  chart.yAxis.axisLabel('Depth').tickFormat(d3.format(',d'));
 	  console.log(item);
 	  var ourdiv=d3.select('#regions').append('div').attr('class','chart').attr('id',"region"+item);
-	  ourdiv.append('h3').text('Region '+i+': '+region[item].name);
-	  ourdiv.append('p').text(region[item].annotations);	  
+	  ourdiv.append('h3').text('Region '+i+': '+region[item].name + ' @ ' +region[item].pos );
+	  ourdiv.append('p').text(decodeURIComponent(region[item].annotations));
 	  ourdiv.append('svg').datum(getPoints(region[item].depth, "Depth")).call(chart);
 	  nv.utils.windowResize(chart.update);
 	
