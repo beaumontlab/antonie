@@ -30,6 +30,7 @@
 #include <boost/accumulators/statistics/variance.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/lexical_cast.hpp>
+#include "dnamisc.hh"
 #include <fenv.h>
 #include <memory>
 #include <sstream>
@@ -192,6 +193,8 @@ public:
     //    cout<<"Adding mapping at pos "<<pos<<", indel = "<<indel<<", reverse= "<<fqm.reverse<<endl;
   }
 
+  vector<dnapos_t> getGCHisto();
+
   string snippet(dnapos_t start, dnapos_t stop) const { 
     if(stop > d_genome.size()) {
       return d_genome.substr(start);
@@ -274,6 +277,20 @@ ReferenceGenome::ReferenceGenome(const string& fname)
 
   d_mapping.resize(d_genome.size());
   d_indexlength=0;
+}
+
+// returns as if we sampled once per index length, an array of index length bins
+vector<dnapos_t> ReferenceGenome::getGCHisto()
+{
+  vector<dnapos_t> ret;
+  ret.resize(d_indexlength+1);
+  for(dnapos_t pos = 0; pos < d_genome.size() ; pos += d_indexlength/4) {
+    ret[round(d_indexlength*getGCContent(snippet(pos, pos + d_indexlength)))]++;
+  }
+  for(auto& c : ret) {
+    c/=4;
+  }
+  return ret;
 }
 
 void ReferenceGenome::index(unsigned int length)
@@ -366,6 +383,23 @@ string ReferenceGenome::getMatchingFastQs(dnapos_t start, dnapos_t stop, FASTQRe
   return os.str();
 }
 
+template<typename T>
+string jsonVector(const vector<T>& v, const std::string& name, 
+		  std::function<double(dnapos_t)> yAdjust = [](dnapos_t d){return 1.0*d;},
+		  std::function<double(int)> xAdjust = [](int i){return 1.0*i;})
+{
+  ostringstream ret;
+  ret << "var "<<name<<"=[";
+  for(auto iter = v.begin(); iter != v.end(); ++iter) {
+    if(iter != v.begin())
+      ret<<',';
+    ret << '[' << xAdjust(iter - v.begin()) <<','<< yAdjust(*iter)<<']';
+  }
+  ret <<"];\n";
+  return ret.str();
+}
+
+
 vector<uint32_t> ReferenceGenome::getMatchingHashes(const vector<uint32_t>& hashes)
 {
   struct cmp
@@ -442,15 +476,7 @@ void ReferenceGenome::printCoverage(FILE* jsfp, const std::string& histoName)
     }
   }
   uint64_t total = std::accumulate(covhisto.begin(), covhisto.end(), 0);
-  
-  fprintf(jsfp, "var %s=[", histoName.c_str());
-  for(unsigned int i = 0; i < covhisto.size(); i++ ) 
-  {
-    if(i)
-      fputc(',', jsfp);
-    fprintf(jsfp, "[%u, %f]", i, 1.0*covhisto[i]/total);
-  }
-  fprintf(jsfp,"];\n");
+  fputs(jsonVector(covhisto, histoName, [&total](dnapos_t dp) { return 1.0*dp/total; }).c_str(), jsfp);
 }
 
 uint32_t kmerMapper(const std::string& str, int offset, int unsigned len)
@@ -883,6 +909,7 @@ void writeUnmatchedReads(const vector<uint64_t>& unfoundReads, FASTQReader& fast
 void printQualities(FILE* jsfp, const qstats_t& qstats)
 {
   int i=0;
+
   fprintf(jsfp, "qualities=[");
   for(const auto& q : qstats) {
     if(i)
@@ -919,12 +946,13 @@ int main(int argc, char** argv)
   TCLAP::ValueArg<int> beginSnipArg("b","begin-snip","Number of nucleotides to snip from begin of reads",false, 0,"nucleotides", cmd);
   TCLAP::ValueArg<int> endSnipArg("e","end-snip","Number of nucleotides to snip from end of reads",false, 0,"nucleotides", cmd);
   TCLAP::ValueArg<int> qlimitArg("l","qlimit","Disregard nucleotide reads with less quality than this in calls",false, 30,"q", cmd);
+  TCLAP::ValueArg<int> duplimitArg("d","duplimit","Ignore reads that occur more than d times. 0 for no filter.",false, 0,"times", cmd);
   TCLAP::SwitchArg unmatchedDumpSwitch("u","unmatched-dump","Create a dump of unmatched reads (unfound.fastq)", cmd, false);
 
   cmd.parse( argc, argv );
 
   unsigned int qlimit = qlimitArg.getValue();
-  
+  unsigned int duplimit = duplimitArg.getValue();
   srandom(time(0));
   ostringstream jsonlog;  
   TeeDevice td(cerr, jsonlog);
@@ -974,8 +1002,8 @@ int main(int argc, char** argv)
   accumulator_set<double, stats<tag::mean, tag::variance > > qstat;
   vector<unsigned int> qcounts(256);
   vector<uint64_t> unfoundReads;
-
   vector<qtally> qqcounts(256);
+  vector<dnapos_t> gchisto(fqfrag.d_nucleotides.size()+1);
 
   DuplicateCounter dc;
   uint32_t theHash;
@@ -991,12 +1019,15 @@ int main(int argc, char** argv)
       qcounts[i]++;
     }
     dc.feedString(fqfrag.d_nucleotides);
-    theHash=hash(fqfrag.d_nucleotides.c_str(), fqfrag.d_nucleotides.size(), 0);
-    if(++seenAlready[theHash] > 4) {
-      tooFrequent++;
-      continue;
+    if(duplimit) {
+      theHash=hash(fqfrag.d_nucleotides.c_str(), fqfrag.d_nucleotides.size(), 0);
+      if(++seenAlready[theHash] > 4) {
+	tooFrequent++;
+	continue;
+      }
     }
 
+    gchisto[round(fqfrag.d_nucleotides.size()*getGCContent(fqfrag.d_nucleotides))]++;
 
     for(string::size_type i = 0 ; i < fqfrag.d_nucleotides.size(); ++i) {
       char c = fqfrag.d_nucleotides[i];
@@ -1053,6 +1084,20 @@ int main(int argc, char** argv)
   }
   fprintf(jsfp.get(),"];\n");
   dc.clear(); // might save some memory..
+
+  dnapos_t totalhisto= accumulate(gchisto.begin(), gchisto.end(), 0);
+  fputs(jsonVector(gchisto, "gcreadhisto",  
+		   [totalhisto](dnapos_t c){return 1.0*c/totalhisto;},
+		   [&fqfrag](int i) { return 100.0*i/fqfrag.d_nucleotides.size();}   ).c_str(), 
+	jsfp.get());
+
+  fputs(jsonVector(rg.getGCHisto(), "gcrefhisto",  
+		   [&fqfrag,&rg](dnapos_t c){return 1.0*c/(rg.size()/fqfrag.d_nucleotides.size());},
+		   [&fqfrag](int i) { return 100.0*i/fqfrag.d_nucleotides.size();}   ).c_str(), 
+	jsfp.get());
+
+
+
   fprintf(jsfp.get(), "var kmerstats=[");
   unsigned int readOffset=0;
   for(const auto& kmer :  rg.d_kmerMappings) {
@@ -1074,7 +1119,8 @@ int main(int argc, char** argv)
   (*g_log) << (boost::format("Excluded control reads: %|40t|-%10d") % phixFound).str() <<endl;
   (*g_log) << (boost::format("Quality excluded: %|40t|-%10d") % qualityExcluded).str() <<endl;
   (*g_log) << (boost::format("Ignored reads with N: %|40t|-%10d") % withAny).str()<<endl;
-  (*g_log) << (boost::format("Too frequent reads: %|40t| %10d (%.02f%%)") % tooFrequent % (100.0*tooFrequent/total)).str() <<endl;
+  if(duplimit)
+    (*g_log) << (boost::format("Too frequent reads: %|40t| %10d (%.02f%%)") % tooFrequent % (100.0*tooFrequent/total)).str() <<endl;
   (*g_log) << (boost::format("Different length reads: %|40t|-%10d") % differentLength).str() <<endl;
   (*g_log) << (boost::format("Full matches: %|40t|-%10d (%.02f%%)\n") % found % (100.0*found/total)).str();
   (*g_log) << (boost::format("Not fully matched: %|40t|=%10d (%.02f%%)\n") % notFound % (notFound*100.0/total)).str();

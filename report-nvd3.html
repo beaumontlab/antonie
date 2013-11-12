@@ -43,32 +43,38 @@ work, please cite xyz.
 
 <div id="log"></div>
 
-<div class="chart" id="chart1" >
+<div class="chart" id="kmer" >
 <h3>K-Mer diversity &amp; GC content across reads</h3>
   <svg></svg>
 </div>
 
-<div class="chart" id="chart2" >
+<div class="chart" id="qreads" >
 <h3>Reported quality &amp; empirically observed quality across reads</h3>
   <svg></svg>
 </div>
 
-<div class="chart" id="chart3" >
+<div class="chart" id="qq" >
 <h3>Q-Q Plot: reported versus empirical qualities</h3>
   <svg></svg>
 </div>
 
-<div class="chart" id="chart4" >
+<div class="chart" id="qhisto" >
 <h3>Quality histogram</h3>
   <svg></svg>
 </div>
 
-<div class="chart" id="chart5" >
+<div class="chart" id="gchisto" >
+<h3>GC Content of reads</h3>
+  <svg></svg>
+</div>
+
+
+<div class="chart" id="depthhisto" >
 <h3>Depth histogram</h3>
   <svg></svg>
 </div>
 
-<div class="chart" id="chart6" >
+<div class="chart" id="dups" >
 <h3>Duplicate reads</h3>
   <svg></svg>
 </div>
@@ -89,6 +95,11 @@ if(typeof referenceQ == 'undefined')
 if(typeof qqdata == 'undefined')
 	qqdata=[];
 
+if(typeof antonieLog == 'undefined')
+	antonieLog ='';
+	
+if(typeof fuzzyHisto == 'undefined')
+	fuzzyHisto = [];
 
 function getPoints(item1, name1, item2, name2) {
   var ret = [
@@ -131,7 +142,7 @@ nv.addGraph(function() {
     .tickFormat(d3.format(',.2f'))
     ;
 
-  d3.select('#chart1 svg')
+  d3.select('#kmer svg')
     .datum(getPoints(kmerstats, "K-mer diversity", gcRatios, "GC"))
     .call(chart);
 
@@ -161,7 +172,7 @@ nv.addGraph(function() {
     .tickFormat(d3.format(',.2f'))
     ;
 
-  d3.select('#chart2 svg')
+  d3.select('#qreads svg')
     .datum(getPoints(qualities, "reported", referenceQ, "empirical"))
     .call(chart);
 
@@ -180,7 +191,7 @@ nv.addGraph(function() {
   chart.xAxis.tickFormat(d3.format('.d')).axisLabel("Reported quality");
   chart.yAxis.tickFormat(d3.format('.02f')).axisLabel("Observed quality");
   chart.tooltipContent(function(key) { return key; });
-  d3.select('#chart3 svg')
+  d3.select('#qq svg')
       .datum(getqqdata)
       .call(chart);
 
@@ -224,7 +235,7 @@ nv.addGraph(function() {
     ;
 
 
-  d3.select('#chart4 svg')
+  d3.select('#qhisto svg')
     .datum(getPoints(qhisto, "Reported"))
     .call(chart);
 
@@ -232,6 +243,37 @@ nv.addGraph(function() {
 
   return chart;
 });
+
+nv.addGraph(function() {
+  var chart = nv.models.lineChart()
+  .options({
+    margin: {left: 100, bottom: 75},
+    x: function(d,i) { return d.x;},
+    showXAxis: true,
+    showYAxis: true,
+    transitionDuration: 250
+  })
+  .forceY([0])
+  ;
+
+  // chart sub-models (ie. xAxis, yAxis, etc) when accessed directly, return themselves, not the parent chart, so need to chain separately
+  chart.xAxis
+    .axisLabel("GC Content (percentage)")
+    .tickFormat(d3.format(',d'));
+
+  chart.yAxis
+    .axisLabel('Frequency')
+    .tickFormat(d3.format(',.2f'))
+    ;
+
+  d3.select('#gchisto svg')
+    .datum(getPoints(gcrefhisto, "GC content of reference", gcreadhisto, "GC content of reads"))
+    .call(chart);
+  nv.utils.windowResize(chart.update);
+
+  return chart;
+});
+
 
 
 nv.addGraph(function() {
@@ -257,7 +299,7 @@ nv.addGraph(function() {
     ;
 
 
-  d3.select('#chart5 svg')
+  d3.select('#depthhisto svg')
     .datum(getPoints(fullHisto, "Full matches", fuzzyHisto, "Including partial"))
     .call(chart);
 
@@ -288,7 +330,7 @@ nv.addGraph(function() {
   	dupgraph.values[i].value = dupcounts[i][1]*100.0;
   }
   console.log(dupgraph);
-  d3.select('#chart6 svg')
+  d3.select('#dups svg')
     .datum([dupgraph])
     .call(chart);
 
