@@ -85,6 +85,8 @@ work, please cite xyz.
   <svg></svg>
 </div>
 
+<div id="regions">
+</div>
 
 <script src="ext/html/nvd3/lib/d3.v3.js"></script>
 <script src="ext/html/nvd3/nv.d3.js"></script>
@@ -95,6 +97,7 @@ var region=[];
 <script src="data.js"></script>
 <script>
 
+d3.select("#log").html("<pre>"+antonieLog+"</pre>");
 if(typeof referenceQ == 'undefined')
 	referenceQ=[];
 
@@ -138,8 +141,6 @@ function getPoints(item1, name1, item2, name2, item3, name3, item4, name4) {
 		ret[3].values.push({x: item4[i][0], y: item4[i][1] }); 
 	}
   }
-
-
 
   return ret;
 }
@@ -330,8 +331,6 @@ nv.addGraph(function() {
   return chart;
 });
 
-
-
 nv.addGraph(function() {
   var chart = nv.models.lineChart()
   .options({
@@ -395,6 +394,34 @@ nv.addGraph(function() {
   return chart;
 });
 
-d3.select("#log").html("<pre>"+antonieLog+"</pre>");
+for(i = 0 ; i < region.length; ++i) {
+	nv.addGraph((function() {
+	  var item = i;
+	  var chart = nv.models.lineChart()
+	  .options({
+	    margin: {left: 100, bottom: 75},
+	    x: function(d,i) { return d.x},
+	    showXAxis: true,
+	    showYAxis: true,
+	    transitionDuration: 250
+	  })
+	  .forceY([0]);
+
+	  chart.xAxis.axisLabel("Position (p)").tickFormat(d3.format(',d'));
+	  chart.yAxis.axisLabel('Depth').tickFormat(d3.format(',d'));
+	  console.log(item);
+	  var ourdiv=d3.select('#regions').append('div').attr('class','chart').attr('id',"region"+item);
+	  ourdiv.append('h3').text('Region '+i+': '+region[item].name);
+	  ourdiv.append('p').text(region[item].annotations);	  
+	  ourdiv.append('svg').datum(getPoints(region[item].depth, "Depth")).call(chart);
+	  nv.utils.windowResize(chart.update);
+	
+	  return chart;
+	})());	
+}
+
+
+
+
 
 </script>

@@ -459,14 +459,12 @@ void ReferenceGenome::printCoverage(FILE* jsfp, const std::string& histoName)
     
     if(!noCov && wasNul) {
       if(prevNulpos > 40 && pos + 40 < d_genome.length()) {
-	if(d_unmRegions.empty() || prevNulpos - d_unmRegions.rbegin()->pos > 30) {
-	  Unmatched unm;
-	  unm.left = d_genome.substr(prevNulpos-40, 40);
-	  unm.right = d_genome.substr(pos, 40);
-	  unm.unmatched = d_genome.substr(prevNulpos, pos-prevNulpos);
-	  unm.pos = prevNulpos;
-	  d_unmRegions.push_back(unm);
-	}
+	Unmatched unm;
+	unm.left = d_genome.substr(prevNulpos-40, 40);
+	unm.right = d_genome.substr(pos, 40);
+	unm.unmatched = d_genome.substr(prevNulpos, pos-prevNulpos);
+	unm.pos = prevNulpos;
+	d_unmRegions.push_back(unm);
       }
       wasNul=false;
     }
@@ -476,8 +474,14 @@ void ReferenceGenome::printCoverage(FILE* jsfp, const std::string& histoName)
     }
   }
 
+  Clusterer<Unmatched> cl(100);
+  
+  for(auto unm : d_unmRegions) {
+    cl.feed(unm);
+  }
+
   (*g_log) << (boost::format("Average depth: %|40t|    %10.2f\n") % (1.0*totCoverage/d_mapping.size())).str();
-  (*g_log) << (boost::format("Undercovered nucleotides: %|40t| %10d (%.2f%%), %d ranges\n") % noCoverages % (noCoverages*100.0/d_mapping.size()) % d_unmRegions.size()).str();
+  (*g_log) << (boost::format("Undercovered nucleotides: %|40t| %10d (%.2f%%), %d ranges\n") % noCoverages % (noCoverages*100.0/d_mapping.size()) % cl.d_clusters.size()).str();
 
   // snip off the all-zero part at the end
   for(auto iter = covhisto.rbegin(); iter != covhisto.rend(); ++iter) {
@@ -730,8 +734,8 @@ void emitRegion(FILE*fp, ReferenceGenome& rg, FASTQReader& fastq, GeneAnnotation
   fprintf(fp, "region[%d]={name:'%s', pos: %d, depth: [", index, name.c_str(), dnapos);
   for(dnapos_t pos = start; pos < stop; ++pos) {
     if(pos != start) 
-      fprintf(fp, ", ");
-    fprintf(fp, "[%d, %d]", pos, rg.d_mapping[pos].coverage);
+      fprintf(fp, ",");
+    fprintf(fp, "[%d,%d]", pos, rg.d_mapping[pos].coverage);
   }
   string picture=rg.getMatchingFastQs(start, stop, fastq);
   replace_all(picture, "\n", "\\n");
@@ -1209,8 +1213,13 @@ int main(int argc, char** argv)
   rg.printCoverage(jsfp.get(), "fuzzyHisto");
   int index=0;
 
+  Clusterer<Unmatched> cl(100);
   for(auto unm : rg.d_unmRegions) {
-    emitRegion(jsfp.get(), rg, fastq, gar, "Undermatched", index++, unm.pos);
+    cl.feed(unm);
+  }
+
+  for(auto unmCl : cl.d_clusters) {
+    emitRegion(jsfp.get(), rg, fastq, gar, "Undermatched", index++, unmCl.getMiddle());
   }
   
   printCorrectMappings(jsfp.get(), rg, "referenceQ");
@@ -1237,84 +1246,116 @@ int main(int argc, char** argv)
   }
   fprintf(jsfp.get(), "];\n");
 
-  (*g_log)<<"Found "<<rg.d_locimap.size()<<" varying loci"<<endl;
+
   uint64_t significantlyVariable=0;
   boost::format fmt1("%-10d: %3d*%c ");
   string fmt2("                  ");
   int aCount, cCount, tCount, gCount;
   double fraction;
   
-  for(auto& locus : rg.d_locimap) {
-    unsigned int varcount=variabilityCount(rg, locus.first, locus.second, &fraction);
-    if(varcount < 20) 
-      continue;
-    char c=rg.snippet(locus.first, locus.first+1)[0];
-    aCount = cCount = tCount = gCount = 0;
-    switch(c) {
-    case 'A':
-      aCount += rg.d_mapping[locus.first].coverage;
-      break;
-    case 'C':
-      cCount += rg.d_mapping[locus.first].coverage;
-      break;
-    case 'T':
-      tCount += rg.d_mapping[locus.first].coverage;
-      break;
-    case 'G':
-      gCount += rg.d_mapping[locus.first].coverage;
-      break;
+  struct ClusterLocus
+  {
+    unsigned int pos;
+    ReferenceGenome::LociStats locistat;
+    bool operator<(const ClusterLocus& rhs) const
+    {
+      return pos < rhs.pos;
     }
+  };
+  vector<ClusterLocus> clusters;
 
-    emitRegion(jsfp.get(), rg, fastq, gar, "Variable", index++, locus.first);
-    cout<< (fmt1 % locus.first % rg.d_mapping[locus.first].coverage % rg.snippet(locus.first, locus.first+1) ).str();
-    sort(locus.second.samples.begin(), locus.second.samples.end());
+  for(auto& locus : rg.d_locimap) {
+    clusters.push_back(ClusterLocus{locus.first, locus.second});
+  }
 
-    significantlyVariable++;
-    for(auto j = locus.second.samples.begin(); 
-        j != locus.second.samples.end(); ++j) {
-      c=get<0>(*j);
+  sort(clusters.begin(), clusters.end());
+
+  Clusterer<ClusterLocus> cll(100);
+  for(auto item : clusters) 
+    cll.feed(item);
+
+  (*g_log)<<"Found "<<rg.d_locimap.size()<<" varying loci ("<<cll.d_clusters.size()<<" ranges)"<<endl;  
+
+  for(auto& cluster : cll.d_clusters) {
+    bool emitted=false;
+    for(auto locus : cluster.d_members) {
+      unsigned int varcount=variabilityCount(rg, locus.pos, locus.locistat, &fraction);
+      if(varcount < 20) 
+	continue;
+      char c=rg.snippet(locus.pos, locus.pos+1)[0];
+      aCount = cCount = tCount = gCount = 0;
       switch(c) {
       case 'A':
-        aCount++;
-        break;
+	aCount += rg.d_mapping[locus.pos].coverage;
+	break;
       case 'C':
-        cCount++;
-        break;
+	cCount += rg.d_mapping[locus.pos].coverage;
+	break;
       case 'T':
-        tCount++;
-        break;
+	tCount += rg.d_mapping[locus.pos].coverage;
+	break;
       case 'G':
-        gCount++;
-        break;
+	gCount += rg.d_mapping[locus.pos].coverage;
+	break;
       }
+
+      if(!emitted) {
+	emitRegion(jsfp.get(), rg, fastq, gar, "Variable", index++, locus.pos);
+	emitted = true;
+      }
+      else {
+	cerr<<"Skipping emitting other member of cluster "<<locus.pos<<endl;
+      }
+      cout<< (fmt1 % locus.pos % rg.d_mapping[locus.pos].coverage % rg.snippet(locus.pos, locus.pos+1) ).str();
+      sort(locus.locistat.samples.begin(), locus.locistat.samples.end());
+
+      significantlyVariable++;
+      for(auto j = locus.locistat.samples.begin(); 
+	  j != locus.locistat.samples.end(); ++j) {
+	c=get<0>(*j);
+	switch(c) {
+	case 'A':
+	  aCount++;
+	  break;
+	case 'C':
+	  cCount++;
+	  break;
+	case 'T':
+	  tCount++;
+	  break;
+	case 'G':
+	  gCount++;
+	  break;
+	}
       
-      cout<<c;
-    }
-    cout<<endl<<fmt2;
-    for(auto j = locus.second.samples.begin(); 
-        j != locus.second.samples.end(); ++j) {
-      cout<<((char)(get<1>(*j)+33));
-    }
-    cout<<endl<<fmt2;
-    for(auto j = locus.second.samples.begin(); 
-        j != locus.second.samples.end(); ++j) {
-      cout<< (get<2>(*j) ? 'R' : '.');
-    }
-
-    int tot=locus.second.samples.size() + rg.d_mapping[locus.first].coverage;
-    cout<<endl;
-    vector<GeneAnnotation> gas=gar.lookup(locus.first);
-    if(!gas.empty()) {
-      cout<<fmt2<<"Annotation: ";
-      for(auto& ga : gas) {
-        cout<<ga.name<<" ["<<ga.tag<<"], ";
+	cout<<c;
       }
-      cout<<endl;
-    }
-    cout<<fmt2<< "Fraction tail: "<<fraction<<", "<< locus.second.samples.size()<<endl;
-    cout<<fmt2<< "A: " << aCount*100/tot <<"%, C: "<<cCount*100/tot<<"%, G: "<<gCount*100/tot<<"%, T: "<<tCount*100/tot<<"%"<<endl;
+      cout<<endl<<fmt2;
+      for(auto j = locus.locistat.samples.begin(); 
+	  j != locus.locistat.samples.end(); ++j) {
+	cout<<((char)(get<1>(*j)+33));
+      }
+      cout<<endl<<fmt2;
+      for(auto j = locus.locistat.samples.begin(); 
+	  j != locus.locistat.samples.end(); ++j) {
+	cout<< (get<2>(*j) ? 'R' : '.');
+      }
 
-    cout<<rg.getMatchingFastQs(locus.first, fastq);
+      int tot=locus.locistat.samples.size() + rg.d_mapping[locus.pos].coverage;
+      cout<<endl;
+      vector<GeneAnnotation> gas=gar.lookup(locus.pos);
+      if(!gas.empty()) {
+	cout<<fmt2<<"Annotation: ";
+	for(auto& ga : gas) {
+	  cout<<ga.name<<" ["<<ga.tag<<"], ";
+	}
+	cout<<endl;
+      }
+      cout<<fmt2<< "Fraction tail: "<<fraction<<", "<< locus.locistat.samples.size()<<endl;
+      cout<<fmt2<< "A: " << aCount*100/tot <<"%, C: "<<cCount*100/tot<<"%, G: "<<gCount*100/tot<<"%, T: "<<tCount*100/tot<<"%"<<endl;
+
+      cout<<rg.getMatchingFastQs(locus.pos, fastq);
+    }
   }
   (*g_log)<<"Found "<<significantlyVariable<<" significantly variable loci"<<endl;
   (*g_log)<<"Found "<<rg.d_insertCounts.size()<<" loci with at least one insert in a read"<<endl;
