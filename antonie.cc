@@ -934,8 +934,10 @@ void printQualities(FILE* jsfp, const qstats_t& qstats)
 
 int main(int argc, char** argv)
 {
+#ifndef __APPLE__
   feenableexcept(FE_DIVBYZERO | FE_INVALID); 
-
+#endif 
+  
   TCLAP::CmdLine cmd("Command description message", ' ', "0.0");
 
   TCLAP::ValueArg<std::string> annotationsArg("a","annotations","read annotations for reference genome from this file",false, "", "filename", cmd);
