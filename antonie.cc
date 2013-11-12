@@ -955,7 +955,7 @@ double qToErr(unsigned int i)
   
   if(answers.empty()) {
     for(int n = 0; n < 60 ; ++n) {
-      answers.push_back(exp10(-n/10.0));
+      answers.push_back(pow(10.0, -n/10.0));
     }
   }
   if(i > answers.size()) {
