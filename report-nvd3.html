@@ -411,6 +411,7 @@ for(i = 0 ; i < region.length; ++i) {
 	  var ourdiv=d3.select('#regions').append('div').attr('class','chart').attr('id',"region"+item);
 	  ourdiv.append('h3').text('Region '+i+': '+region[item].name + ' @ ' +region[item].pos );
 	  ourdiv.append('p').text(decodeURIComponent(region[item].annotations));
+	  ourdiv.append('pre').text(region[item].report);	  
 	  ourdiv.append('svg').datum(getPoints(region[item].depth, "Depth")).call(chart);
 	  nv.utils.windowResize(chart.update);
 	

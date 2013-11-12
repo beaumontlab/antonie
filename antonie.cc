@@ -300,15 +300,12 @@ void ReferenceGenome::index(unsigned int length)
   d_index.clear();
   d_index.reserve(d_genome.length());
   d_indexlength=length;
-  (*g_log)<<"Indexing "<<d_genome.length()<<" nucleotides for length "<<length<<"..";
   for(string::size_type pos = 0 ; pos < d_genome.length() - length; ++pos) {
     uint32_t hashval = hash(d_genome.c_str() + pos, d_indexlength, 0);
     d_index.push_back(HashPos(hashval, pos));
   }
 
-  (*g_log)<<" done\nSorting hashes..";
   sort(d_index.begin(), d_index.end());
-  (*g_log)<<" done"<<endl;
   uint64_t diff = 0;
 
   for(auto iter = d_index.begin(); iter!= d_index.end() ; ++iter) {
@@ -316,7 +313,7 @@ void ReferenceGenome::index(unsigned int length)
       diff++;
     }
   }
-  (*g_log)<<"Average hash fill: "<<1.0*d_genome.length()/diff<<endl;
+  (*g_log)<<"Average fill in genome hash of length "<<d_indexlength<<": "<<1.0*d_genome.length()/diff<<endl;
 }
 
 string ReferenceGenome::getMatchingFastQs(dnapos_t pos, FASTQReader& fastq)
@@ -728,7 +725,8 @@ string DNADiff(ReferenceGenome& rg, dnapos_t pos, FastQRead& fqfrag, int qlimit,
 }
 
 
-void emitRegion(FILE*fp, ReferenceGenome& rg, FASTQReader& fastq, GeneAnnotationReader& gar, const string& name, unsigned int index, dnapos_t start, dnapos_t stop)
+void emitRegion(FILE*fp, ReferenceGenome& rg, FASTQReader& fastq, GeneAnnotationReader& gar, const string& name, unsigned int index, dnapos_t start, 
+        dnapos_t stop, const std::string& report_="")
 {
   dnapos_t dnapos = (start+stop)/2;
   fprintf(fp, "region[%d]={name:'%s', pos: %d, depth: [", index, name.c_str(), dnapos);
@@ -739,22 +737,23 @@ void emitRegion(FILE*fp, ReferenceGenome& rg, FASTQReader& fastq, GeneAnnotation
   }
   string picture=rg.getMatchingFastQs(start, stop, fastq);
   replace_all(picture, "\n", "\\n");
-  
+  string report = replace_all_copy(report_, "\n", "\\n");
+
   string annotations;
   auto gas=gar.lookup(dnapos);
   for(auto& ga : gas) {
     annotations += ga.name+" [" + ga.tag  + "], ";
   }
   
-  fprintf(fp,"], picture: '%s', annotations: '%s'};\n", picture.c_str(), annotations.c_str());
+  fprintf(fp,"], picture: '%s', annotations: '%s', report: '%s'};\n", picture.c_str(), annotations.c_str(), report.c_str());
   
   fputs("\n", fp);
   fflush(fp);
 }
 
-void emitRegion(FILE*fp, ReferenceGenome& rg, FASTQReader& fastq, GeneAnnotationReader& gar, const string& name, unsigned int index, dnapos_t start)
+void emitRegion(FILE*fp, ReferenceGenome& rg, FASTQReader& fastq, GeneAnnotationReader& gar, const string& name, unsigned int index, dnapos_t start, const std::string& report="")
 {
-  emitRegion(fp, rg, fastq, gar, name, index, start-200, start +200);
+  emitRegion(fp, rg, fastq, gar, name, index, start-200, start +200, report);
 }
 
 
@@ -968,7 +967,6 @@ double qToErr(unsigned int i)
 
 int main(int argc, char** argv)
 {
-
 #ifndef __APPLE__
   feenableexcept(FE_DIVBYZERO | FE_INVALID); 
 #endif 
@@ -997,7 +995,7 @@ int main(int argc, char** argv)
   g_log = new TeeStream(td);
 
   GeneAnnotationReader gar(annotationsArg.getValue());
-  (*g_log)<<"Done reading "<<gar.size()<<" annotations"<<endl;
+  (*g_log)<<"Done reading "<<gar.size()<<" annotations from '"<<annotationsArg.getValue()<<"'"<<endl;
   
   FASTQReader fastq(fastqArg.getValue(), qualityOffsetArg.getValue(), beginSnipArg.getValue(), endSnipArg.getValue());
 
@@ -1124,7 +1122,7 @@ int main(int argc, char** argv)
   fprintf(jsfp.get(), "var dupcounts=[");
   auto duplicates = dc.getCounts();
   for(auto iter = duplicates.begin(); iter != duplicates.end(); ++iter) {
-    fprintf(jsfp.get(), "%s[%ld,%f]", (iter!=duplicates.begin()) ? "," : "", iter->first, 1.0*iter->second/total);
+    fprintf(jsfp.get(), "%s[%" PRIu64 ",%f]", (iter!=duplicates.begin()) ? "," : "", iter->first, 1.0*iter->second/total);
   }
   fprintf(jsfp.get(),"];\n");
   dc.clear(); // might save some memory..
@@ -1219,7 +1217,7 @@ int main(int argc, char** argv)
   }
 
   for(auto unmCl : cl.d_clusters) {
-    emitRegion(jsfp.get(), rg, fastq, gar, "Undermatched", index++, unmCl.getMiddle());
+    emitRegion(jsfp.get(), rg, fastq, gar, "Undermatched", index++, unmCl.getBegin()-100, unmCl.getEnd()+100);
   }
   
   printCorrectMappings(jsfp.get(), rg, "referenceQ");
@@ -1237,7 +1235,7 @@ int main(int argc, char** argv)
       else
 	qscore=41; // "highest score possible"
 
-      fprintf(jsfp.get(), "%s[%ld, %f, %ld]", 
+      fprintf(jsfp.get(), "%s[%ld, %f, %" PRIu64 "]", 
 	      printedYet ?  "," : "", 
 	      coinco - qqcounts.begin(), qscore,
 	      coinco->incorrect + coinco->correct);
@@ -1277,11 +1275,13 @@ int main(int argc, char** argv)
   (*g_log)<<"Found "<<rg.d_locimap.size()<<" varying loci ("<<cll.d_clusters.size()<<" ranges)"<<endl;  
 
   for(auto& cluster : cll.d_clusters) {
-    bool emitted=false;
+    vector<string> reports;
     for(auto locus : cluster.d_members) {
       unsigned int varcount=variabilityCount(rg, locus.pos, locus.locistat, &fraction);
       if(varcount < 20) 
 	continue;
+      ostringstream report;
+
       char c=rg.snippet(locus.pos, locus.pos+1)[0];
       aCount = cCount = tCount = gCount = 0;
       switch(c) {
@@ -1298,15 +1298,8 @@ int main(int argc, char** argv)
 	gCount += rg.d_mapping[locus.pos].coverage;
 	break;
       }
-
-      if(!emitted) {
-	emitRegion(jsfp.get(), rg, fastq, gar, "Variable", index++, locus.pos);
-	emitted = true;
-      }
-      else {
-	cerr<<"Skipping emitting other member of cluster "<<locus.pos<<endl;
-      }
-      cout<< (fmt1 % locus.pos % rg.d_mapping[locus.pos].coverage % rg.snippet(locus.pos, locus.pos+1) ).str();
+    
+      report << (fmt1 % locus.pos % rg.d_mapping[locus.pos].coverage % rg.snippet(locus.pos, locus.pos+1) ).str();
       sort(locus.locistat.samples.begin(), locus.locistat.samples.end());
 
       significantlyVariable++;
@@ -1328,33 +1321,41 @@ int main(int argc, char** argv)
 	  break;
 	}
       
-	cout<<c;
+	report<<c;
       }
-      cout<<endl<<fmt2;
+      report<<endl<<fmt2;
       for(auto j = locus.locistat.samples.begin(); 
 	  j != locus.locistat.samples.end(); ++j) {
-	cout<<((char)(get<1>(*j)+33));
+	report<<((char)(get<1>(*j)+33));
       }
-      cout<<endl<<fmt2;
+      report << endl << fmt2;
       for(auto j = locus.locistat.samples.begin(); 
 	  j != locus.locistat.samples.end(); ++j) {
-	cout<< (get<2>(*j) ? 'R' : '.');
+	report << (get<2>(*j) ? 'R' : '.');
       }
 
       int tot=locus.locistat.samples.size() + rg.d_mapping[locus.pos].coverage;
-      cout<<endl;
+      report<<endl;
       vector<GeneAnnotation> gas=gar.lookup(locus.pos);
       if(!gas.empty()) {
-	cout<<fmt2<<"Annotation: ";
+	report << fmt2 << "Annotation: ";
 	for(auto& ga : gas) {
-	  cout<<ga.name<<" ["<<ga.tag<<"], ";
+	  report << ga.name<<" ["<<ga.tag<<"], ";
 	}
-	cout<<endl;
+	report << endl;
       }
-      cout<<fmt2<< "Fraction tail: "<<fraction<<", "<< locus.locistat.samples.size()<<endl;
-      cout<<fmt2<< "A: " << aCount*100/tot <<"%, C: "<<cCount*100/tot<<"%, G: "<<gCount*100/tot<<"%, T: "<<tCount*100/tot<<"%"<<endl;
+      report << fmt2<< "Fraction tail: "<<fraction<<", "<< locus.locistat.samples.size()<<endl;
+      report << fmt2<< "A: " << aCount*100/tot <<"%, C: "<<cCount*100/tot<<"%, G: "<<gCount*100/tot<<"%, T: "<<tCount*100/tot<<"%"<<endl;
 
-      cout<<rg.getMatchingFastQs(locus.pos, fastq);
+      // cout<<rg.getMatchingFastQs(locus.pos, fastq);
+      reports.push_back(report.str());  
+    }
+    if(!reports.empty()) {
+      string report;
+      for(auto r : reports) {
+        report += r;
+      }
+      emitRegion(jsfp.get(), rg, fastq, gar, "Variable", index++, cluster.getBegin()-100, cluster.getEnd()+100, report);
     }
   }
   (*g_log)<<"Found "<<significantlyVariable<<" significantly variable loci"<<endl;
