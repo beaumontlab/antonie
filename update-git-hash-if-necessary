@@ -1,0 +1,15 @@
+#!/bin/sh
+(echo -n \#define GIT_HASH \" ; git describe --always --dirty=+ | tr -d '\n' ; echo "\" ") > githash.h.tmp
+
+cmp -s githash.h githash.h.tmp > /dev/null
+
+if [ "$?" -ne "0" ]
+then
+	mv githash.h.tmp githash.h
+	echo updated githash.h
+	(echo -n \#; date) >  remake-please
+else
+	rm githash.h.tmp
+fi
+
+

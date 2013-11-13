@@ -2,7 +2,7 @@
 #include <string>
 #include <vector>
 #include <functional>
-
+extern const char* g_gitHash;
 double qToErr(unsigned int i);
 
 double getGCContent(const std::string& str);

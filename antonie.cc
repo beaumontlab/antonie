@@ -2,7 +2,6 @@
    (C) 2013 Netherlabs Computer Consulting BV */
 
 #define __STDC_FORMAT_MACROS
-#include "gitversion.h"
 #include <tclap/CmdLine.h>
 #include <stdio.h>
 #include <iostream>
@@ -952,7 +951,7 @@ int main(int argc, char** argv)
   feenableexcept(FE_DIVBYZERO | FE_INVALID); 
 #endif 
   
-  TCLAP::CmdLine cmd("Command description message", ' ', "g" GIT_HASH);
+  TCLAP::CmdLine cmd("Command description message", ' ', "g" + string(g_gitHash));
 
   TCLAP::ValueArg<std::string> annotationsArg("a","annotations","read annotations for reference genome from this file",false, "", "filename", cmd);
   TCLAP::ValueArg<std::string> referenceArg("r","reference","read annotations for reference genome from this file",true,"","string", cmd);
@@ -975,7 +974,7 @@ int main(int argc, char** argv)
   TeeDevice td(cerr, jsonlog);
   g_log = new TeeStream(td);
 
-  (*g_log)<<"Antonie was compiled from git hash g" GIT_HASH <<endl;
+  (*g_log)<<"Antonie was compiled from git hash g" << g_gitHash <<endl;
 
   GeneAnnotationReader gar(annotationsArg.getValue());
   (*g_log)<<"Done reading "<<gar.size()<<" annotations from '"<<annotationsArg.getValue()<<"'"<<endl;

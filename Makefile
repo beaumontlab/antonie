@@ -6,23 +6,23 @@ LDFLAGS=$(CXX2011FLAGS)
 
 PROGRAMS=antonie 16ssearcher
 
-all: gitversion ext/libmba/libdiff.a $(PROGRAMS)
+all: githash ext/libmba/libdiff.a $(PROGRAMS)
 
 -include *.d
 -include remake-please
 
-.PHONY: gitversion
+.PHONY: githash
 
-gitversion: 
-	@./update-git-version-if-necessary
+githash: 
+	@./update-git-hash-if-necessary
 
-gitversion.h:
-	./update-git-version-if-necessary
+githash.h:
+	./update-git-hash-if-necessary
 
 ext/libmba/libdiff.a:
 	cd ext/libmba/; make
 
-ANTONIE_OBJECTS = antonie.o hash.o geneannotated.o misc.o fastq.o saminfra.o dnamisc.o ext/libmba/libdiff.a 
+ANTONIE_OBJECTS = antonie.o hash.o geneannotated.o misc.o fastq.o saminfra.o dnamisc.o ext/libmba/libdiff.a githash.o
 
 strdiff: strdiff.o ext/libmba/libdiff.a
 	$(CC) strdiff.o ext/libmba/libdiff.a -o $@
@@ -30,11 +30,13 @@ strdiff: strdiff.o ext/libmba/libdiff.a
 antonie: $(ANTONIE_OBJECTS)
 	$(CXX) $(ANTONIE_OBJECTS) $(LDFLAGS) -o $@
 
-16ssearcher: 16ssearcher.o hash.o misc.o fastq.o
-	$(CXX) $(LDFLAGS) 16ssearcher.o hash.o misc.o fastq.o -lz -o $@
+SEARCHER_OBJECTS=16ssearcher.o hash.o misc.o fastq.o githash.o
+
+16ssearcher: $(SEARCHER_OBJECTS)
+	$(CXX) $(LDFLAGS) $(SEARCHER_OBJECTS) -lz -o $@
 
 clean:
-	rm -f *~ *.o *.d $(PROGRAMS)
+	rm -f *~ *.o *.d $(PROGRAMS) githash.h remake-please
 	cd ext/libmba/;	make clean
 
 
