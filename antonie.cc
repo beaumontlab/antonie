@@ -1257,7 +1257,7 @@ int main(int argc, char** argv)
   (*g_log)<<"Found "<<rg.d_locimap.size()<<" varying loci ("<<cll.d_clusters.size()<<" ranges)"<<endl;  
 
   for(auto& cluster : cll.d_clusters) {
-    vector<string> reports;
+    vector<pair<string, dnapos_t>> reports;
     for(auto& locus : cluster.d_members) {
       unsigned int varcount=variabilityCount(rg, locus.pos, locus.locistat, &fraction);
       if(varcount < 20) 
@@ -1309,15 +1309,19 @@ int main(int argc, char** argv)
       report << fmt2<< "A: " << aCount*100/tot <<"%, C: "<<cCount*100/tot<<"%, G: "<<gCount*100/tot<<"%, T: "<<tCount*100/tot<<"%"<<endl;
 
       // cout<<rg.getMatchingFastQs(locus.pos, fastq);
-      reports.push_back(report.str());  
+      reports.push_back({report.str(), locus.pos});  
     }
     if(!reports.empty()) {
-      string report;
+      string theReport;
+      dnapos_t minPos=reports.begin()->second;
+      dnapos_t maxPos=minPos;
       for(auto r : reports) {
-        report += r;
+        theReport += r.first;
+	minPos=min(r.second, minPos);
+	maxPos=max(r.second, maxPos);
       }
 
-      emitRegion(jsfp.get(), rg, fastq, gar, "Variable", index++, cluster.getBegin()-100, cluster.getEnd()+100, report);
+      emitRegion(jsfp.get(), rg, fastq, gar, "Variable", index++, minPos-100, maxPos+100, theReport);
     }
   }
   (*g_log)<<"Found "<<significantlyVariable<<" significantly variable loci"<<endl;
