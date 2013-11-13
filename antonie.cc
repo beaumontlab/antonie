@@ -947,7 +947,7 @@ void printQualities(FILE* jsfp, const qstats_t& qstats)
 
 int main(int argc, char** argv)
 {
-#ifndef __APPLE__
+#ifdef __linux__
   feenableexcept(FE_DIVBYZERO | FE_INVALID); 
 #endif 
   
