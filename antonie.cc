@@ -2,6 +2,7 @@
    (C) 2013 Netherlabs Computer Consulting BV */
 
 #define __STDC_FORMAT_MACROS
+#include "gitversion.h"
 #include <tclap/CmdLine.h>
 #include <stdio.h>
 #include <iostream>
@@ -263,10 +264,7 @@ ReferenceGenome::ReferenceGenome(const string& fname)
   
   d_aCount = d_cCount = d_gCount = d_tCount = 0;
   for(auto c : d_genome) {
-    if(c=='A') ++d_aCount;
-    else if(c=='C') ++d_cCount;
-    else if(c=='G') ++d_gCount;
-    else if(c=='T') ++d_tCount;
+    acgtDo(c, [&](){ ++d_aCount; }, [&](){ ++d_cCount; }, [&](){ ++d_gCount; }, [&](){ ++d_tCount; });
   }
 
   d_mapping.resize(d_genome.size());
@@ -756,7 +754,6 @@ void emitRegion(FILE*fp, ReferenceGenome& rg, FASTQReader& fastq, GeneAnnotation
   emitRegion(fp, rg, fastq, gar, name, index, start-200, start +200, report);
 }
 
-
 unsigned int variabilityCount(const ReferenceGenome& rg, dnapos_t position, const ReferenceGenome::LociStats& lc, double* fraction)
 {
   vector<int> counts(256);
@@ -948,22 +945,6 @@ void printQualities(FILE* jsfp, const qstats_t& qstats)
   fflush(jsfp);
 }
 
-double qToErr(unsigned int i) 
-{
-  static vector<double> answers;
-  
-  if(answers.empty()) {
-    for(int n = 0; n < 60 ; ++n) {
-      answers.push_back(pow(10.0, -n/10.0));
-    }
-  }
-  if(i > answers.size()) {
-    throw runtime_error("Can't calculate error rate for Q "+boost::lexical_cast<string>(i));
-  }
-
-  return answers[i];
-}
-
 
 int main(int argc, char** argv)
 {
@@ -971,7 +952,7 @@ int main(int argc, char** argv)
   feenableexcept(FE_DIVBYZERO | FE_INVALID); 
 #endif 
   
-  TCLAP::CmdLine cmd("Command description message", ' ', "0.0");
+  TCLAP::CmdLine cmd("Command description message", ' ', "g" GIT_HASH);
 
   TCLAP::ValueArg<std::string> annotationsArg("a","annotations","read annotations for reference genome from this file",false, "", "filename", cmd);
   TCLAP::ValueArg<std::string> referenceArg("r","reference","read annotations for reference genome from this file",true,"","string", cmd);
@@ -993,6 +974,8 @@ int main(int argc, char** argv)
   ostringstream jsonlog;  
   TeeDevice td(cerr, jsonlog);
   g_log = new TeeStream(td);
+
+  (*g_log)<<"Antonie was compiled from git hash g" GIT_HASH <<endl;
 
   GeneAnnotationReader gar(annotationsArg.getValue());
   (*g_log)<<"Done reading "<<gar.size()<<" annotations from '"<<annotationsArg.getValue()<<"'"<<endl;
@@ -1276,7 +1259,7 @@ int main(int argc, char** argv)
 
   for(auto& cluster : cll.d_clusters) {
     vector<string> reports;
-    for(auto locus : cluster.d_members) {
+    for(auto& locus : cluster.d_members) {
       unsigned int varcount=variabilityCount(rg, locus.pos, locus.locistat, &fraction);
       if(varcount < 20) 
 	continue;
@@ -1284,21 +1267,13 @@ int main(int argc, char** argv)
 
       char c=rg.snippet(locus.pos, locus.pos+1)[0];
       aCount = cCount = tCount = gCount = 0;
-      switch(c) {
-      case 'A':
-	aCount += rg.d_mapping[locus.pos].coverage;
-	break;
-      case 'C':
-	cCount += rg.d_mapping[locus.pos].coverage;
-	break;
-      case 'T':
-	tCount += rg.d_mapping[locus.pos].coverage;
-	break;
-      case 'G':
-	gCount += rg.d_mapping[locus.pos].coverage;
-	break;
-      }
-    
+
+      acgtDo(c, 
+	     [&](){aCount += rg.d_mapping[locus.pos].coverage;},
+	     [&](){cCount += rg.d_mapping[locus.pos].coverage;},
+	     [&](){gCount += rg.d_mapping[locus.pos].coverage;},
+	     [&](){tCount += rg.d_mapping[locus.pos].coverage;}
+	     );
       report << (fmt1 % locus.pos % rg.d_mapping[locus.pos].coverage % rg.snippet(locus.pos, locus.pos+1) ).str();
       sort(locus.locistat.samples.begin(), locus.locistat.samples.end());
 
@@ -1306,20 +1281,7 @@ int main(int argc, char** argv)
       for(auto j = locus.locistat.samples.begin(); 
 	  j != locus.locistat.samples.end(); ++j) {
 	c=get<0>(*j);
-	switch(c) {
-	case 'A':
-	  aCount++;
-	  break;
-	case 'C':
-	  cCount++;
-	  break;
-	case 'T':
-	  tCount++;
-	  break;
-	case 'G':
-	  gCount++;
-	  break;
-	}
+	acgtDo(c, [&](){ aCount++; }, [&](){ cCount++; }, [&](){ gCount++; }, [&](){ tCount++; } );
       
 	report<<c;
       }
@@ -1355,6 +1317,7 @@ int main(int argc, char** argv)
       for(auto r : reports) {
         report += r;
       }
+
       emitRegion(jsfp.get(), rg, fastq, gar, "Variable", index++, cluster.getBegin()-100, cluster.getEnd()+100, report);
     }
   }

@@ -1,9 +1,11 @@
 #pragma once
 #include <string>
 #include <vector>
+#include <functional>
+
+double qToErr(unsigned int i);
 
 double getGCContent(const std::string& str);
-
 
 template<typename T>
 class Clusterer
@@ -42,3 +44,22 @@ public:
 private:
   unsigned int d_limit;
 };
+
+typedef std::function<void(void)> acgt_t;
+inline void acgtDo(char c, acgt_t aDo, acgt_t cDo, acgt_t gDo, acgt_t tDo)
+{
+  switch(c) {
+  case 'A':
+    aDo();
+    break;
+  case 'C':
+    cDo();
+    break;
+  case 'G':
+    gDo();
+    break;
+  case 'T':
+    tDo();
+    break;
+  }
+}
