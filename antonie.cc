@@ -688,7 +688,8 @@ string DNADiff(ReferenceGenome& rg, dnapos_t pos, FastQRead& fqfrag, int qlimit,
 
   unsigned int readMapPos;
   for(string::size_type i = 0; i < fqfrag.d_nucleotides.size() && i < reference.size();++i) {
-    readMapPos = fqfrag.reversed ? ((fqfrag.d_nucleotides.length()- 1) - i) : i;
+    readMapPos = fqfrag.reversed ? ((reference.length()- 1) - i) : i; // d_nucleotides might have an insert
+      
     char c =  fqfrag.d_nucleotides[i];
 
     if(c != reference[i]) {
