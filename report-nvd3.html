@@ -85,6 +85,10 @@ work, please cite xyz.
   <svg></svg>
 </div>
 
+<table id="toctable" border="1" cellpadding="4">
+<tr><th>Type</th><th>Locus</th><th>Annotation(s)</th></tr>
+</table>
+
 <div id="regions">
 </div>
 
@@ -407,12 +411,19 @@ for(i = 0 ; i < region.length; ++i) {
 
 	  chart.xAxis.axisLabel("Position (p)").tickFormat(d3.format(',d'));
 	  chart.yAxis.axisLabel('Depth').tickFormat(d3.format(',d'));
+
 	  var ourdiv=d3.select('#regions').append('div').attr('class','chart').attr('id',"region"+item);
 	  ourdiv.append('h3').text('Region '+i+': '+region[item].name + ' @ ' +region[item].pos );
 	  ourdiv.append('p').text(decodeURIComponent(region[item].annotations));
 	  ourdiv.append('pre').text(region[item].report);	  
 	  ourdiv.append('svg').datum(getPoints(region[item].depth, "Depth")).call(chart);
 	  nv.utils.windowResize(chart.update);
+	
+	  var toctable=d3.select('#toctable').append('tr');
+	  toctable.append('td').text(region[item].name+' '+item);
+	  toctable.append('td').text(region[item].pos);
+	  toctable.append('td').text(decodeURIComponent(region[item].annotations));
+	  
 	
 	  return chart;
 	})());	
