@@ -63,6 +63,7 @@ In addition, there are graphs of:
  * Q-Q plot of empirical versus reported Phred scores
  * K-mer variability per read position
  * GC-content per read position
+ * GC-content distribution of reads (versus genome wide)
  * Duplication count of reads
 
 So as a formula:
