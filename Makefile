@@ -28,7 +28,7 @@ SEARCHER_OBJECTS=16ssearcher.o hash.o misc.o fastq.o githash.o
 	$(CXX) $(LDFLAGS) $(SEARCHER_OBJECTS) -lz -o $@
 
 clean:
-	rm -f *~ *.o *.d $(PROGRAMS) githash.h remake-please
+	rm -f *~ *.o *.d $(PROGRAMS) githash.h 
 	cd ext/libmba/;	make clean
 
 
