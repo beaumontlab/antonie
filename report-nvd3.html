@@ -407,7 +407,6 @@ for(i = 0 ; i < region.length; ++i) {
 
 	  chart.xAxis.axisLabel("Position (p)").tickFormat(d3.format(',d'));
 	  chart.yAxis.axisLabel('Depth').tickFormat(d3.format(',d'));
-	  console.log(item);
 	  var ourdiv=d3.select('#regions').append('div').attr('class','chart').attr('id',"region"+item);
 	  ourdiv.append('h3').text('Region '+i+': '+region[item].name + ' @ ' +region[item].pos );
 	  ourdiv.append('p').text(decodeURIComponent(region[item].annotations));
