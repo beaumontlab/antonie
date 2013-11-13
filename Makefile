@@ -3,21 +3,13 @@
 CXXFLAGS=-Wall -I. -Iext/libmba -MMD -O3 $(CXX2011FLAGS)
 CFLAGS=-I. -Iext/libmba -O3 -MMD 
 LDFLAGS=$(CXX2011FLAGS) 
+CHEAT_ARG := $(shell ./update-git-hash-if-necessary)
 
 PROGRAMS=antonie 16ssearcher
 
-all: githash ext/libmba/libdiff.a $(PROGRAMS)
+all: ext/libmba/libdiff.a $(PROGRAMS)
 
 -include *.d
--include remake-please
-
-.PHONY: githash
-
-githash: 
-	@./update-git-hash-if-necessary
-
-githash.h:
-	./update-git-hash-if-necessary
 
 ext/libmba/libdiff.a:
 	cd ext/libmba/; make
