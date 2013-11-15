@@ -6,6 +6,8 @@
 #include <boost/lexical_cast.hpp>
 using namespace std;
 
+constexpr uint64_t StereoFASTQReader::s_mask;
+
 FASTQReader::FASTQReader(const std::string& str, unsigned int qoffset, unsigned int snipLeft, unsigned int snipRight) 
   :  d_snipLeft{snipLeft}, d_snipRight{snipRight} 
 {
@@ -79,3 +81,33 @@ unsigned int FASTQReader::getRead(FastQRead* fq)
   fq->position=pos;
   return ftell(d_fp) - pos;
 }
+
+unsigned int StereoFASTQReader::getRead(uint64_t pos, FastQRead* fq)
+{
+  unsigned int ret;
+  if(pos & (1ULL<<63)) {
+    d_fq2.seek(pos & s_mask);
+    ret=d_fq2.getRead(fq);
+  }
+  else {
+    d_fq1.seek(pos);
+    ret=d_fq1.getRead(fq);
+  }
+
+  fq->position = pos;
+  return ret;
+}
+
+unsigned int StereoFASTQReader::getReadPair(FastQRead* fq1, FastQRead* fq2)
+{
+  unsigned int ret;
+  ret=d_fq1.getRead(fq1);
+  if(d_fq2.getRead(fq2) != ret) {
+    throw runtime_error("Difference between paired files in read!");
+  }
+  fq2->position |= (1ULL<<63);
+  return ret;
+}
+
+
+

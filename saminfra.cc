@@ -28,7 +28,7 @@ SAMWriter::SAMWriter(const std::string& fname, const std::string& genomeName, dn
   fprintf(d_fp, "@PG\tID:antonie\tPN:antonie\tVN:0.0.0\n");  
 }
 
-void SAMWriter::write(dnapos_t pos, const FastQRead& fqfrag, int indel)
+void SAMWriter::write(dnapos_t pos, const FastQRead& fqfrag, int indel, int flags, const std::string& rnext, dnapos_t pnext, int32_t tlen)
 {
   if(!d_fp) 
     return;
@@ -66,10 +66,13 @@ void SAMWriter::write(dnapos_t pos, const FastQRead& fqfrag, int indel)
 
   }
 	
-  fprintf(d_fp, "%s\t%u\t%s\t%u\t42\t%s\t*\t0\t0\t%s\t%s\n",
+  fprintf(d_fp, "%s\t%u\t%s\t%u\t42\t%s\t"
+	  "%s\t%u\t%d\t"
+	  "%s\t%s\n",
 	  header.c_str(), 
-	  fqfrag.reversed ? 0x10: 0,
+	  flags + (fqfrag.reversed ? 0x10: 0),
 	  d_genomeName.c_str(), pos, cigar.c_str(),
+	  rnext.c_str(), pnext, tlen,
 	  fqfrag.d_nucleotides.c_str(), quality.c_str());  
 }
 

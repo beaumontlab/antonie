@@ -149,7 +149,7 @@ public:
   dnapos_t getReadPosBoth(FastQRead* fq, int qlimit) // tries original & complement
   {
     vector<dnapos_t> positions;
-    string nucleotides;
+
     for(int tries = 0; tries < 2; ++tries) {
       positions = getReadPositions(fq->d_nucleotides);
 
@@ -162,6 +162,18 @@ public:
       fq->reverse();
     }
     return dnanpos;
+  }
+
+  vector<pair<dnapos_t,bool>> getAllReadPosBoth(FastQRead* fq) // tries original & complement
+  {
+    vector<pair<dnapos_t, bool> > ret;
+    string nucleotides;
+    for(int tries = 0; tries < 2; ++tries) {
+      for(auto position : getReadPositions(fq->d_nucleotides)) 
+	ret.push_back({position, tries});
+      fq->reverse();
+    }
+    return ret;
   }
 
   void cover(dnapos_t pos, unsigned int length, const std::string& quality, int limit) 
@@ -200,8 +212,8 @@ public:
   void printCoverage(FILE* jsfp, const std::string& fname);
   void index(unsigned int length);
 
-  string getMatchingFastQs(dnapos_t pos, FASTQReader& fastq); 
-  string getMatchingFastQs(dnapos_t start, dnapos_t stop,  FASTQReader& fastq); 
+  string getMatchingFastQs(dnapos_t pos, StereoFASTQReader& fastq); 
+  string getMatchingFastQs(dnapos_t start, dnapos_t stop,  StereoFASTQReader& fastq); 
   vector<GenomeLocusMapping> d_mapping;
   vector<unsigned int> d_correctMappings, d_wrongMappings, d_gcMappings, d_taMappings;
   vector<vector<uint32_t>> d_kmerMappings;
@@ -313,12 +325,12 @@ void ReferenceGenome::index(unsigned int length)
   (*g_log)<<"Average fill in genome hash of length "<<d_indexlength<<": "<<1.0*d_genome.length()/diff<<endl;
 }
 
-string ReferenceGenome::getMatchingFastQs(dnapos_t pos, FASTQReader& fastq)
+string ReferenceGenome::getMatchingFastQs(dnapos_t pos, StereoFASTQReader& fastq)
 {
   return getMatchingFastQs(pos > 150 ? pos-150 : 0, pos+150, fastq);
 }
 
-string ReferenceGenome::getMatchingFastQs(dnapos_t start, dnapos_t stop, FASTQReader& fastq) 
+string ReferenceGenome::getMatchingFastQs(dnapos_t start, dnapos_t stop, StereoFASTQReader& fastq) 
 {
   ostringstream os;
 
@@ -329,9 +341,8 @@ string ReferenceGenome::getMatchingFastQs(dnapos_t start, dnapos_t stop, FASTQRe
       os << reference << endl;
     string spacer(i, ' ');
     for(auto& fqm : d_mapping[start+i].d_fastqs) {
-      fastq.seek(fqm.pos);
       FastQRead fqr;
-      fastq.getRead(&fqr);
+      fastq.getRead(fqm.pos, &fqr);
       if(fqm.reverse)
         fqr.reverse();
 
@@ -726,7 +737,7 @@ string DNADiff(ReferenceGenome& rg, dnapos_t pos, FastQRead& fqfrag, int qlimit,
 }
 
 
-void emitRegion(FILE*fp, ReferenceGenome& rg, FASTQReader& fastq, GeneAnnotationReader& gar, const string& name, unsigned int index, dnapos_t start, 
+void emitRegion(FILE*fp, ReferenceGenome& rg, StereoFASTQReader& fastq, GeneAnnotationReader& gar, const string& name, unsigned int index, dnapos_t start, 
         dnapos_t stop, const std::string& report_="")
 {
   dnapos_t dnapos = (start+stop)/2;
@@ -752,7 +763,7 @@ void emitRegion(FILE*fp, ReferenceGenome& rg, FASTQReader& fastq, GeneAnnotation
   fflush(fp);
 }
 
-void emitRegion(FILE*fp, ReferenceGenome& rg, FASTQReader& fastq, GeneAnnotationReader& gar, const string& name, unsigned int index, dnapos_t start, const std::string& report="")
+void emitRegion(FILE*fp, ReferenceGenome& rg, StereoFASTQReader& fastq, GeneAnnotationReader& gar, const string& name, unsigned int index, dnapos_t start, const std::string& report="")
 {
   emitRegion(fp, rg, fastq, gar, name, index, start-200, start +200, report);
 }
@@ -786,15 +797,14 @@ unsigned int variabilityCount(const ReferenceGenome& rg, dnapos_t position, cons
 }
 
 
-dnapos_t halfFind(const std::vector<int64_t>& fqpositions, FASTQReader &fastq, ReferenceGenome& rg, int keylen)
+dnapos_t halfFind(const std::vector<int64_t>& fqpositions, StereoFASTQReader &fastq, ReferenceGenome& rg, int keylen)
 {
   boost::progress_display fuzzyProgress(fqpositions.size(), cerr);
   vector<dnapos_t> stillUnfound;
   FastQRead fqfrag;
   for(auto fqpos : fqpositions) {
     ++fuzzyProgress;
-    fastq.seek(fqpos);
-    fastq.getRead(&fqfrag);
+    fastq.getRead(fqpos, &fqfrag);
 
     if(!rg.getReadPositions(fqfrag.d_nucleotides.substr(0, keylen)).empty())
       continue;
@@ -812,7 +822,7 @@ dnapos_t halfFind(const std::vector<int64_t>& fqpositions, FASTQReader &fastq, R
   return fqpositions.size()  - stillUnfound.size();
 }
 
-int fuzzyFind(std::vector<uint64_t>* fqpositions, FASTQReader &fastq, ReferenceGenome& rg, SAMWriter* sw, vector<qtally>* qqcounts, int keylen, int qlimit)
+int fuzzyFind(std::vector<uint64_t>* fqpositions, StereoFASTQReader &fastq, ReferenceGenome& rg, SAMWriter* sw, vector<qtally>* qqcounts, int keylen, int qlimit)
 {
   boost::progress_display fuzzyProgress(fqpositions->size(), cerr);
   vector<uint64_t> stillUnfound;
@@ -822,8 +832,7 @@ int fuzzyFind(std::vector<uint64_t>* fqpositions, FASTQReader &fastq, ReferenceG
   vector<dnapos_t> lpositions, mpositions, rpositions;
   unsigned int fuzzyFound=0;
   for(auto fqpos : *fqpositions) {
-    fastq.seek(fqpos);
-    fastq.getRead(&fqfrag);
+    fastq.getRead(fqpos, &fqfrag);
     
     struct Match 
     {
@@ -913,13 +922,12 @@ int fuzzyFind(std::vector<uint64_t>* fqpositions, FASTQReader &fastq, ReferenceG
 
 typedef vector<VarMeanEstimator> qstats_t;
 
-void writeUnmatchedReads(const vector<uint64_t>& unfoundReads, FASTQReader& fastq)
+void writeUnmatchedReads(const vector<uint64_t>& unfoundReads, StereoFASTQReader& fastq)
 {
   FILE *fp=fopen("unfound.fastq", "w");
   FastQRead fqfrag;
   for(const auto& pos :  unfoundReads) {
-    fastq.seek(pos);
-    fastq.getRead(&fqfrag);
+    fastq.getRead(pos, &fqfrag);
     fprintf(fp, "@%s\n%s\n+\n%s\n", fqfrag.d_header.c_str(), fqfrag.d_nucleotides.c_str(), fqfrag.getSangerQualityString().c_str());
   }
   fclose(fp);
@@ -960,7 +968,9 @@ int main(int argc, char** argv)
 
   TCLAP::ValueArg<std::string> annotationsArg("a","annotations","read annotations for reference genome from this file",false, "", "filename", cmd);
   TCLAP::ValueArg<std::string> referenceArg("r","reference","read annotations for reference genome from this file",true,"","string", cmd);
-  TCLAP::ValueArg<std::string> fastqArg("f","fastq","read annotations for reference genome from this file",true,"","string", cmd);
+  TCLAP::ValueArg<std::string> fastqArg("f","fastq","read annotations for reference genome from this file",false,"","string", cmd);
+  TCLAP::ValueArg<std::string> fastq1Arg("1","fastq1","read annotations for reference genome from this file",true,"","string", cmd);
+  TCLAP::ValueArg<std::string> fastq2Arg("2","fastq2","read annotations for reference genome from this file",true,"","string", cmd);
   TCLAP::ValueArg<std::string> excludeArg("x","exclude","read annotations for reference genome from this file",false,"","string", cmd);
   TCLAP::ValueArg<std::string> samFileArg("s","sam-file","Write the assembly to the named SAM file",false,"","filename", cmd);
   TCLAP::ValueArg<int> qualityOffsetArg("q","quality-offset","Quality offset in fastq. 33 for Sanger.",false, 33,"offset", cmd);
@@ -984,18 +994,18 @@ int main(int argc, char** argv)
   GeneAnnotationReader gar(annotationsArg.getValue());
   (*g_log)<<"Done reading "<<gar.size()<<" annotations from '"<<annotationsArg.getValue()<<"'"<<endl;
   
-  FASTQReader fastq(fastqArg.getValue(), qualityOffsetArg.getValue(), beginSnipArg.getValue(), endSnipArg.getValue());
+  StereoFASTQReader fastq(fastq1Arg.getValue(), fastq2Arg.getValue(), qualityOffsetArg.getValue(), beginSnipArg.getValue(), endSnipArg.getValue());
 
   (*g_log)<<"Snipping "<<beginSnipArg.getValue()<<" from beginning of reads, "<<endSnipArg.getValue()<<" from end of reads"<<endl;
 
   unsigned int bytes=0;
-  FastQRead fqfrag;
-  bytes=fastq.getRead(&fqfrag); // get a read to index based on its size
+  FastQRead fqfrag1, fqfrag2;
+  bytes=fastq.getReadPair(&fqfrag1, &fqfrag2); // get a read to index based on its size
   
   ReferenceGenome rg(referenceArg.getValue());
   double genomeGCRatio = 1.0*(rg.d_cCount + rg.d_gCount)/(rg.d_cCount + rg.d_gCount + rg.d_aCount + rg.d_tCount);
   (*g_log)<<"GC Content of reference genome: "<<100.0*genomeGCRatio<<"%"<<endl;
-  rg.index(fqfrag.d_nucleotides.size());
+  rg.index(fqfrag1.d_nucleotides.size());
   
   unique_ptr<FILE, int(*)(FILE*)> jsfp(fopen("data.js","w"), fclose);
 
@@ -1008,98 +1018,186 @@ int main(int argc, char** argv)
     
     (*g_log)<<"Loading positive control filter genome(s)"<<endl;
     
-    phix->index(fqfrag.d_nucleotides.size());
+    phix->index(fqfrag1.d_nucleotides.size());
   }
   g_log->flush();
   dnapos_t pos;
 
-  uint64_t withAny=0, found=0, notFound=0, total=0, qualityExcluded=0, fuzzyFound=0, 
-    phixFound=0, differentLength=0, tooFrequent=0;
+  uint64_t withAny=0, found=0, total=0, qualityExcluded=0, fuzzyFound=0, 
+    phixFound=0, differentLength=0, tooFrequent=0, goodPairMatches=0, badPairMatches=0;
 
   SAMWriter sw(samFileArg.getValue(), rg.d_name, rg.size());
 
   (*g_log)<<"Performing exact matches of reads to reference genome"<<endl;
-  boost::progress_display show_progress(filesize(fastqArg.getValue().c_str()), cerr);
+  boost::progress_display show_progress(filesize(fastq1Arg.getValue().c_str()), cerr);
  
   for(auto& kmers : rg.d_kmerMappings) 
     kmers.resize(256); // 4^4, corresponds to the '4' below
 
   qstats_t qstats;
-  qstats.resize(fqfrag.d_nucleotides.size());
+  qstats.resize(fqfrag1.d_nucleotides.size());
   VarMeanEstimator qstat;
   vector<unsigned int> qcounts(256);
   vector<uint64_t> unfoundReads;
   vector<qtally> qqcounts(256);
-  vector<dnapos_t> gchisto(fqfrag.d_nucleotides.size()+1);
+  vector<dnapos_t> gchisto(fqfrag1.d_nucleotides.size()+1);
 
   DuplicateCounter dc;
   uint32_t theHash;
   map<uint32_t, uint32_t> seenAlready;
+  vector<uint32_t> pairdisthisto(10000);
   do { 
     show_progress += bytes;
-    total++;
-    for(string::size_type pos = 0 ; pos < fqfrag.d_quality.size(); ++pos) {
-      int i = fqfrag.d_quality[pos];
-      double err = qToErr(i);
-      qstat(err);
-      qstats[pos](err);
-      qcounts[i]++;
-    }
-    dc.feedString(fqfrag.d_nucleotides);
-    if(duplimit) {
-      theHash=hash(fqfrag.d_nucleotides.c_str(), fqfrag.d_nucleotides.size(), 0);
-      if(++seenAlready[theHash] > 4) {
-	tooFrequent++;
+    vector<pair<dnapos_t,bool> > pairpositions[2];
+    for(unsigned int paircount=0; paircount < 2; ++paircount) {
+      FastQRead& fqfrag(paircount ? fqfrag2 : fqfrag1);
+      total++;
+      for(string::size_type pos = 0 ; pos < fqfrag.d_quality.size(); ++pos) {
+	int i = fqfrag.d_quality[pos];
+	double err = qToErr(i);
+	qstat(err);
+	qstats[pos](err);
+	qcounts[i]++;
+      }
+      dc.feedString(fqfrag.d_nucleotides);
+      if(duplimit) {
+	theHash=hash(fqfrag.d_nucleotides.c_str(), fqfrag.d_nucleotides.size(), 0);
+	if(++seenAlready[theHash] > 4) {
+	  tooFrequent++;
+	  continue;
+	}
+      }
+      
+      gchisto[round(fqfrag.d_nucleotides.size()*getGCContent(fqfrag.d_nucleotides))]++;
+      bool hadN=false;
+      for(string::size_type i = 0 ; i < fqfrag.d_nucleotides.size(); ++i) {
+	char c = fqfrag.d_nucleotides[i];
+	if(c=='G' || c=='C')
+	  rg.d_gcMappings[i]++;
+	else
+	  rg.d_taMappings[i]++;
+	
+	if(fqfrag.d_nucleotides.size() - i > 4)
+	  rg.d_kmerMappings[i][kmerMapper(fqfrag.d_nucleotides, i, 4)]++;
+	if(c=='N')
+	  hadN=true;
+      }
+      
+      if(hadN) {
+	unfoundReads.push_back(fqfrag.position);
+	withAny++;
 	continue;
       }
-    }
-
-    gchisto[round(fqfrag.d_nucleotides.size()*getGCContent(fqfrag.d_nucleotides))]++;
-    bool hadN=false;
-    for(string::size_type i = 0 ; i < fqfrag.d_nucleotides.size(); ++i) {
-      char c = fqfrag.d_nucleotides[i];
-      if(c=='G' || c=='C')
-	rg.d_gcMappings[i]++;
-      else
-	rg.d_taMappings[i]++;
-
-      if(fqfrag.d_nucleotides.size() - i > 4)
-	rg.d_kmerMappings[i][kmerMapper(fqfrag.d_nucleotides, i, 4)]++;
-      if(c=='N')
-	hadN=true;
-    }
-
-    if(hadN) {
-      unfoundReads.push_back(fqfrag.position);
-      withAny++;
-      continue;
-    }
-    if(fqfrag.d_nucleotides.length() != rg.d_indexlength) {
-      differentLength++;
-      unfoundReads.push_back(fqfrag.position);
-      continue;
-    }
-    pos = rg.getReadPosBoth(&fqfrag, qlimit);
-    if(pos == dnanpos ) {
-      if(phix && phix->getReadPosBoth(&fqfrag, qlimit)!=dnanpos) {
-        phixFound++;
+      if(fqfrag.d_nucleotides.length() != rg.d_indexlength) {
+	differentLength++;
+	unfoundReads.push_back(fqfrag.position);
+	continue;
       }
-      else {
-        unfoundReads.push_back(fqfrag.position);
-        notFound++;
-      }
+
+      pairpositions[paircount]=rg.getAllReadPosBoth(&fqfrag);  
     }
-    else {
-      for(auto c : fqfrag.d_quality) {
+    
+    if(pairpositions[0].empty() && pairpositions[1].empty()) {
+      unfoundReads.push_back(fqfrag1.position);
+      unfoundReads.push_back(fqfrag2.position);
+      continue; // empty pair
+    }
+    FastQRead* fqfrag=0;
+    if(pairpositions[0].empty()) {
+      fqfrag = &fqfrag2;
+      auto mapping = pairpositions[1][random() % pairpositions[1].size()];
+      pos = mapping.first; 
+      if(fqfrag->reversed != mapping.second)
+	fqfrag->reverse();
+
+      unfoundReads.push_back(fqfrag1.position);
+    }
+    else if(pairpositions[1].empty())  {
+      fqfrag = &fqfrag1;
+      auto mapping = pairpositions[0][random() % pairpositions[0].size()];
+      pos = mapping.first; 
+      if(fqfrag->reversed != mapping.second)
+	fqfrag->reverse();
+
+      unfoundReads.push_back(fqfrag2.position);
+    }
+      
+    if(fqfrag) {
+      for(auto c : fqfrag->d_quality) {
 	qqcounts[c].correct++;
       }
-      rg.mapFastQ(pos, fqfrag);					
-      sw.write(pos, fqfrag);
+      rg.mapFastQ(pos, *fqfrag);					
+
+
+      sw.write(pos, *fqfrag);
+      rg.cover(pos, fqfrag->d_quality.length(), fqfrag->d_quality, qlimit);
       found++;
     }
-  } while((bytes=fastq.getRead(&fqfrag)));
+    else {
+      // we actually have to find the best match..
+      vector<pair<pair<dnapos_t, bool>,pair<dnapos_t, bool> > > potMatch;
+      for(auto& match1 : pairpositions[0]) {
+	for(auto& match2 : pairpositions[1]) {
+	  if(match1.second != match2.second &&  abs((int64_t) match1.first - (int64_t)match2.first) < 1400)
+	    potMatch.push_back({match1, match2});
+	}
+      }
+      if(potMatch.size() > 1) {
+	cout<<"Sucks, have "<<potMatch.size()<<" matches for our lovely pair"<<endl;
+	for(auto match : potMatch) {
+	  cout<<"\t"<<match.first.first << " & " << match.second.first<< " (" << abs((int64_t) match.first.first - (int64_t)match.second.first) << ")"<<endl;
+	}
+      }
+      if(!potMatch.empty()) {
+	const auto& chosen = potMatch[random() % potMatch.size()];
+	//	cout<<"Pairwise match!"<<endl;
+	goodPairMatches++;
+	int distance = chosen.second.second ? 
+	  (fqfrag1.d_nucleotides.length() + (int64_t) chosen.second.first - (int64_t) chosen.first.first) :
+	  (fqfrag1.d_nucleotides.length() + (int64_t) chosen.first.first - (int64_t) chosen.second.first);
+
+	if(distance < pairdisthisto.size()-1)
+	  pairdisthisto[distance]++;
+	for(int paircount = 0 ; paircount < 2; ++paircount) {
+	  auto fqfrag = paircount ? &fqfrag2 : &fqfrag1;
+	  pos = paircount ? chosen.second.first : chosen.first.first;
+
+	  if((paircount ? chosen.second.second : chosen.first.second) != fqfrag->reversed)
+	    fqfrag->reverse();
+
+	  for(auto c : fqfrag->d_quality) {
+	    qqcounts[c].correct++;
+	  }
+	  rg.mapFastQ(pos, *fqfrag);					
+	  sw.write(pos, *fqfrag, 0, 3 + (paircount ? 0x80 : 0x40),
+		   "=", 
+		   paircount ? chosen.first.first : chosen.second.first, 
+		   (chosen.first.second ^ paircount) ? -distance : distance);
+	  rg.cover(pos, fqfrag->d_quality.length(), fqfrag->d_quality, qlimit);
+	  found++;
+	}
+      }
+      else {
+	unfoundReads.push_back(fqfrag1.position); 
+	unfoundReads.push_back(fqfrag2.position);
+	cout<<"Found both halves of a pair somewhere, but didn't match up"<<endl;
+	badPairMatches++;
+	for(unsigned int paircount = 0; paircount < 2; ++paircount) {
+	  for(auto match: pairpositions[paircount]) {
+	    cout<<"\t"<<paircount<<"\t"<<match.first<<" "<<match.second<<endl;
+	  }
+	}
+      } 
+    }
+
+
+    
+  } while((bytes=fastq.getReadPair(&fqfrag1, &fqfrag2)));
   
-  uint64_t totNucleotides=total*fqfrag.d_nucleotides.length();
+  pairdisthisto.resize(1000);
+  fputs(jsonVector(pairdisthisto, "pairdisthisto").c_str(), jsfp.get());
+
+  uint64_t totNucleotides=total*fqfrag1.d_nucleotides.length();
   fprintf(jsfp.get(), "qhisto=[");
   for(int c=0; c < 50; ++c) {
     fprintf(jsfp.get(), "%s[%d,%f]", c ? "," : "", (int)c, 1.0*qcounts[c]/totNucleotides);
@@ -1117,12 +1215,12 @@ int main(int argc, char** argv)
   dnapos_t totalhisto= accumulate(gchisto.begin(), gchisto.end(), 0);
   fputs(jsonVector(gchisto, "gcreadhisto",  
 		   [totalhisto](dnapos_t c){return 1.0*c/totalhisto;},
-		   [&fqfrag](int i) { return 100.0*i/fqfrag.d_nucleotides.size();}   ).c_str(), 
+		   [&fqfrag1](int i) { return 100.0*i/fqfrag1.d_nucleotides.size();}   ).c_str(), 
 	jsfp.get());
 
   fputs(jsonVector(rg.getGCHisto(), "gcrefhisto",  
-		   [&fqfrag,&rg](dnapos_t c){return 1.0*c/(rg.size()/fqfrag.d_nucleotides.size());},
-		   [&fqfrag](int i) { return 100.0*i/fqfrag.d_nucleotides.size();}   ).c_str(), 
+		   [&fqfrag1,&rg](dnapos_t c){return 1.0*c/(rg.size()/fqfrag1.d_nucleotides.size());},
+		   [&fqfrag1](int i) { return 100.0*i/fqfrag1.d_nucleotides.size();}   ).c_str(), 
 	jsfp.get());
 
 
@@ -1130,7 +1228,7 @@ int main(int argc, char** argv)
   fprintf(jsfp.get(), "var kmerstats=[");
   unsigned int readOffset=0;
   for(const auto& kmer :  rg.d_kmerMappings) {
-    if(readOffset >= fqfrag.d_nucleotides.length() - 4)
+    if(readOffset >= fqfrag1.d_nucleotides.length() - 4)
       break;
 
     VarMeanEstimator acc;
@@ -1152,7 +1250,10 @@ int main(int argc, char** argv)
     (*g_log) << (boost::format("Too frequent reads: %|40t| %10d (%.02f%%)") % tooFrequent % (100.0*tooFrequent/total)).str() <<endl;
   (*g_log) << (boost::format("Different length reads: %|40t|-%10d") % differentLength).str() <<endl;
   (*g_log) << (boost::format("Full matches: %|40t|-%10d (%.02f%%)\n") % found % (100.0*found/total)).str();
-  (*g_log) << (boost::format("Not fully matched: %|40t|=%10d (%.02f%%)\n") % notFound % (notFound*100.0/total)).str();
+  (*g_log) << (boost::format(" Reads matched in a good pair: %|40t| %10d\n") % (goodPairMatches*2)).str();
+  (*g_log) << (boost::format(" Reads not matched, bad pair: %|40t| %10d\n") % (badPairMatches*2)).str();
+
+  (*g_log) << (boost::format("Not fully matched: %|40t|=%10d (%.02f%%)\n") % unfoundReads.size() % (unfoundReads.size()*100.0/total)).str();
   (*g_log) << (boost::format("Mean Q: %|40t|    %10.2f +- %.2f\n") % (-10.0*log10(mean(qstat))) 
 	       % sqrt(-10.0*log10(variance(qstat)) )).str();
 
@@ -1170,6 +1271,8 @@ int main(int argc, char** argv)
 
   rg.printCoverage(jsfp.get(), "fullHisto");
   printQualities(jsfp.get(), qstats);
+
+  return EXIT_SUCCESS;
 
   int keylen=11;
   rg.index(keylen);

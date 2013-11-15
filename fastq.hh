@@ -34,3 +34,18 @@ private:
   unsigned int d_snipLeft, d_snipRight;
 };
 
+class StereoFASTQReader
+{
+public:
+  StereoFASTQReader(const std::string& name1, const std::string& name2, 
+		    unsigned int qoffset, unsigned int snipLeft=0, unsigned int snipRight=0) : d_fq1(name1, qoffset, snipLeft, snipRight), d_fq2(name2, qoffset, snipLeft, snipRight) 
+  {}
+
+  void seek(uint64_t pos);
+
+  unsigned int getRead(uint64_t pos, FastQRead* fq2);
+  unsigned int getReadPair(FastQRead* fq1, FastQRead* fq2);
+private:
+  FASTQReader d_fq1, d_fq2;
+  constexpr static uint64_t s_mask = ~(1UL<<63);
+};

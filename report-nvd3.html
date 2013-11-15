@@ -85,6 +85,12 @@ work, please cite xyz.
   <svg></svg>
 </div>
 
+<div class="chart" id="pairdist" >
+<h3>Paired read distance histogram</h3>
+  <svg></svg>
+</div>
+
+
 <table id="toctable" border="1" cellpadding="4">
 <tr><th>Type</th><th>Locus</th><th>Annotation(s)</th></tr>
 </table>
@@ -365,6 +371,39 @@ nv.addGraph(function() {
 
   return chart;
 });
+
+nv.addGraph(function() {
+  var chart = nv.models.lineChart()
+  .options({
+    margin: {left: 100, bottom: 75},
+    x: function(d,i) { return i},
+    showXAxis: true,
+    showYAxis: true,
+    transitionDuration: 250
+  })
+  .forceY([0])
+  ;
+
+  // chart sub-models (ie. xAxis, yAxis, etc) when accessed directly, return themselves, not the parent chart, so need to chain separately
+  chart.xAxis
+    .axisLabel("Distance (p)")
+    .tickFormat(d3.format(',d'));
+
+  chart.yAxis
+    .axisLabel('Count')
+    .tickFormat(d3.format(',d'))
+    ;
+
+
+  d3.select('#pairdist svg')
+    .datum(getPoints(pairdisthisto, "Count"))
+    .call(chart);
+
+  nv.utils.windowResize(chart.update);
+
+  return chart;
+});
+
 
 nv.addGraph(function() {
   var chart = nv.models.discreteBarChart()
