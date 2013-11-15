@@ -434,17 +434,17 @@ void ReferenceGenome::printCoverage(FILE* jsfp, const std::string& histoName)
   string::size_type prevNulpos=0;
 
   vector<unsigned int> covhisto;
-  covhisto.resize(65535);
+  covhisto.resize(1000);
   d_unmRegions.clear();
   for(string::size_type pos = 0; pos < d_mapping.size(); ++pos) {
     cov = d_mapping[pos].coverage;
     bool noCov = cov < 2;
-    if(cov > covhisto.size()) {
-      cerr<<"anomalous coverage: "<<cov<<endl;
+    if(cov >= covhisto.size()) {
+      covhisto.resize(2*cov+1);
     }
-    else {
-      covhisto[cov]++;
-    }
+
+    covhisto[cov]++;
+    
     totCoverage += cov;
 
     if(noCov) {
@@ -477,14 +477,17 @@ void ReferenceGenome::printCoverage(FILE* jsfp, const std::string& histoName)
   (*g_log) << (boost::format("Average depth: %|40t|    %10.2f\n") % (1.0*totCoverage/d_mapping.size())).str();
   (*g_log) << (boost::format("Undercovered nucleotides: %|40t| %10d (%.2f%%), %d ranges\n") % noCoverages % (noCoverages*100.0/d_mapping.size()) % cl.d_clusters.size()).str();
 
-  // snip off the all-zero part at the end
-  for(auto iter = covhisto.rbegin(); iter != covhisto.rend(); ++iter) {
-    if(*iter!=0) {
-      covhisto.resize(covhisto.size() - (iter - covhisto.rbegin()));
+  uint64_t total = std::accumulate(covhisto.begin(), covhisto.end(), 0), cumul=0;
+
+  // snip off once we have 99.9%
+  for(auto iter = covhisto.begin(); iter != covhisto.end(); ++iter) {
+    cumul += *iter;
+    if(cumul > total*0.999) {
+      covhisto.resize((iter - covhisto.begin()));
       break;
     }
   }
-  uint64_t total = std::accumulate(covhisto.begin(), covhisto.end(), 0);
+
   fputs(jsonVector(covhisto, histoName, [&total](dnapos_t dp) { return 1.0*dp/total; }).c_str(), jsfp);
 }
 
@@ -856,6 +859,7 @@ int fuzzyFind(std::vector<uint64_t>* fqpositions, FASTQReader &fastq, ReferenceG
         sort(together.begin(), together.end());
 
         auto matches=getTriplets(together, interval, attempts);
+	//	random_shuffle(matches.begin(), matches.end()); // should prevent pileup because if 'score==0' shortcut below
         int score;
         for(auto match : matches) {
           if(allMatches.count(match))
