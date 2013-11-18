@@ -73,6 +73,13 @@ struct Unmatched
   dnapos_t pos;
 };
 
+
+template<typename T>
+const typename T::value_type& pickRandom(const T& t)
+{
+  return t[random() % t.size()];
+}
+
 class DuplicateCounter
 {
 public:
@@ -900,7 +907,7 @@ int fuzzyFind(std::vector<uint64_t>* fqpositions, StereoFASTQReader &fastq, Refe
         }
         
         const auto& first = scores.begin()->second;
-        auto pick = first[random() % first.size()];
+        auto pick = pickRandom(first);
 	//        cout<<" Picking: "<< pick.first <<endl;
         if(fqfrag.reversed != pick.second)
           fqfrag.reverse();
@@ -1105,18 +1112,18 @@ int main(int argc, char** argv)
     FastQRead* fqfrag=0;
     if(pairpositions[0].empty()) {
       fqfrag = &fqfrag2;
-      auto mapping = pairpositions[1][random() % pairpositions[1].size()];
-      pos = mapping.first; 
-      if(fqfrag->reversed != mapping.second)
+      auto mapping = pickRandom(pairpositions[1]);
+      pos = mapping.pos; 
+      if(fqfrag->reversed != mapping.reverse)
 	fqfrag->reverse();
 
       unfoundReads.push_back(fqfrag1.position);
     }
     else if(pairpositions[1].empty())  {
       fqfrag = &fqfrag1;
-      auto mapping = pairpositions[0][random() % pairpositions[0].size()];
-      pos = mapping.first; 
-      if(fqfrag->reversed != mapping.second)
+      auto mapping = pickRandom(pairpositions[0]);
+      pos = mapping.pos; 
+      if(fqfrag->reversed != mapping.reverse)
 	fqfrag->reverse();
 
       unfoundReads.push_back(fqfrag2.position);
@@ -1271,8 +1278,6 @@ int main(int argc, char** argv)
 
   rg.printCoverage(jsfp.get(), "fullHisto");
   printQualities(jsfp.get(), qstats);
-
-  return EXIT_SUCCESS;
 
   int keylen=11;
   rg.index(keylen);
