@@ -1,5 +1,5 @@
 #!/bin/sh
-(echo -n \#define GIT_HASH \" ; git describe --always --dirty=+ | tr -d '\n' ; echo "\" ") > githash.h.tmp
+(/bin/echo -n \#define GIT_HASH \" ; git describe --always --dirty=+ | tr -d '\n' ; echo "\" ") > githash.h.tmp
 
 cmp -s githash.h githash.h.tmp > /dev/null
 
