@@ -115,8 +115,6 @@ if(typeof qqdata == 'undefined')
 if(typeof antonieLog == 'undefined')
 	antonieLog ='';
 	
-if(typeof fuzzyHisto == 'undefined')
-	fuzzyHisto = [];
 d3.select("#log").html("<pre>"+antonieLog+"</pre>");
 
 function getPoints(item1, name1, item2, name2, item3, name3, item4, name4) {
@@ -364,7 +362,7 @@ nv.addGraph(function() {
 
 
   d3.select('#depthhisto svg')
-    .datum(getPoints(fullHisto, "Full matches", fuzzyHisto, "Including partial"))
+    .datum(getPoints(fullHisto, "Depth"))
     .call(chart);
 
   nv.utils.windowResize(chart.update);
@@ -455,11 +453,11 @@ for(i = 0 ; i < region.length; ++i) {
 	  ourdiv.append('h3').text('Region '+i+': '+region[item].name + ' @ ' +region[item].pos );
 	  ourdiv.append('p').text(decodeURIComponent(region[item].annotations));
 	  ourdiv.append('pre').text(region[item].report);	  
-	  ourdiv.append('svg').datum(getPoints(region[item].depth, "Depth")).call(chart);
+	  ourdiv.append('svg').datum(getPoints(region[item].depth, "Depth", region[item].variability, "Variability")).call(chart);
 	  nv.utils.windowResize(chart.update);
 	
 	  var toctable=d3.select('#toctable').append('tr');
-	  toctable.append('td').text(region[item].name+' '+item);
+	  toctable.append('td').append('a').attr('href','#region'+item).text(region[item].name+' '+item);
 	  toctable.append('td').text(region[item].pos);
 	  toctable.append('td').text(decodeURIComponent(region[item].annotations));
 	  

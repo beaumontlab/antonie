@@ -76,27 +76,16 @@ GeneAnnotationReader::GeneAnnotationReader(const std::string& fname)
     d_gas.push_back(ga);
   no:;
   }
-  sort(d_gas.begin(), d_gas.end());
+
 }
 
 vector<GeneAnnotation> GeneAnnotationReader::lookup(uint64_t pos)
 {
   vector<GeneAnnotation> ret;
-  GeneAnnotation ga;
-  ga.startPos = pos;
-  gas_t::const_iterator iter =  lower_bound(d_gas.begin(), d_gas.end(), ga);
-  //  cout<<"pos: "<<pos<<endl;
-  if(iter != d_gas.end()) {
 
-    while(iter != d_gas.begin() && pos < iter->stopPos) {
-      //      cout<<iter->name<<" going back!!"<<endl;
-      --iter;
-    }
-    iter++;
-    for(; iter != d_gas.end() && iter->startPos < pos && iter->stopPos > pos; ++iter) {
-      //      cout << iter->startPos <<", "<<iter->stopPos<<": "<<iter->name<<endl;
-      ret.push_back(*iter);
-    }
+  for(const auto& a : d_gas) {
+    if(a.startPos <= pos && pos <= a.stopPos)
+      ret.push_back(a);
   }
   return ret;
 }
