@@ -967,7 +967,6 @@ int main(int argc, char** argv)
     
     phix->index(fqfrag1.d_nucleotides.size());
     phix->index(keylen);
-
   }
   g_log->flush();
   dnapos_t pos;
@@ -1049,16 +1048,21 @@ int main(int argc, char** argv)
 	continue;
       }
       */
-      pairpositions[paircount]=rg.getAllReadPosBoth(&fqfrag);  
+      if((pairpositions[paircount]=rg.getAllReadPosBoth(&fqfrag)).empty()) {
+	pairpositions[paircount]=fuzzyFind(&fqfrag, rg, keylen, qlimit);
+      }
     }
     
-    if(pairpositions[0].empty()) {
-      pairpositions[0]=fuzzyFind(&fqfrag1, rg, keylen, qlimit);
+    if(pairpositions[0].empty() && pairpositions[1].empty() && phix) {
+      auto before=phixFound;
+      if(!phix->getAllReadPosBoth(&fqfrag1).empty() || !fuzzyFind(&fqfrag1, *phix, keylen, qlimit).empty())
+	phixFound++;
+      if(!phix->getAllReadPosBoth(&fqfrag2).empty() || !fuzzyFind(&fqfrag2, *phix, keylen, qlimit).empty())
+	phixFound++;
+      if(before!=phixFound)
+	continue;
     }
-    if(pairpositions[1].empty())  {
-     pairpositions[1]=fuzzyFind(&fqfrag2, rg, keylen, qlimit);
-    }
-      
+
     map<int, vector<pair<ReferenceGenome::MatchDescriptor,ReferenceGenome::MatchDescriptor> > > potMatch;
     unsigned int matchCount=0;
     for(auto& match1 : pairpositions[0]) {
