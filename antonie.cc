@@ -1011,7 +1011,7 @@ int main(int argc, char** argv)
       dc.feedString(fqfrag.d_nucleotides);
       if(duplimit) {
 	theHash=hash(fqfrag.d_nucleotides.c_str(), fqfrag.d_nucleotides.size(), 0);
-	if(++seenAlready[theHash] > 4) {
+	if(++seenAlready[theHash] > duplimit) {
 	  if(paircount)
 	    dup2=true;
 	  else
@@ -1037,7 +1037,7 @@ int main(int argc, char** argv)
       }
       
       if(hadN) {
-	unfoundReads.push_back(fqfrag.position);
+	// unfoundReads.push_back(fqfrag.position); // will fail elsewhere and get filed there
 	withAny++;
 	continue;
       }
