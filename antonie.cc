@@ -51,6 +51,7 @@ namespace io = boost::iostreams;
 typedef io::tee_device<std::ostream, std::ostringstream> TeeDevice;
 typedef io::stream< TeeDevice > TeeStream;
 TeeStream* g_log;
+SAMSorter g_sorter;
 
 struct FASTQMapping
 {
@@ -675,8 +676,10 @@ int MapToReference(ReferenceGenome& rg, dnapos_t pos, FastQRead fqfrag, int qlim
   if(diffcount < 5) {
     didMap=true;
     rg.mapFastQ(pos, fqfrag);
-    if(sw)
+    if(sw) {
+      g_sorter.put(fqfrag.position, pos);
       sw->write(pos, fqfrag);
+    }
   }
   else {
     int indel=MBADiff(pos, fqfrag, reference);
@@ -684,8 +687,10 @@ int MapToReference(ReferenceGenome& rg, dnapos_t pos, FastQRead fqfrag, int qlim
       *outIndel=indel;
     if(indel) {
       rg.mapFastQ(pos, fqfrag, indel);
-      if(sw)
+      if(sw) {
+	g_sorter.put(fqfrag.position, pos);
 	sw->write(pos, fqfrag, indel);
+      }
       didMap=true;
       diffcount=1;
       if(indel > 0) { // our read has an insert at this position
@@ -736,6 +741,8 @@ int MapToReference(ReferenceGenome& rg, dnapos_t pos, FastQRead fqfrag, int qlim
   //  cout<<endl;
   //}
   //return diff;
+  if(sw && !didMap)
+    g_sorter.put(fqfrag.position, pos);
   return didMap;
 }
 
@@ -873,9 +880,25 @@ void writeUnmatchedReads(const vector<uint64_t>& unfoundReads, StereoFASTQReader
   for(const auto& pos :  unfoundReads) {
     fastq.getRead(pos, &fqfrag);
     fprintf(fp, "@%s\n%s\n+\n%s\n", fqfrag.d_header.c_str(), fqfrag.d_nucleotides.c_str(), fqfrag.getSangerQualityString().c_str());
+    g_sorter.put(fqfrag.position, 0);
   }
   fclose(fp);
 }
+
+void writeSortedFastQ(const vector<uint64_t>& sorted, StereoFASTQReader& fastq)
+{
+  string fname{"sorted.fastq"};
+  FILE *fp=fopen(fname.c_str(), "w");
+  if(!fp) 
+    throw runtime_error("Unable to open file '"+fname+"' for writing: "+string(strerror(errno)));
+  FastQRead fqfrag;
+  for(const auto& pos : sorted) {
+    fastq.getRead(pos, &fqfrag);
+    fprintf(fp, "@%s\n%s\n+\n%s\n", fqfrag.d_header.c_str(), fqfrag.d_nucleotides.c_str(), fqfrag.getSangerQualityString().c_str());
+  }
+  fclose(fp);
+}
+
 
 void printQualities(FILE* jsfp, const qstats_t& qstats)
 {
@@ -900,6 +923,7 @@ void printQualities(FILE* jsfp, const qstats_t& qstats)
 
   fflush(jsfp);
 }
+
 
 
 int main(int argc, char** argv)
@@ -1106,11 +1130,13 @@ int main(int argc, char** argv)
 	else if(!otherDup && !dup) {
 	  int indel;
 	  if(MapToReference(rg, pos, *fqfrag, qlimit, 0, &qqcounts, &indel)) {
+	    
 	    sw.write(pos, *fqfrag, indel, 3 + (paircount ? 0x80 : 0x40),
 		     "=", 
 		     paircount ? chosen.first.pos : chosen.second.pos, 
 		     (chosen.first.reverse ^ paircount) ? -distance : distance);
 	  }
+	  g_sorter.put(fqfrag->position, pos);
 	}
 	found++;
       }
@@ -1224,6 +1250,7 @@ int main(int argc, char** argv)
   if(unmatchedDumpSwitch.getValue())
     writeUnmatchedReads(unfoundReads, fastq);
 
+  writeSortedFastQ(g_sorter.getSortedFOffsets(), fastq);
   int index=0;
 
   Clusterer<Unmatched> cl(100);

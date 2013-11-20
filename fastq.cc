@@ -15,6 +15,7 @@ FASTQReader::FASTQReader(const std::string& str, unsigned int qoffset, unsigned 
   if(!d_fp) 
     throw std::runtime_error("Unable to open file '"+str+"' for FASTQ input");
   d_qoffset=qoffset;
+  setbuffer(d_fp, new char[512], 512);
 }
 
 bool FastQRead::exceedsQuality(unsigned int limit)
