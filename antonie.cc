@@ -1250,7 +1250,7 @@ int main(int argc, char** argv)
       else
 	qscore=41; // "highest score possible"
 
-      fprintf(jsfp.get(), "%s[%u, %f, %lu]", 
+      fprintf(jsfp.get(), "%s[%u, %f, %" PRIu64 "]", 
 	      printedYet ?  "," : "", 
 	      (unsigned int)(coinco - qqcounts.begin()), qscore,
 	      coinco->incorrect + coinco->correct);
