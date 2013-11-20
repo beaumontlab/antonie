@@ -520,8 +520,8 @@ uint32_t kmerMapper(const std::string& str, int offset, int unsigned len)
 // 0 if nothing interesting, positive if our read has insert at that position, negative if we have a delete at that position
 int MBADiff(dnapos_t pos, const FastQRead& fqr, const string& reference)
 {
-  string::size_type n, m, d;
-  int sn;
+  string::size_type n, m;
+  int d, sn;
   struct varray *ses = varray_new(sizeof(struct diff_edit), NULL);
   
   n = reference.length();
