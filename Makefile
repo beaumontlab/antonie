@@ -15,6 +15,7 @@ MBA_OBJECTS = ext/libmba/allocator.o  ext/libmba/diff.o  ext/libmba/msgno.o  ext
 ANTONIE_OBJECTS = antonie.o hash.o geneannotated.o misc.o fastq.o saminfra.o dnamisc.o githash.o $(MBA_OBJECTS)
 STATICFLAGS=-Wl,-Bstatic -lstdc++ $(LUALIBS) -lgcc -Wl,-Bdynamic -static-libgcc -lm -lc
 
+# STATICFLAGS= -static -static-libgcc -static-libstdc++
 
 strdiff: strdiff.o $(MBA_OBJECTS)
 	$(CC) strdiff.o $(MBA_OBJECTS) -o $@
