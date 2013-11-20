@@ -77,7 +77,7 @@ struct Unmatched
 template<typename T>
 const typename T::value_type& pickRandom(const T& t)
 {
-  return t[random() % t.size()];
+  return t[rand() % t.size()];
 }
 
 class DuplicateCounter
@@ -928,7 +928,7 @@ int main(int argc, char** argv)
 
   unsigned int qlimit = qlimitArg.getValue();
   unsigned int duplimit = duplimitArg.getValue();
-  srandom(time(0));
+  srand(time(0));
   ostringstream jsonlog;  
   TeeDevice td(cerr, jsonlog);
   g_log = new TeeStream(td);
