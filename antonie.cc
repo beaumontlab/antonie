@@ -1074,12 +1074,13 @@ int main(int argc, char** argv)
       }
     }
     if(matchCount > 1) {
-      cout<<"Sucks, have "<< matchCount <<" matches for our lovely pair"<<endl;
+      /*      cout<<"Sucks, have "<< matchCount <<" matches for our lovely pair"<<endl;
       for(const auto& scores : potMatch) {
 	for(const auto& match : scores.second) {
 	  cout<<"\t"<<match.first.pos << " & " << match.second.pos<< " (" << abs((int64_t) match.first.pos - (int64_t)match.second.pos) << ")"<<": "<<match.first.score << " & "<<match.second.score<<endl;
 	}
       }
+      */
     }
     if(!potMatch.empty()) {
       const auto& chosen = pickRandom(potMatch.begin()->second);
@@ -1116,7 +1117,7 @@ int main(int argc, char** argv)
       }
     }
     else {
-      cout<<"No pair matches, need to map individually: "<<endl;
+      //      cout<<"No pair matches, need to map individually: "<<endl;
       badPairMatches++;
       for(unsigned int paircount = 0; paircount < 2; ++paircount) {
 	if(paircount ? dup2 : dup1)
@@ -1125,7 +1126,7 @@ int main(int argc, char** argv)
 	map<int, vector<ReferenceGenome::MatchDescriptor>> scores;
 	for(auto match: pairpositions[paircount]) {
 	  scores[match.score].push_back(match);
-	  cout<<"\t"<<paircount<<"\t"<<match.pos<<" "<<match.reverse<<", score: "<<match.score<<endl;
+	  //	  cout<<"\t"<<paircount<<"\t"<<match.pos<<" "<<match.reverse<<", score: "<<match.score<<endl;
 	}
 	FastQRead* fqfrag = paircount ? &fqfrag2 : &fqfrag1;
 	if(scores.empty()) {
