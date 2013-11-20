@@ -923,7 +923,9 @@ int main(int argc, char** argv)
   TCLAP::ValueArg<int> qlimitArg("l","qlimit","Disregard nucleotide reads with less quality than this in calls",false, 30,"q", cmd);
   TCLAP::ValueArg<int> duplimitArg("d","duplimit","Ignore reads that occur more than d times. 0 for no filter.",false, 0,"times", cmd);
   TCLAP::SwitchArg unmatchedDumpSwitch("u","unmatched-dump","Create a dump of unmatched reads (unfound.fastq)", cmd, false);
-
+  TCLAP::SwitchArg skipUndermatchedSwitch("","skip-undermatched","Do not emit undermatched regions", cmd, false);
+  TCLAP::SwitchArg skipVariableSwitch("","skip-variable","Do not emit variable regions", cmd, false);
+  TCLAP::SwitchArg skipInsertsSwitch("","skip-inserts","Do not emit inserts", cmd, false);
   cmd.parse( argc, argv );
 
   unsigned int qlimit = qlimitArg.getValue();
@@ -1232,8 +1234,10 @@ int main(int argc, char** argv)
     cl.feed(unm);
   }
 
-  for(auto unmCl : cl.d_clusters) {
-    emitRegion(jsfp.get(), rg, fastq, gar, "Undermatched", index++, unmCl.getBegin()-100, unmCl.getEnd()+100);
+  if(!skipUndermatchedSwitch.getValue()) {
+    for(auto unmCl : cl.d_clusters) {
+      emitRegion(jsfp.get(), rg, fastq, gar, "Undermatched", index++, unmCl.getBegin()-100, unmCl.getEnd()+100);
+    }
   }
   
   printCorrectMappings(jsfp.get(), rg, "referenceQ");
@@ -1289,76 +1293,77 @@ int main(int argc, char** argv)
     cll.feed(item);
 
   (*g_log)<<"Found "<<rg.d_locimap.size()<<" varying loci ("<<cll.d_clusters.size()<<" ranges)"<<endl;  
+  if(!skipVariableSwitch.getValue()) {
+    for(auto& cluster : cll.d_clusters) {
+      vector<pair<string, dnapos_t>> reports;
+      for(auto& locus : cluster.d_members) {
+	unsigned int varcount=variabilityCount(rg, locus.pos, locus.locistat, &fraction);
+	if(varcount < 10) 
+	  continue;
+	ostringstream report;
 
-  for(auto& cluster : cll.d_clusters) {
-    vector<pair<string, dnapos_t>> reports;
-    for(auto& locus : cluster.d_members) {
-      unsigned int varcount=variabilityCount(rg, locus.pos, locus.locistat, &fraction);
-      if(varcount < 10) 
-	continue;
-      ostringstream report;
+	char c=rg.snippet(locus.pos, locus.pos+1)[0];
+	aCount = cCount = tCount = gCount = 0;
 
-      char c=rg.snippet(locus.pos, locus.pos+1)[0];
-      aCount = cCount = tCount = gCount = 0;
+	acgtDo(c, 
+	       [&](){aCount += rg.d_mapping[locus.pos].coverage;},
+	       [&](){cCount += rg.d_mapping[locus.pos].coverage;},
+	       [&](){gCount += rg.d_mapping[locus.pos].coverage;},
+	       [&](){tCount += rg.d_mapping[locus.pos].coverage;}
+	       );
+	report << (fmt1 % locus.pos % rg.d_mapping[locus.pos].coverage % rg.snippet(locus.pos, locus.pos+1) ).str();
+	sort(locus.locistat.samples.begin(), locus.locistat.samples.end());
 
-      acgtDo(c, 
-	     [&](){aCount += rg.d_mapping[locus.pos].coverage;},
-	     [&](){cCount += rg.d_mapping[locus.pos].coverage;},
-	     [&](){gCount += rg.d_mapping[locus.pos].coverage;},
-	     [&](){tCount += rg.d_mapping[locus.pos].coverage;}
-	     );
-      report << (fmt1 % locus.pos % rg.d_mapping[locus.pos].coverage % rg.snippet(locus.pos, locus.pos+1) ).str();
-      sort(locus.locistat.samples.begin(), locus.locistat.samples.end());
-
-      significantlyVariable++;
-      for(auto j = locus.locistat.samples.begin(); 
-	  j != locus.locistat.samples.end(); ++j) {
-	c=get<0>(*j);
-	acgtDo(c, [&](){ aCount++; }, [&](){ cCount++; }, [&](){ gCount++; }, [&](){ tCount++; } );
+	significantlyVariable++;
+	for(auto j = locus.locistat.samples.begin(); 
+	    j != locus.locistat.samples.end(); ++j) {
+	  c=get<0>(*j);
+	  acgtDo(c, [&](){ aCount++; }, [&](){ cCount++; }, [&](){ gCount++; }, [&](){ tCount++; } );
       
-	report<<c;
-      }
-      report<<endl<<fmt2;
-      for(auto j = locus.locistat.samples.begin(); 
-	  j != locus.locistat.samples.end(); ++j) {
-	report<<((char)(get<1>(*j)+33));
-      }
-      report << endl << fmt2;
-      for(auto j = locus.locistat.samples.begin(); 
-	  j != locus.locistat.samples.end(); ++j) {
-	report << (get<2>(*j) ? 'R' : '.');
-      }
-
-      int tot=locus.locistat.samples.size() + rg.d_mapping[locus.pos].coverage;
-      report<<endl;
-      vector<GeneAnnotation> gas=gar.lookup(locus.pos);
-      if(!gas.empty()) {
-	report << fmt2 << "Annotation: ";
-	for(auto& ga : gas) {
-	  report << ga.name<<" ["<<ga.tag<<"], ";
+	  report<<c;
 	}
-	report << endl;
-      }
-      report << fmt2<< "Fraction tail: "<<fraction<<", "<< locus.locistat.samples.size()<<endl;
-      report << fmt2<< "A: " << aCount*100/tot <<"%, C: "<<cCount*100/tot<<"%, G: "<<gCount*100/tot<<"%, T: "<<tCount*100/tot<<"%"<<endl;
+	report<<endl<<fmt2;
+	for(auto j = locus.locistat.samples.begin(); 
+	    j != locus.locistat.samples.end(); ++j) {
+	  report<<((char)(get<1>(*j)+33));
+	}
+	report << endl << fmt2;
+	for(auto j = locus.locistat.samples.begin(); 
+	    j != locus.locistat.samples.end(); ++j) {
+	  report << (get<2>(*j) ? 'R' : '.');
+	}
 
-      // cout<<rg.getMatchingFastQs(locus.pos, fastq);
-      reports.push_back({report.str(), locus.pos});  
-    }
-    if(!reports.empty()) {
-      string theReport;
-      dnapos_t minPos=reports.begin()->second;
-      dnapos_t maxPos=minPos;
-      for(auto r : reports) {
-        theReport += r.first;
-	minPos=min(r.second, minPos);
-	maxPos=max(r.second, maxPos);
-      }
+	int tot=locus.locistat.samples.size() + rg.d_mapping[locus.pos].coverage;
+	report<<endl;
+	vector<GeneAnnotation> gas=gar.lookup(locus.pos);
+	if(!gas.empty()) {
+	  report << fmt2 << "Annotation: ";
+	  for(auto& ga : gas) {
+	    report << ga.name<<" ["<<ga.tag<<"], ";
+	  }
+	  report << endl;
+	}
+	report << fmt2<< "Fraction tail: "<<fraction<<", "<< locus.locistat.samples.size()<<endl;
+	report << fmt2<< "A: " << aCount*100/tot <<"%, C: "<<cCount*100/tot<<"%, G: "<<gCount*100/tot<<"%, T: "<<tCount*100/tot<<"%"<<endl;
 
-      emitRegion(jsfp.get(), rg, fastq, gar, "Variable", index++, minPos-100, maxPos+100, theReport);
+	// cout<<rg.getMatchingFastQs(locus.pos, fastq);
+	reports.push_back({report.str(), locus.pos});  
+      }
+      if(!reports.empty()) {
+	string theReport;
+	dnapos_t minPos=reports.begin()->second;
+	dnapos_t maxPos=minPos;
+	for(auto r : reports) {
+	  theReport += r.first;
+	  minPos=min(r.second, minPos);
+	  maxPos=max(r.second, maxPos);
+	}
+
+	emitRegion(jsfp.get(), rg, fastq, gar, "Variable", index++, minPos-100, maxPos+100, theReport);
+      }
     }
+    (*g_log)<<"Found "<<significantlyVariable<<" significantly variable loci"<<endl;
   }
-  (*g_log)<<"Found "<<significantlyVariable<<" significantly variable loci"<<endl;
   (*g_log)<<"Found "<<rg.d_insertCounts.size()<<" loci with at least one insert in a read"<<endl;
   struct revsort
   {
@@ -1374,25 +1379,26 @@ int main(int argc, char** argv)
       significantInserts++;
   }
   (*g_log)<<"Found "<<significantInserts<<" significant inserts"<<endl;
-  
-  for(const auto& insert : topInserts) {
-    if(insert.first < 10)
-      break;
-    for(const auto& position : insert.second) {
-      cout<<position<<"\t"<<insert.first<<" inserts"<<endl;
-      vector<GeneAnnotation> gas=gar.lookup(position);
-      if(!gas.empty()) {
-	cout<<fmt2<<"Annotation: ";
-	for(auto& ga : gas) {
-	  cout<<ga.name<<" ["<<ga.tag<<"], ";
+
+  if(!skipInsertsSwitch.getValue()) {
+    for(const auto& insert : topInserts) {
+      if(insert.first < 10)
+	break;
+      for(const auto& position : insert.second) {
+	cout<<position<<"\t"<<insert.first<<" inserts"<<endl;
+	vector<GeneAnnotation> gas=gar.lookup(position);
+	if(!gas.empty()) {
+	  cout<<fmt2<<"Annotation: ";
+	  for(auto& ga : gas) {
+	    cout<<ga.name<<" ["<<ga.tag<<"], ";
+	  }
+	  cout<<endl;
 	}
-	cout<<endl;
+	emitRegion(jsfp.get(), rg, fastq, gar, "Insert", index++, position);
+	cout<<rg.getMatchingFastQs(position, fastq);
       }
-      emitRegion(jsfp.get(), rg, fastq, gar, "Insert", index++, position);
-      cout<<rg.getMatchingFastQs(position, fastq);
     }
-  }
-  
+  }  
   g_log->flush();
   string log = jsonlog.str();
   replace_all(log, "\n", "\\n");
