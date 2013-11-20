@@ -521,7 +521,7 @@ uint32_t kmerMapper(const std::string& str, int offset, int unsigned len)
 int MBADiff(dnapos_t pos, const FastQRead& fqr, const string& reference)
 {
   string::size_type n, m;
-  int d, sn;
+  int d,  sn;
   struct varray *ses = varray_new(sizeof(struct diff_edit), NULL);
   
   n = reference.length();
@@ -1250,9 +1250,9 @@ int main(int argc, char** argv)
       else
 	qscore=41; // "highest score possible"
 
-      fprintf(jsfp.get(), "%s[%ld, %f, %" PRIu64 "]", 
+      fprintf(jsfp.get(), "%s[%u, %f, %lu]", 
 	      printedYet ?  "," : "", 
-	      coinco - qqcounts.begin(), qscore,
+	      (unsigned int)(coinco - qqcounts.begin()), qscore,
 	      coinco->incorrect + coinco->correct);
       printedYet=true;
     }
