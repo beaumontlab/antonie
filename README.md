@@ -96,14 +96,10 @@ LIMITATIONS
    memory for a typical prokaryote.  It also assumes it is aligning against a
    single chromosome.  Combined, this means that right now, eukaryotic
    processing is hard to do using Antonie.
- * Additionally, Antonie does not yet benefit from the position information that
-   can be inferred from paired end reads, and in fact you'll have to concatenate both
-   paired reads first.
+ * While we previously did not benefit from paired-end reads, paired-end reads 
+   are now the only things we support
  * Antonie can't yet deal with reads of varying lengths.
  * We only do indels of 1 nucleotide as of now
- * Our HTML is known not to be displayed correctly on some versions of Internet Explorer.
- * Finally, Antonie may be of limited use for reads shorter than 75
-   nucleotides, as it hasn't been tried in that domain a lot yet.
 
 SAMPLE USE
 ==========
@@ -178,18 +174,12 @@ The .gff file is GFF3, and contains annotations understood by our '-a' field.
 As an example, for "Escherichia coli str. K-12 substr. MG1655", head to
 <ftp://ftp.ncbi.nlm.nih.gov/genomes/Bacteria/Escherichia_coli_K_12_substr__MG1655_uid57779/>
 
-To get sample FASTQ, read the 'species' line from the .gff file, and visit 
-the URL found there.  This may present you with a series of substrains, or
-directly give you a listing of Entrez records.
+To get sample FASTQ, head to the [European Nucleotide
+Archive](http://www.ebi.ac.uk/ena/) and search for "Escherichia coli MG1655", and find the two FASTQ files:
 
-From there, find SRA or Sequence Read Archive files. SRA is a compressed representation 
-of FASTQ, to convert SRA to FASTQ, use 'fastq_dump' the SRA toolkit which can be found on 
-<http://www.ncbi.nlm.nih.gov/Traces/sra/?view=software>.
 
-For K12 MG1655, this may work: <http://www.ncbi.nlm.nih.gov/sra/SRX339396>, which will lead you to:
-<ftp://ftp-trace.ncbi.nlm.nih.gov/sra/sra-instant/reads/ByRun/sra/SRR/SRR956/SRR956947>
 
-Once the SRA is converted to FASTQ, run Antonie like this:
+Now down
 
 > $ antonie -f SRR956947.fastq -a Escherichia\_coli\_K\_12\_substr\_\_MG1655\_uid57779/\*.gff -r Escherichia\_coli\_K\_12\_substr\_\_MG1655\_uid57779/\*.fna > report
 
