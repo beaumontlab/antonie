@@ -13,12 +13,14 @@ all: $(PROGRAMS)
 
 MBA_OBJECTS = ext/libmba/allocator.o  ext/libmba/diff.o  ext/libmba/msgno.o  ext/libmba/suba.o  ext/libmba/varray.o 
 ANTONIE_OBJECTS = antonie.o hash.o geneannotated.o misc.o fastq.o saminfra.o dnamisc.o githash.o $(MBA_OBJECTS)
+STATICFLAGS=-Wl,-Bstatic -lstdc++ $(LUALIBS) -lgcc -Wl,-Bdynamic -static-libgcc -lm -lc
+
 
 strdiff: strdiff.o $(MBA_OBJECTS)
 	$(CC) strdiff.o $(MBA_OBJECTS) -o $@
 
 antonie: $(ANTONIE_OBJECTS)
-	$(CXX) $(ANTONIE_OBJECTS) $(LDFLAGS) -o $@
+	$(CXX) $(ANTONIE_OBJECTS) $(LDFLAGS) $(STATICFLAGS) -o $@
 
 SEARCHER_OBJECTS=16ssearcher.o hash.o misc.o fastq.o githash.o
 
