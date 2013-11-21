@@ -284,7 +284,7 @@ suba_realloc(struct allocator *suba, void *ptr, size_t size)
 
 	return p;
 }
-
+/*
 int
 suba_print_cell(struct allocator *suba, const char *msg, struct cell *c)
 {
@@ -297,7 +297,7 @@ suba_print_cell(struct allocator *suba, const char *msg, struct cell *c)
 	}
 	return 1;
 }
-/*
+
 int
 suba_print_alloc_list(struct allocator *suba, FILE *stream)
 {
@@ -318,7 +318,7 @@ suba_print_alloc_list(struct allocator *suba, FILE *stream)
 
 	return 0;
 }
-*/
+
 int
 suba_print_free_list(struct allocator *suba)
 {
@@ -350,3 +350,5 @@ suba_print_free_list(struct allocator *suba)
 	return ret;
 }
 
+
+*/

@@ -205,6 +205,7 @@ _ses(const void *a, int aoff, int n,
 		struct _ctx *ctx)
 {
 	struct middle_snake ms;
+	ms.v=ms.u=ms.x=ms.y=0;
 	int d;
 
 	if (n == 0) {

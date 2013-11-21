@@ -1,162 +1,473 @@
-<html>
-<head>
-<script type="text/javascript" src="ext/html/jquery.min.js"></script>
-<script type="text/javascript" src="ext/html/jquery.jqplot.min.js"></script>
-<script type="text/javascript" src="ext/html/plugins/jqplot.highlighter.min.js"></script>
+<!DOCTYPE html>
+<meta charset="utf-8">
 
-<link rel="stylesheet" type="text/css" href="ext/html/jquery.jqplot.min.css" />
-<script type="text/javascript" src="ext/html/plugins/jqplot.cursor.min.js"></script>
+<link href="ext/html/nvd3/nv.d3.css" rel="stylesheet" type="text/css">
 
-<style type="text/css">
+<style>
 body {
-	font-family: Verdana,Arial,Helvetica,sans-serif;
-	font-size: 12px;
-	margin: 1.2em;
+  overflow-y:scroll;
 }
 
-.dna p {
-	font-family: Courier;
-	font-size: 6px;
-	margin: 1.2em;
-	white-space: pre;
+body {
+   font-family: "HelveticaNeue-Light", "Helvetica Neue Light", "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif; 
+      font-weight: 300;
+}
+
+text {
+  font: 12px sans-serif;
+}
+
+svg {
+  display: block;
+}
+
+.chart svg {
+  height: 300px;
+
+}
+.chart {
+  min-width: 200px;
+  max-width: 600px;
+  margin-top: 10px;
+  margin-left: 20px;
 }
 </style>
-</head>
-
 <body>
+
+<h1>Antonie 0.0</h1>
+Antonie is <a href="https://github.com/beaumontlab/antonie">open source
+software</a>, developed at the <a
+href="http://bertusbeaumontlab.tudelft.nl/">Beaumont lab</a> at <a
+href="http://www.tudelft.nl">TU Delft</a>. If you've benefited from our
+work, please cite xyz.
+
 <div id="log"></div>
-<div id="toc"></div>
-<div id="graphs" style="width:700px;">
-<div id="histo"></div></br>
-<div id="quality"></div></br>
-<div id="qqdata"></div></br>
-<div id="gcratios"></div></br>
-<div id="kmers"></div></br>
-<div id="dupcounts"></div></br>
-<div id="qhisto"></div></br>
+
+<div class="chart" id="kmer" >
+<h3>K-Mer diversity across reads</h3>
+  <svg></svg>
 </div>
-</id>
-</body>
+
+<div class="chart" id="gc" >
+<h3>GC content across reads</h3>
+  <svg></svg>
+</div>
+
+
+<div class="chart" id="qreads" >
+<h3>Reported quality &amp; empirically observed quality across reads</h3>
+  <svg></svg>
+</div>
+
+<div class="chart" id="qq" >
+<h3>Q-Q Plot: reported versus empirical qualities</h3>
+  <svg></svg>
+</div>
+
+<div class="chart" id="qhisto" >
+<h3>Quality histogram</h3>
+  <svg></svg>
+</div>
+
+<div class="chart" id="gchisto" >
+<h3>GC Content of reads</h3>
+  <svg></svg>
+</div>
+
+
+<div class="chart" id="depthhisto" >
+<h3>Depth histogram</h3>
+  <svg></svg>
+</div>
+
+<div class="chart" id="dups" >
+<h3>Duplicate reads</h3>
+  <svg></svg>
+</div>
+
+<div class="chart" id="pairdist" >
+<h3>Paired read distance histogram</h3>
+  <svg></svg>
+</div>
+
+
+<table id="toctable" border="1" cellpadding="4">
+<tr><th>Type</th><th>Locus</th><th>Annotation(s)</th></tr>
+</table>
+
+<div id="regions">
+</div>
+
+<script src="ext/html/nvd3/lib/d3.v3.js"></script>
+<script src="ext/html/nvd3/nv.d3.min.js"></script>
+
 <script>
 var region=[];
-var histo=[];
-var qualities=[];
 </script>
-
-
-<script src="./data.js"></script>
-
+<script src="data.js"></script>
 <script>
-$(document).ready(function(){
-var plotoptions={
-	axes:{yaxis:{min:0}, xaxis:{}}, 
-	series:[ {color:'#1FAB78', showMarker: false, shadow: false, label: 'Depth'}, 
-		{color:'#FF0078', showMarker: false, shadow: false, label:  'Fuzzy Depth'},
-		{color:'#00FF78', showMarker: false, shadow: false, label:  'Control'},
-		], 
-	legend: {show: true},
-	highlighter: {
-			show: true, 
-			sizeAdjust: 7.5
-	},
-	cursor:{ 
-	        show: true,
-	        zoom:true, 
-	        showTooltip:false
-	       } 
-	 };
-
-var table='<table border="1" cellpadding="4"><tr><th>Type</th><th>Locus</th><th>Annotation(s)</th></tr>';
-
-for(n=0; n < region.length; ++n) {
-	$("#graphs").append('<a id="anchor'+n+'"></a><div id="region'+n+'"></div><br/>'+region[n].annotations+'<br/><div class="dna"><p>'+region[n].picture+"</p></div><hr/>");
-	plotoptions.title=region[n].name+" "+n+" ["+region[n].pos+"]"; 
-	$.jqplot('region'+n,  [region[n].depth], plotoptions); 
-	table+=('<tr><td><a href="#anchor'+n+'">'+region[n].name+' '+n+'</a></td><td>'+region[n].pos+'</td><td>'+region[n].annotations+'</td></tr>');
-}
-$("#toc").html(table+"</table>");
-
-plotoptions.axes.xaxis.min=0;
-plotoptions.title="Histogram of depth";
-plotoptions.series[0].label="Frequency";
-$.jqplot('histo', [histo], plotoptions);
-
-plotoptions.axes.xaxis.min=0;
-// plotoptions.axes.xaxis.max=150;
-plotoptions.title="Reported quality per offset of read";
-plotoptions.series[0].label="Reported Q-score";
-plotoptions.series[1].label="Actual Q-score";
-plotoptions.series[2].label="Control Q-score";
-
-if(typeof controlQ == 'undefined')
-	controlQ=[];
-
 if(typeof referenceQ == 'undefined')
 	referenceQ=[];
-
-if(typeof gcRatios == 'undefined')
-	gcRatios=[];
-
-if(typeof dupcounts == 'undefined')
-	dupcounts=[];
 
 if(typeof qqdata == 'undefined')
 	qqdata=[];
 
-
-plotoptions.series[0].rendererOptions={};
-plotoptions.series[0].rendererOptions.bandData=qhilo;
+if(typeof antonieLog == 'undefined')
+	antonieLog ='';
 	
-$.jqplot('quality', [qualities,referenceQ,controlQ], plotoptions);
-plotoptions.series[0].rendererOptions={};
+d3.select("#log").html("<pre>"+antonieLog+"</pre>");
 
-plotoptions.title="GC-content per read position";
-plotoptions.series[0].label="GC-content";
-$.jqplot('gcratios', [gcRatios], plotoptions);
+function getPoints(item1, name1, item2, name2, item3, name3, item4, name4) {
+  var ret = [
+    {
+      values: [],
+      key: name1,
+      color: "#ff7f0e",
+    }];
 
-plotoptions.title="K-mer uniformity per read position";
-plotoptions.series[0].label="Variance";
-$.jqplot('kmers', [kmerstats], plotoptions);
+  for (var i = 0; i < item1.length; i++) {
+    ret[0].values.push({x: item1[i][0], y: item1[i][1] }); 
+  }
+  if(typeof item2 != 'undefined') {
+  	ret.push({      values: [],      key: name2,      color: "#0f7f0e"    });
+	for (var i = 0; i < item2.length; i++) {
+		ret[1].values.push({x: item2[i][0], y: item2[i][1] }); 
+	}
+  }
 
-plotoptions.title="Duplication count of reads";
-plotoptions.series[0].label="Count";
-$.jqplot('dupcounts', [dupcounts], plotoptions);
+  if(typeof item3 != 'undefined') {
+  	ret.push({      values: [],      key: name3,      color: "#cccccc"    });
+	for (var i = 0; i < item3.length; i++) {
+		ret[2].values.push({x: item3[i][0], y: item3[i][1] }); 
+	}
+  }
 
-plotoptions.title="Reported/Empirical data quality (qq-plot)";
-plotoptions.series[0].label="Quality";
-plotoptions.series[1].label="Perfect";
-plotoptions.series[0].showMarker=true;
-plotoptions.series[0].showLine=false;
-plotoptions.axes.xaxis.min=0;
-plotoptions.axes.xaxis.max=41;
-plotoptions.axes.yaxis.min=0;
-plotoptions.axes.yaxis.max=41;
+  if(typeof item4 != 'undefined') {
+  	ret.push({      values: [],      key: name4,      color: "#cccccc"    });
+	for (var i = 0; i < item4.length; i++) {
+		ret[3].values.push({x: item4[i][0], y: item4[i][1] }); 
+	}
+  }
 
-
-var refdata=[];
-for(n=0; n<41;++n) {
-	refdata.push([n,n]);
+  return ret;
 }
-$.jqplot('qqdata', [qqdata, refdata], plotoptions);
-plotoptions.series[0].showMarker=false;
-plotoptions.series[0].showLine=true;
-plotoptions.axes.xaxis.max=undefined;
-plotoptions.axes.yaxis.max=undefined;
 
+nv.addGraph(function() {
+  var chart = nv.models.lineChart()
+  .options({
+    margin: {left: 100, bottom: 75},
+    x: function(d,i) { return i},
+    showXAxis: true,
+    showYAxis: true,
+    transitionDuration: 250
+  })
+  .forceY([0])
+  ;
 
+  chart.xAxis
+    .axisLabel("Position (n)")
+    .tickFormat(d3.format(',d'));
+  chart.yAxis
+    .axisLabel('Ratio')
+    .tickFormat(d3.format(',.2f'))
+    ;
 
-plotoptions.title="Distribution of Quality";
-plotoptions.series[0].label="Quality";
+  d3.select('#kmer svg')
+    .datum(getPoints(kmerstats, "K-mer diversity"))
+    .call(chart);
 
-plotoptions.axes.xaxis.min=0;
-plotoptions.axes.xaxis.max=42;
-
-$.jqplot('qhisto', [qhisto], plotoptions);
-
-if(typeof antonieLog != 'undefined')
-	$("#log").html("<pre>"+antonieLog+"</pre>");
- 
+  nv.utils.windowResize(chart.update);
+  return chart;
 });
+
+var gconst=[];
+
+nv.addGraph(function() {
+  var chart = nv.models.lineChart()
+  .options({
+    margin: {left: 100, bottom: 75},
+    x: function(d,i) { return i},
+    showXAxis: true,
+    showYAxis: true,
+    transitionDuration: 250
+  })
+  .forceY([0])
+  ;
+
+  chart.xAxis
+    .axisLabel("Position (n)")
+    .tickFormat(d3.format(',d'));
+  chart.yAxis
+    .axisLabel('Ratio')
+    .tickFormat(d3.format(',.2f'))
+    ;
+
+  for(i=0 ; i != gcRatios.length; ++i) {
+  	gconst[i]=[i,genomeGCRatio];
+  }
+
+  d3.select('#gc svg')
+    .datum(getPoints(gcRatios, "GC Content", gconst, "Genome average"))
+    .call(chart);
+
+  nv.utils.windowResize(chart.update);
+  return chart;
+});
+
+
+nv.addGraph(function() {
+  var chart = nv.models.lineChart()
+  .options({
+    margin: {left: 100, bottom: 75},
+    x: function(d,i) { return i},
+    showXAxis: true,
+    showYAxis: true,
+    transitionDuration: 250
+  })
+  .forceY([0])
+  ;
+
+  chart.xAxis
+    .axisLabel("Position (n)")
+    .tickFormat(d3.format(',d'));
+
+  chart.yAxis
+    .axisLabel('Quality')
+    .tickFormat(d3.format(',.2f'))
+    ;
+
+  d3.select('#qreads svg')
+    .datum(getPoints(qualities, "reported", referenceQ, "empirical", qlo, "Low reported range", qhi, "High reported range"))
+    .call(chart);
+
+  nv.utils.windowResize(chart.update);
+  return chart;
+});
+
+
+nv.addGraph(function() {
+  var chart = nv.models.scatterPlusLineChart()
+                .showDistX(true)
+                .showDistY(true)
+                .transitionDuration(300)
+                .color(d3.scale.category10().range());
+
+  chart.xAxis.tickFormat(d3.format('.d')).axisLabel("Reported quality");
+  chart.yAxis.tickFormat(d3.format('.02f')).axisLabel("Observed quality");
+  chart.tooltipContent(function(key) { return key; });
+  d3.select('#qq svg')
+      .datum(getqqdata)
+      .call(chart);
+
+  nv.utils.windowResize(chart.update);
+
+  return chart;
+});
+
+function getqqdata()
+{
+	var data=[];
+	data.push({key: 'Quality', shape: 'circle', values:[], slope: 1, intercept: 0});
+	for(i=0; i < qqdata.length; ++i) {
+		data[0].values.push({x: qqdata[i][0], y: qqdata[i][1], size:
+		qqdata[i][2]});
+	}
+	return data;
+}
+
+
+nv.addGraph(function() {
+  var chart = nv.models.lineChart()
+  .options({
+    margin: {left: 100, bottom: 75},
+    x: function(d,i) { return i},
+    showXAxis: true,
+    showYAxis: true,
+    transitionDuration: 250
+  })
+  .forceY([0])
+  ;
+
+  // chart sub-models (ie. xAxis, yAxis, etc) when accessed directly, return themselves, not the parent chart, so need to chain separately
+  chart.xAxis
+    .axisLabel("Quality (q)")
+    .tickFormat(d3.format(',d'));
+
+  chart.yAxis
+    .axisLabel('Frequency')
+    .tickFormat(d3.format(',.2f'))
+    ;
+
+
+  d3.select('#qhisto svg')
+    .datum(getPoints(qhisto, "Reported"))
+    .call(chart);
+
+  nv.utils.windowResize(chart.update);
+
+  return chart;
+});
+
+nv.addGraph(function() {
+  var chart = nv.models.lineChart()
+  .options({
+    margin: {left: 100, bottom: 75},
+    x: function(d,i) { return d.x;},
+    showXAxis: true,
+    showYAxis: true,
+    transitionDuration: 250
+  })
+  .forceY([0])
+  ;
+
+  // chart sub-models (ie. xAxis, yAxis, etc) when accessed directly, return themselves, not the parent chart, so need to chain separately
+  chart.xAxis
+    .axisLabel("GC Content (percentage)")
+    .tickFormat(d3.format(',d'));
+
+  chart.yAxis
+    .axisLabel('Frequency')
+    .tickFormat(d3.format(',.2f'))
+    ;
+
+  d3.select('#gchisto svg')
+    .datum(getPoints(gcrefhisto, "GC content of reference", gcreadhisto, "GC content of reads"))
+    .call(chart);
+  nv.utils.windowResize(chart.update);
+
+  return chart;
+});
+
+nv.addGraph(function() {
+  var chart = nv.models.lineChart()
+  .options({
+    margin: {left: 100, bottom: 75},
+    x: function(d,i) { return i},
+    showXAxis: true,
+    showYAxis: true,
+    transitionDuration: 250
+  })
+  .forceY([0])
+  ;
+
+  // chart sub-models (ie. xAxis, yAxis, etc) when accessed directly, return themselves, not the parent chart, so need to chain separately
+  chart.xAxis
+    .axisLabel("Depth (n)")
+    .tickFormat(d3.format(',d'));
+
+  chart.yAxis
+    .axisLabel('Frequency')
+    .tickFormat(d3.format(',.03f'))
+    ;
+
+
+  d3.select('#depthhisto svg')
+    .datum(getPoints(fullHisto, "Depth"))
+    .call(chart);
+
+  nv.utils.windowResize(chart.update);
+
+  return chart;
+});
+
+nv.addGraph(function() {
+  var chart = nv.models.lineChart()
+  .options({
+    margin: {left: 100, bottom: 75},
+    x: function(d,i) { return i},
+    showXAxis: true,
+    showYAxis: true,
+    transitionDuration: 250
+  })
+  .forceY([0])
+  ;
+
+  // chart sub-models (ie. xAxis, yAxis, etc) when accessed directly, return themselves, not the parent chart, so need to chain separately
+  chart.xAxis
+    .axisLabel("Distance (p)")
+    .tickFormat(d3.format(',d'));
+
+  chart.yAxis
+    .axisLabel('Count')
+    .tickFormat(d3.format(',d'))
+    ;
+
+
+  d3.select('#pairdist svg')
+    .datum(getPoints(pairdisthisto, "Count"))
+    .call(chart);
+
+  nv.utils.windowResize(chart.update);
+
+  return chart;
+});
+
+
+nv.addGraph(function() {
+  var chart = nv.models.discreteBarChart()
+  .x(function(d) { return d.label})
+  .y(function(d) { return d.value})
+  ;
+
+  // chart sub-models (ie. xAxis, yAxis, etc) when accessed directly, return themselves, not the parent chart, so need to chain separately
+  chart.xAxis
+    .axisLabel("Duplicates (n)");
+
+  chart.yAxis
+    .axisLabel('Percentage')
+    .tickFormat(d3.format(',.1f'))
+    ;
+
+  var dupgraph={key: "Number of duplicates", values: []};
+  for(i=0; i < dupcounts.length; ++i) {
+  	dupgraph.values[i]={};
+  	dupgraph.values[i].label= dupcounts[i][0];
+  	dupgraph.values[i].value = dupcounts[i][1]*100.0;
+  }
+  d3.select('#dups svg')
+    .datum([dupgraph])
+    .call(chart);
+
+  nv.utils.windowResize(chart.update);
+
+  return chart;
+});
+
+for(i = 0 ; i < region.length; ++i) {
+	nv.addGraph((function() {
+	  var item = i;
+	  var chart = nv.models.lineChart()
+	  .options({
+	    margin: {left: 100, bottom: 75},
+	    x: function(d,i) { return d.x},
+	    showXAxis: true,
+	    showYAxis: true,
+	    transitionDuration: 250
+	  })
+	  .forceY([0]);
+
+	  chart.xAxis.axisLabel("Position (p)").tickFormat(d3.format(',d'));
+	  chart.yAxis.axisLabel('Depth').tickFormat(d3.format(',d'));
+
+	  var ourdiv=d3.select('#regions').append('div').attr('class','chart').attr('id',"region"+item);
+	  ourdiv.append('h3').text('Region '+i+': '+region[item].name + ' @ ' +region[item].pos );
+	  ourdiv.append('p').text(decodeURIComponent(region[item].annotations));
+	  ourdiv.append('pre').text(region[item].report);	  
+	  ourdiv.append('svg').datum(getPoints(region[item].depth, "Depth", region[item].variability, "Variability")).call(chart);
+	  nv.utils.windowResize(chart.update);
+	
+	  var toctable=d3.select('#toctable').append('tr');
+	  toctable.append('td').append('a').attr('href','#region'+item).text(region[item].name+' '+item);
+	  toctable.append('td').text(region[item].pos);
+	  toctable.append('td').text(decodeURIComponent(region[item].annotations));
+	  
+	
+	  return chart;
+	})());	
+}
+
+
+
+
+
 </script>
-</body>
-</html>
