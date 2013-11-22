@@ -7,6 +7,7 @@
 #include <iostream>
 #include <stdint.h>
 #include <stdlib.h>
+#include <fstream>
 #include <map>
 #include <unordered_map>
 #include <vector>
@@ -237,7 +238,17 @@ public:
   vector<Unmatched> d_unmRegions;
   struct LociStats
   {
-    vector<std::tuple<char,char,char>> samples; // nucleotide, quality, direction 
+    struct Loci
+    {
+      char nucleotide;
+      char quality;
+      bool headOrTail;
+      bool operator<(const Loci& b) const
+      {
+	return tie(nucleotide, quality) < tie(b.nucleotide, b.quality);
+      }
+    };
+    vector<Loci> samples; 
   };
   dnapos_t d_aCount, d_cCount, d_gCount, d_tCount;
   typedef unordered_map<dnapos_t, LociStats> locimap_t;
@@ -417,18 +428,18 @@ string jsonVector(const vector<T>& v, const std::string& name,
 
 
 template<typename T>
-string jsonVectorD(const vector<T>& v, const std::string& name, 
+string jsonVectorD(const vector<T>& v, 
 		  std::function<double(double)> yAdjust = [](double d){return d;},
 		  std::function<double(int)> xAdjust = [](int i){return 1.0*i;})
 {
   ostringstream ret;
-  ret << "var "<<name<<"=[";
+  ret<<"[";
   for(auto iter = v.begin(); iter != v.end(); ++iter) {
     if(iter != v.begin())
       ret<<',';
-    ret << '[' << xAdjust(iter - v.begin()) <<','<< yAdjust(*iter)<<']';
+    ret << '[' << std::fixed<< xAdjust(iter - v.begin()) <<','<< std::scientific << yAdjust(*iter)<<']';
   }
-  ret <<"];\n";
+  ret <<"]";
   return ret.str();
 }
 
@@ -711,8 +722,8 @@ int MapToReference(ReferenceGenome& rg, dnapos_t pos, FastQRead fqfrag, int qlim
     if(c != reference[i]) {
       //      diff.append(1, fqfrag.d_quality[i] > qlimit ? '!' : '^');
       if(fqfrag.d_quality[i] > qlimit && diffcount < 5) 
-        rg.d_locimap[pos+i].samples.push_back(std::make_tuple(fqfrag.d_nucleotides[i], fqfrag.d_quality[i], 
-								fqfrag.reversed ^ (i > fqfrag.d_nucleotides.length()/2))); // head or tail
+        rg.d_locimap[pos+i].samples.push_back({fqfrag.d_nucleotides[i], fqfrag.d_quality[i], 
+	      (bool)(fqfrag.reversed ^ (i > fqfrag.d_nucleotides.length()/2))}); // head or tail
       
       if(diffcount < 5) {
 	unsigned int q = (unsigned int)fqfrag.d_quality[i];
@@ -750,16 +761,25 @@ void emitRegion(FILE*fp, ReferenceGenome& rg, StereoFASTQReader& fastq, GeneAnno
       fprintf(fp, ",");
     fprintf(fp, "[%d,%d]", pos, rg.d_mapping[pos].coverage);
   }
-  fprintf(fp, "], variability:[");
+  fprintf(fp, "], ");
+  vector<double> aProb(stop-start), cProb(stop-start), gProb(stop-start), tProb(stop-start);
   for(dnapos_t pos = start; pos < stop; ++pos) {
-    if(pos != start) 
-      fprintf(fp, ",");
-    int count=0;
     if(rg.d_locimap.count(pos)) {
-      count=rg.d_locimap[pos].samples.size();
+      for(const auto& locus: rg.d_locimap[pos].samples) {
+	acgtDo(locus.nucleotide, 
+	       [&]() { aProb[pos-start]+= locus.quality; }, 
+	       [&]() { cProb[pos-start]+= locus.quality; }, 
+	       [&]() { gProb[pos-start]+= locus.quality; }, 
+	       [&]() { tProb[pos-start]+= locus.quality; });
+      }
     }
-    fprintf(fp, "[%d,%d]", pos, count);
   }
+  
+  fprintf(fp, "aProb: %s, cProb: %s, gProb: %s, tProb: %s,",
+	  jsonVectorD(aProb, [](double d){return d;}, [start](int i){return i+start;}).c_str(), 
+	  jsonVectorD(cProb, [](double d){return d;}, [start](int i){return i+start;}).c_str(), 
+	  jsonVectorD(gProb, [](double d){return d;}, [start](int i){return i+start;}).c_str(), 
+	  jsonVectorD(tProb, [](double d){return d;}, [start](int i){return i+start;}).c_str());
 
   string picture=rg.getMatchingFastQs(start, stop, fastq);
   replace_all(picture, "\n", "\\n");
@@ -771,7 +791,7 @@ void emitRegion(FILE*fp, ReferenceGenome& rg, StereoFASTQReader& fastq, GeneAnno
     annotations += ga.name+" [" + ga.tag  + "], ";
   }
   
-  fprintf(fp,"], picture: '%s', annotations: '%s', report: '%s'};\n", picture.c_str(), annotations.c_str(), report.c_str());
+  fprintf(fp,"picture: '%s', annotations: '%s', report: '%s'};\n", picture.c_str(), annotations.c_str(), report.c_str());
   
   fputs("\n", fp);
   fflush(fp);
@@ -789,9 +809,9 @@ unsigned int variabilityCount(const ReferenceGenome& rg, dnapos_t position, cons
   
   int forwardCount=0;
 
-  for(auto& j : lc.samples) {
-    counts[get<0>(j)]++;
-    if(get<2>(j))
+  for(const auto& j : lc.samples) {
+    counts[j.nucleotide]++;
+    if(j.headOrTail)
       forwardCount++;
   }
   sort(counts.begin(), counts.end());
@@ -896,7 +916,7 @@ void printQualities(FILE* jsfp, const qstats_t& qstats)
     qhi.push_back(-10.0*log10(mean(q)) +sqrt(-10.0*log10(variance(q))));
   }
 
-  fputs((jsonVectorD(qlo,"qlo")+jsonVectorD(qhi, "qhi")).c_str(), jsfp);
+  fprintf(jsfp, "var qlo=%s;var qhi=%s;", jsonVectorD(qlo).c_str(), jsonVectorD(qhi).c_str());
 
   fflush(jsfp);
 }
@@ -1282,6 +1302,45 @@ int main(int argc, char** argv)
   };
   vector<ClusterLocus> clusters;
 
+  ofstream ofs("loci");
+  for(auto& p : rg.d_locimap) {
+    if(p.second.samples.size()==1)
+      continue;
+
+    int aCount=0, cCount=0, gCount=0, tCount=0, xCount=0;
+    int aQual=0, cQual=0, gQual=0, tQual=0;
+    int head=0;
+    for(auto& c: p.second.samples) {
+      acgtxDo(c.nucleotide, 
+	     [&](){ aCount++; aQual+=c.quality;}, 
+	     [&](){ cCount++; cQual+=c.quality;}, 
+	     [&](){ gCount++; gQual+=c.quality;}, 
+	     [&](){ tCount++; tQual+=c.quality;},
+	     [&](){ xCount++; });
+      if(c.headOrTail)
+	head++;
+    }
+
+    if(aQual < 90 && cQual < 90 && gQual < 90 && tQual < 90)
+      continue;
+
+    double fraction =(1.0*head/p.second.samples.size());
+    if(fraction < 0.1 || fraction > 0.9)
+      continue;
+
+    ofs<<p.first<<"\t"<<p.second.samples.size()<<"\t";
+    ofs<<aCount<<"\t"<<aQual<<"\t";
+    ofs<<cCount<<"\t"<<cQual<<"\t";
+    ofs<<gCount<<"\t"<<gQual<<"\t";
+    ofs<<tCount<<"\t"<<tQual<<"\t";
+    ofs<<xCount<<"\t";
+    ofs<<aQual+cQual+gQual+tQual<<"\t";
+    ofs<<fraction<<"\t";
+    for(auto ga : gar.lookup(p.first))
+      ofs<<ga.name<<"\t["<<ga.tag<<"]"<<"\t";
+    ofs<<"\n";
+  }
+  ofs.flush();
   for(auto& locus : rg.d_locimap) {
     clusters.push_back(ClusterLocus{locus.first, locus.second});
   }
@@ -1317,7 +1376,7 @@ int main(int argc, char** argv)
 	significantlyVariable++;
 	for(auto j = locus.locistat.samples.begin(); 
 	    j != locus.locistat.samples.end(); ++j) {
-	  c=get<0>(*j);
+	  c=j->nucleotide;
 	  acgtDo(c, [&](){ aCount++; }, [&](){ cCount++; }, [&](){ gCount++; }, [&](){ tCount++; } );
       
 	  report<<c;
@@ -1325,12 +1384,12 @@ int main(int argc, char** argv)
 	report<<endl<<fmt2;
 	for(auto j = locus.locistat.samples.begin(); 
 	    j != locus.locistat.samples.end(); ++j) {
-	  report<<((char)(get<1>(*j)+33));
+	  report<<((char)(j->quality+33));
 	}
 	report << endl << fmt2;
 	for(auto j = locus.locistat.samples.begin(); 
 	    j != locus.locistat.samples.end(); ++j) {
-	  report << (get<2>(*j) ? 'R' : '.');
+	  report << (j->headOrTail ? 'H' : '.');
 	}
 
 	int tot=locus.locistat.samples.size() + rg.d_mapping[locus.pos].coverage;

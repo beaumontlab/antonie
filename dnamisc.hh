@@ -63,3 +63,25 @@ inline void acgtDo(char c, acgt_t aDo, acgt_t cDo, acgt_t gDo, acgt_t tDo)
     break;
   }
 }
+
+typedef std::function<void(void)> acgt_t;
+inline void acgtxDo(char c, acgt_t aDo, acgt_t cDo, acgt_t gDo, acgt_t tDo, acgt_t xDo)
+{
+  switch(c) {
+  case 'A':
+    aDo();
+    break;
+  case 'C':
+    cDo();
+    break;
+  case 'G':
+    gDo();
+    break;
+  case 'T':
+    tDo();
+    break;
+  case 'X':
+    xDo();
+    break;
+  }
+}
