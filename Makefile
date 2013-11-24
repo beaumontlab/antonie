@@ -12,7 +12,7 @@ all: $(PROGRAMS)
 
 -include *.d
 
-.PHONY:	antonie.exe
+.PHONY:	antonie.exe codedocs/html/index.html
 
 MBA_OBJECTS = ext/libmba/allocator.o  ext/libmba/diff.o  ext/libmba/msgno.o  ext/libmba/suba.o  ext/libmba/varray.o 
 ANTONIE_OBJECTS = antonie.o hash.o geneannotated.o misc.o fastq.o saminfra.o dnamisc.o githash.o $(MBA_OBJECTS)
@@ -48,7 +48,9 @@ package: all
 	fpm -s dir -f -t rpm -n antonie -v g$(shell cat githash) -C dist .
 	fpm -s dir -f -t deb -n antonie -v g$(shell cat githash) -C dist .	
 	rm -rf dist
-	
+
+codedocs/html/index.html: 	
+	doxygen
 	
 antonie.exe: 
 	make clean

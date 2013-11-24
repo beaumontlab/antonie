@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdexcept>
 
+//! Represents a FastQRead. Can be reversed or not. 
 struct FastQRead
 {
   FastQRead() : reversed(false), position(0) {}
@@ -14,9 +15,10 @@ struct FastQRead
   std::string getSangerQualityString() const;
   void reverse();
   bool reversed;
-  uint64_t position;
+  uint64_t position; //!< Position in the source file. The 64 bits may encode the file too, it is not a number for the end user to use. Feed it to a FastQReader.
 };
 
+//! Reads a single FASTQ file, and can seek in it. Does adapation of quality scores (Sanger by default) and and can also snip off first n or last n bases.
 class FASTQReader
 {
 public:
@@ -27,13 +29,14 @@ public:
     fseek(d_fp, pos, SEEK_SET);
   }
 
-  unsigned int getRead(FastQRead* fq);
+  unsigned int getRead(FastQRead* fq); //!< Get a FastQRead, return number of bytes read
 private:
   FILE *d_fp;
   unsigned int d_qoffset;
   unsigned int d_snipLeft, d_snipRight;
 };
 
+//! Reads FASTQs from two (synchronised) files at a time. Does magic with 64 bits offsets to encode which of the two FASTQReader to read from.
 class StereoFASTQReader
 {
 public:

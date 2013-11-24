@@ -53,6 +53,7 @@ typedef io::tee_device<std::ostream, std::ostringstream> TeeDevice;
 typedef io::stream< TeeDevice > TeeStream;
 TeeStream* g_log;
 
+//! Position of a FastQRead that is mapped here, and how (reverse complemented or with an indel, and where)
 struct FASTQMapping
 {
   uint64_t pos;
@@ -61,6 +62,7 @@ struct FASTQMapping
              // <0 means WE have a delete versus reference at pos
 };
 
+//! List of all FASTQMapping s that map to a locus, plus coverage statistic
 struct GenomeLocusMapping
 {
   GenomeLocusMapping() : coverage(0) {}
@@ -68,6 +70,7 @@ struct GenomeLocusMapping
   unsigned int coverage;
 };
 
+//! A region with little coverage
 struct Unmatched
 {
   string left, unmatched, right;
@@ -75,12 +78,14 @@ struct Unmatched
 };
 
 
+//! Little utility to pick a random element from a container
 template<typename T>
 const typename T::value_type& pickRandom(const T& t)
 {
   return t[rand() % t.size()];
 }
 
+//! Very simple duplicate count estimator using a simple hash. Also provides statistics
 class DuplicateCounter
 {
 public:
@@ -88,11 +93,11 @@ public:
   {
     d_hashes.reserve(estimate);
   }
-  void feedString(const std::string& str);
-  void clear();
+  void feedString(const std::string& str); //! do statistics on str
+  void clear(); //! clean ourselves up
   typedef map<uint64_t,uint64_t> counts_t;
 
-  counts_t getCounts();
+  counts_t getCounts(); //! in position 0, everyone with no duplicates, in position 1 single duplicates etc
 private:
   vector<uint32_t> d_hashes;
 };
@@ -126,10 +131,11 @@ void DuplicateCounter::clear()
   d_hashes.shrink_to_fit();
 }
 
+//! Represents a reference genome to be aligned against
 class ReferenceGenome
 {
 public:
-  ReferenceGenome(const string& fname);
+  ReferenceGenome(const string& fname); //!< Read reference from FASTA
   dnapos_t size() const {
     return d_genome.size() - 1; // we pad at the beginning so we are 1 based..
   }
@@ -410,6 +416,12 @@ string ReferenceGenome::getMatchingFastQs(dnapos_t start, dnapos_t stop, StereoF
   return os.str();
 }
 
+/** returns v as a string in JSON format, where v is a vector of values, and we return it as an array of [offset,value] pairs. v can be transformed inline  ysing yAdjust and xAdjust
+    \param v Vector of values
+    \param name name of JSON object
+    \param yAdjust function (or lambda) that transforms the values in v
+    \param xAdjust function (or lambda) that generates the offsets in our return vector. Gets passed this offset, returns a double
+*/
 template<typename T>
 string jsonVector(const vector<T>& v, const std::string& name, 
 		  std::function<double(dnapos_t)> yAdjust = [](dnapos_t d){return 1.0*d;},
@@ -509,6 +521,7 @@ void ReferenceGenome::printCoverage(FILE* jsfp, const std::string& histoName)
   fputs(jsonVector(covhisto, histoName, [&total](dnapos_t dp) { return 1.0*dp/total; }).c_str(), jsfp);
 }
 
+//! maps 'len' nucleotides from 'str' at offset offset to a 32 bit string. At most 16 nuclotides therefore!
 uint32_t kmerMapper(const std::string& str, int offset, int unsigned len)
 {
   uint32_t ret=0;
@@ -528,7 +541,7 @@ uint32_t kmerMapper(const std::string& str, int offset, int unsigned len)
   return ret;
 }
 
-// 0 if nothing interesting, positive if our read has insert at that position, negative if we have a delete at that position
+//! 0 if nothing interesting, positive if our read has insert at that position, negative if we have a delete at that position
 int MBADiff(dnapos_t pos, const FastQRead& fqr, const string& reference)
 {
   string::size_type n, m;
