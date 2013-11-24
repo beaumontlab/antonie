@@ -1,8 +1,8 @@
 -include sysdeps/$(shell uname).inc
 
 VERSION=0.1
-CXXFLAGS=-Wall -I. -Iext/libmba -MMD -O3 $(CXX2011FLAGS) -Wno-unused-local-typedefs 
-CFLAGS=-I. -Iext/libmba -O3 -MMD  
+CXXFLAGS=-Wall -I. -Iext/libmba -MMD -MP -O3 $(CXX2011FLAGS) # -Wno-unused-local-typedefs 
+CFLAGS=-I. -Iext/libmba -O3 -MMD -MP
 LDFLAGS=$(CXX2011FLAGS)  
 CHEAT_ARG := $(shell ./update-git-hash-if-necessary)
 
@@ -16,9 +16,6 @@ all: $(PROGRAMS)
 
 MBA_OBJECTS = ext/libmba/allocator.o  ext/libmba/diff.o  ext/libmba/msgno.o  ext/libmba/suba.o  ext/libmba/varray.o 
 ANTONIE_OBJECTS = antonie.o hash.o geneannotated.o misc.o fastq.o saminfra.o dnamisc.o githash.o $(MBA_OBJECTS)
-STATICFLAGS ?=-Wl,-Bstatic -lstdc++ -lgcc -Wl,-Bdynamic -static-libgcc -lm -lc
-
-# 
 
 strdiff: strdiff.o $(MBA_OBJECTS)
 	$(CC) strdiff.o $(MBA_OBJECTS) -o $@
