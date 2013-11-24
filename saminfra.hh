@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include "fastq.hh"
 
+
+//! Write SAM files, with support for paired-end read mappings
 class SAMWriter
 {
 public:
