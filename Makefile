@@ -12,7 +12,7 @@ all: $(PROGRAMS)
 
 -include *.d
 
-.PHONY:	antonie.exe codedocs/html/index.html
+.PHONY:	antonie.exe codedocs/html/index.html 
 
 MBA_OBJECTS = ext/libmba/allocator.o  ext/libmba/diff.o  ext/libmba/msgno.o  ext/libmba/suba.o  ext/libmba/varray.o 
 ANTONIE_OBJECTS = antonie.o hash.o geneannotated.o misc.o fastq.o saminfra.o dnamisc.o githash.o $(MBA_OBJECTS)
@@ -49,6 +49,8 @@ package: all
 	fpm -s dir -f -t deb -n antonie -v g$(shell cat githash) -C dist .	
 	rm -rf dist
 
+codedocs: codedocs/html/index.html
+
 codedocs/html/index.html: 	
 	doxygen
 	
@@ -56,6 +58,7 @@ antonie.exe:
 	make clean
 	STATICFLAGS="-static -static-libgcc -static-libstdc++" CXX=i686-w64-mingw32-g++  CC=i686-w64-mingw32-gcc make antonie
 	mv antonie antonie.exe
+
 
 testrunner: test-misc_hh.o testrunner.o misc.o
 	$(CXX) $^ -lboost_unit_test_framework -o $@

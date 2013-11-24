@@ -181,6 +181,7 @@ public:
     return dnanpos;
   }
 
+  //! Describes how a FastQRead (not mentioned) matches to the reference (straight or in reverse), and what the matching score is
   struct MatchDescriptor
   {
     dnapos_t pos;
@@ -242,19 +243,21 @@ public:
   vector<unsigned int> d_correctMappings, d_wrongMappings, d_gcMappings, d_taMappings;
   vector<vector<uint32_t>> d_kmerMappings;
   vector<Unmatched> d_unmRegions;
+  //! statistics for a locus
   struct LociStats
   {
-    struct Loci
+    //! A difference in this locus
+    struct Difference
     {
       char nucleotide;
       char quality;
       bool headOrTail;
-      bool operator<(const Loci& b) const
+      bool operator<(const Difference& b) const
       {
 	return tie(nucleotide, quality) < tie(b.nucleotide, b.quality);
       }
     };
-    vector<Loci> samples; 
+    vector<Difference> samples; 
   };
   dnapos_t d_aCount, d_cCount, d_gCount, d_tCount;
   typedef unordered_map<dnapos_t, LociStats> locimap_t;
@@ -673,6 +676,7 @@ void printGCMappings(FILE* jsfp, const ReferenceGenome& rg, const std::string& n
   fprintf(jsfp,"];\n");
 }
 
+//! Keeps a tally of correct and incorrect mappings
 struct qtally
 {
   qtally() : correct{0}, incorrect{0}{}
