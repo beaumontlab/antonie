@@ -56,3 +56,6 @@ antonie.exe:
 	make clean
 	STATICFLAGS="-static -static-libgcc -static-libstdc++" CXX=i686-w64-mingw32-g++  CC=i686-w64-mingw32-gcc make antonie
 	mv antonie antonie.exe
+
+testrunner: test-misc_hh.o testrunner.o misc.o
+	$(CXX) $^ -lboost_unit_test_framework -o $@
