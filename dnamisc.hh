@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include <functional>
+
 extern const char* g_gitHash;
 
 //! convert a Sanger Q-score into an error probability. Uses a cache to be fast.
@@ -94,3 +95,12 @@ inline void acgtxDo(char c, acgt_t aDo, acgt_t cDo, acgt_t gDo, acgt_t tDo, acgt
     break;
   }
 }
+
+
+//! Little utility to pick a random element from a container
+template<typename T>
+const typename T::value_type& pickRandom(const T& t)
+{
+  return t[rand() % t.size()];
+}
+
