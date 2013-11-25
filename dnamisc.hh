@@ -3,6 +3,8 @@
 #include <vector>
 #include <functional>
 #include <stdlib.h>
+#include <sstream> 
+#include "antonie.hh"
 
 extern const char* g_gitHash;
 
@@ -105,3 +107,41 @@ const typename T::value_type& pickRandom(const T& t)
   return t[rand() % t.size()];
 }
 
+/** returns v as a string in JSON format, where v is a vector of values, and we return it as an array of [offset,value] pairs. v can be transformed inline  ysing yAdjust and xAdjust
+    \param v Vector of values
+    \param name name of JSON object
+    \param yAdjust function (or lambda) that transforms the values in v
+    \param xAdjust function (or lambda) that generates the offsets in our return vector. Gets passed this offset, returns a double
+*/
+template<typename T>
+std::string jsonVector(const std::vector<T>& v, const std::string& name, 
+		  std::function<double(dnapos_t)> yAdjust = [](dnapos_t d){return 1.0*d;},
+		  std::function<double(int)> xAdjust = [](int i){return 1.0*i;})
+{
+  std::ostringstream ret;
+  ret << "var "<<name<<"=[";
+  for(auto iter = v.begin(); iter != v.end(); ++iter) {
+    if(iter != v.begin())
+      ret<<',';
+    ret << '[' << xAdjust(iter - v.begin()) <<','<< yAdjust(*iter)<<']';
+  }
+  ret <<"];\n";
+  return ret.str();
+}
+
+
+template<typename T>
+std::string jsonVectorD(const std::vector<T>& v, 
+		  std::function<double(double)> yAdjust = [](double d){return d;},
+		  std::function<double(int)> xAdjust = [](int i){return 1.0*i;})
+{
+  std::ostringstream ret;
+  ret<<"[";
+  for(auto iter = v.begin(); iter != v.end(); ++iter) {
+    if(iter != v.begin())
+      ret<<',';
+    ret << '[' << std::fixed<< xAdjust(iter - v.begin()) <<','<< std::scientific << yAdjust(*iter)<<']';
+  }
+  ret <<"]";
+  return ret.str();
+}
