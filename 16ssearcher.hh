@@ -10,6 +10,7 @@ struct Entry16S
   int hits;
 };
 
+//! A class to match reads to a 16S database
 class Search16S
 {
 public:
