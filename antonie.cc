@@ -580,7 +580,7 @@ int main(int argc, char** argv)
   TCLAP::ValueArg<std::string> fastqArg("f","fastq","read annotations for reference genome from this file",false,"","string", cmd);
   TCLAP::ValueArg<std::string> fastq1Arg("1","fastq1","read annotations for reference genome from this file",true,"","string", cmd);
   TCLAP::ValueArg<std::string> fastq2Arg("2","fastq2","read annotations for reference genome from this file",true,"","string", cmd);
-  TCLAP::ValueArg<std::string> excludeArg("x","exclude","read annotations for reference genome from this file",false,"","string", cmd);
+
   TCLAP::ValueArg<std::string> samFileArg("s","sam-file","Write the assembly to the named SAM file",false,"","filename", cmd);
   TCLAP::ValueArg<int> qualityOffsetArg("q","quality-offset","Quality offset in fastq. 33 for Sanger.",false, 33,"offset", cmd);
   TCLAP::ValueArg<int> beginSnipArg("b","begin-snip","Number of nucleotides to snip from begin of reads",false, 0,"nucleotides", cmd);
@@ -591,6 +591,7 @@ int main(int argc, char** argv)
   TCLAP::SwitchArg skipUndermatchedSwitch("","skip-undermatched","Do not emit undermatched regions", cmd, false);
   TCLAP::SwitchArg skipVariableSwitch("","skip-variable","Do not emit variable regions", cmd, false);
   TCLAP::SwitchArg skipInsertsSwitch("","skip-inserts","Do not emit inserts", cmd, false);
+  TCLAP::SwitchArg excludePhiXSwitch("x","exclude-phix","Exclude PhiX automatically",cmd, false);
   cmd.parse( argc, argv );
 
   unsigned int qlimit = qlimitArg.getValue();
@@ -627,8 +628,8 @@ int main(int argc, char** argv)
 
   unique_ptr<ReferenceGenome> phix;
 
-  if(!excludeArg.getValue().empty()) {
-    phix = unique_ptr<ReferenceGenome>{new ReferenceGenome(excludeArg.getValue())};
+  if(excludePhiXSwitch.getValue()) {
+    phix = ReferenceGenome::makeFromString(phiXFastA);
     
     (*g_log)<<"Loading positive control filter genome(s)"<<endl;
     
@@ -945,10 +946,17 @@ int main(int argc, char** argv)
       return pos < rhs.pos;
     }
   };
-  vector<ClusterLocus> clusters;
+
+  Clusterer<ClusterLocus> vcl(100);
 
   ofstream ofs("loci");
+  ofs<<"locus\tnumdiff\tA\tAq\tC\tCq\tG\tGq\tT\tTq\ttotQ\tfracHead"<<endl;
+  map<dnapos_t, ReferenceGenome::LociStats> slocimap;
+
   for(auto& p : rg.d_locimap) {
+    slocimap.insert(p);
+  }
+  for(auto& p : slocimap) {
     if(p.second.samples.size()==1)
       continue;
 
@@ -984,8 +992,13 @@ int main(int argc, char** argv)
     for(auto ga : gar.lookup(p.first))
       ofs<<ga.name<<"\t["<<ga.tag<<"]"<<"\t";
     ofs<<"\n";
+    vcl.feed(ClusterLocus{p.first, p.second});
   }
   ofs.flush();
+
+  cerr<<vcl.d_clusters.size()<<" clusters of real variability"<<endl;
+
+  vector<ClusterLocus> clusters;
   for(auto& locus : rg.d_locimap) {
     clusters.push_back(ClusterLocus{locus.first, locus.second});
   }

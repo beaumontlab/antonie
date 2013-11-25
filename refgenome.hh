@@ -12,6 +12,7 @@ using std::vector;
 using std::unordered_map;
 using std::map;
 using std::forward_list; 
+using std::unique_ptr;
 
 //! Position of a FastQRead that is mapped here, and how (reverse complemented or with an indel, and where)
 struct FASTQMapping
@@ -43,6 +44,8 @@ class ReferenceGenome
 {
 public:
   ReferenceGenome(const string& fname); //!< Read reference from FASTA
+
+  static unique_ptr<ReferenceGenome> makeFromString(const string& str);
   dnapos_t size() const {
     return d_genome.size() - 1; // we pad at the beginning so we are 1 based..
   }
@@ -97,6 +100,8 @@ public:
   string d_name;
 
 private:
+  ReferenceGenome() = default;
+  void initGenome();
   string d_genome;
   struct HashPos {
     HashPos(uint32_t hash_, dnapos_t pos) : d_hash(hash_), d_pos(pos)

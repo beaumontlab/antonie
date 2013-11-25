@@ -3,13 +3,13 @@
 #include <stdexcept>
 #include <string.h>
 #include <algorithm>
+#include <boost/algorithm/string.hpp>
 #include "misc.hh"
 #include "dnamisc.hh"
 
 extern "C" {
 #include "hash.h"
 }
-
 
 using boost::lexical_cast;
 using namespace std;
@@ -128,12 +128,38 @@ ReferenceGenome::ReferenceGenome(const string& fname)
     d_genome.append(line);
   }
   
+  initGenome();
+}
+
+unique_ptr<ReferenceGenome> ReferenceGenome::makeFromString(const std::string& genome)
+{
+  istringstream istr(genome);
+  unique_ptr<ReferenceGenome> ret(new ReferenceGenome);
+  getline(istr, ret->d_name);
+  if(ret->d_name.empty() || ret->d_name[0]!='>') 
+    throw runtime_error("Input not FASTA");
+  ret->d_name=ret->d_name.substr(1); // skip >
+
+  string line;
+  ret->d_genome="*"; // this gets all our offsets ""right""
+  while(getline(istr, line)) {
+    boost::trim_right(line);
+    ret->d_genome.append(line);
+  }
+  
+  ret->initGenome();
+  return ret;
+}
+
+void ReferenceGenome::initGenome()
+{
   d_aCount = d_cCount = d_gCount = d_tCount = 0;
   for(auto c : d_genome) {
     acgtDo(c, [&](){ ++d_aCount; }, [&](){ ++d_cCount; }, [&](){ ++d_gCount; }, [&](){ ++d_tCount; });
   }
 
   d_mapping.resize(d_genome.size());
+
 }
 
 // returns as if we sampled once per index length, an array of index length bins
