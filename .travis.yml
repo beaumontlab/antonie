@@ -4,7 +4,7 @@ compiler:
   - clang
 before_script:
  - sudo apt-get update
- - sudo apt-get install libboost-all-dev libz-dev 
+ - sudo apt-get install libboost-test-dev libz-dev 
 script:
  - make -j 4
  - make -j 4 check
