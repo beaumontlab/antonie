@@ -89,6 +89,13 @@ To compile, get a recent C++ compiler, and run 'make':
 
 Antonie depends on Boost being installed at compile time, but not at runtime.
 
+Test builds are performed by Travis on
+https://travis-ci.org/beaumontlab/antonie and you can check the unit tests
+performed there.
+
+Code documentation is built by Doxygen and available on
+http://ds9a.nl/antonie/codedocs/
+
 LIMITATIONS
 ===========
 
@@ -194,5 +201,4 @@ FUTURE DIRECTION
    suggest filtering instead: "Antonie is unhappy with the Phred scores at positions < 12".
  * BAM file output (smaller, compressed version of SAM)
  * Automated post-analysis of unmatched reads against Golomb compressed set of common contaminants
- * Utilize the extra information in paired-end reads
  * Detect indels of >1 nucleotide

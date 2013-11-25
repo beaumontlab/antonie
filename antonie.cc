@@ -44,6 +44,14 @@ extern "C" {
 #include "hash.h"
 }
 
+/*! \mainpage Antonie DNA Software
+  The Antonie DNA software reads DNA reads as FastQRead objects, and matches them to a
+  ReferenceGenome. The reading happens through a StereoFASTQReader instance, which in turn
+  has two FASTQReader instances, thus supporting paired end reads.
+
+  Successfully matched reads are written out through the SAMWriter class, if so configured.
+*/
+
 using namespace std;
 using namespace boost::algorithm;
 namespace io = boost::iostreams;
