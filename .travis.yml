@@ -1,0 +1,14 @@
+language: cpp
+compiler:
+  - gcc
+  - clang
+before_script:
+ - sudo apt-get update
+ - sudo apt-get install libboost-all-dev libz-dev 
+script:
+ - make -j 4
+ - make -j 4 check
+notifications:
+  email:
+    - bert.hubert@netherlabs.nl
+

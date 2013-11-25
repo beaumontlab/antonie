@@ -12,7 +12,7 @@ all: $(PROGRAMS)
 
 -include *.d
 
-.PHONY:	antonie.exe codedocs/html/index.html 
+.PHONY:	antonie.exe codedocs/html/index.html check
 
 MBA_OBJECTS = ext/libmba/allocator.o  ext/libmba/diff.o  ext/libmba/msgno.o  ext/libmba/suba.o  ext/libmba/varray.o 
 ANTONIE_OBJECTS = antonie.o refgenome.o hash.o geneannotated.o misc.o fastq.o saminfra.o dnamisc.o githash.o $(MBA_OBJECTS)
@@ -56,6 +56,8 @@ antonie.exe:
 	STATICFLAGS="-static -static-libgcc -static-libstdc++" CXX=i686-w64-mingw32-g++  CC=i686-w64-mingw32-gcc make antonie
 	mv antonie antonie.exe
 
-
+check: testrunner
+	./testrunner
+	
 testrunner: test-misc_hh.o testrunner.o misc.o
 	$(CXX) $^ -lboost_unit_test_framework -o $@
