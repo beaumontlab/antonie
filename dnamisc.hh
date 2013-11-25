@@ -145,3 +145,6 @@ std::string jsonVectorD(const std::vector<T>& v,
   ret <<"]";
   return ret.str();
 }
+
+//! maps 'len' nucleotides from 'str' at offset offset to a 32 bit string. At most 16 nuclotides therefore!
+uint32_t kmerMapper(const std::string& str, int offset, int unsigned len);
