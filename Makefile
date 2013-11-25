@@ -50,7 +50,7 @@ codedocs: codedocs/html/index.html
 
 codedocs/html/index.html: 	
 	doxygen
-	
+
 antonie.exe: 
 	make clean
 	STATICFLAGS="-static -static-libgcc -static-libstdc++" CXX=i686-w64-mingw32-g++  CC=i686-w64-mingw32-gcc make antonie
@@ -58,6 +58,6 @@ antonie.exe:
 
 check: testrunner
 	./testrunner
-	
-testrunner: test-misc_hh.o testrunner.o misc.o
+
+testrunner: test-misc_hh.o test-dnamisc_cc.o testrunner.o misc.o dnamisc.o
 	$(CXX) $^ -lboost_unit_test_framework -o $@

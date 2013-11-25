@@ -20,8 +20,7 @@ BOOST_AUTO_TEST_CASE(test_reverseNucleotides) {
 	BOOST_CHECK_EQUAL(tst, "TGGCCCAAAA");
 	tst.clear();
 	reverseNucleotides(&tst);
-	BOOST_CHECK_EQUAL(tst, "");
-	
+	BOOST_CHECK_EQUAL(tst, "");	
 }
 
 BOOST_AUTO_TEST_SUITE_END()
