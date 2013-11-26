@@ -5,54 +5,46 @@
 #include "zstuff.hh"
 #include <stdexcept>
 #include <iostream>
+#include <boost/lexical_cast.hpp>
 
 using namespace std;
-
-extern "C" {
-void* Zalloc(voidpf opaque, uInt items, uInt size)
-{
-  return malloc(items*size);
-}
-
-void Zfree(voidpf opaque, void* address)
-{
-  free(address);
-}
-}
-
 
 ZLineReader::ZState::ZState()
 {
   d_have=-1;
   d_datapos=-1;
   memset(&s, 0, sizeof(s));
-  s.zalloc=Zalloc;
-  s.zfree=Zfree;
   inflateInit2(&s, 31);
+}
+ZLineReader::ZState::~ZState()
+{
+  inflateEnd(&s);
 }
 
 ZLineReader::ZState::ZState(const ZLineReader::ZState& orig)
+{
+  *this=orig;
+}
+
+
+ZLineReader::ZState& ZLineReader::ZState::operator=(const ZLineReader::ZState& orig)
 {
   memset(&s, 0, sizeof(s));
   fpos = orig.fpos;
   d_have = orig.d_have;
   d_datapos = orig.d_datapos;
-  s.zalloc=Zalloc;
-  s.zfree=Zfree;
 
   auto res=inflateCopy(&s, (z_stream*)&orig.s);
   if(res != Z_OK)  {
-    cerr<<(void*)orig.s.zalloc<<", "<<(void*)orig.s.zfree<<", "<<(void*)orig.s.state<<endl;
-    cerr<<"res: "<<res<<endl;
     throw std::runtime_error("Unable to copy Z state");
   }
   memcpy(d_inbuffer, orig.d_inbuffer, sizeof(d_inbuffer));
   memcpy(d_outbuffer, orig.d_outbuffer, sizeof(d_outbuffer));
-  
   s.next_in = (Bytef*)(d_inbuffer + ((char*)orig.s.next_in - orig.d_inbuffer));
   s.avail_in = orig.s.avail_in;
   s.next_out=(Bytef*)d_outbuffer;
   s.avail_out=sizeof(d_outbuffer);
+  return *this;
 }
 
 
@@ -62,16 +54,6 @@ ZLineReader::ZLineReader(const std::string& fname)
   if(!d_fp)
     throw runtime_error("Unable to open '"+fname+"' for reading on ZLineReader"+ string(strerror(errno)));
   
-  memset((void*)&d_zs.s, 0, sizeof(d_zs.s));
-  d_zs.s.zalloc=Zalloc;
-  d_zs.s.zfree=Zfree;
-
-
-  if(inflateInit2(&d_zs.s, 31) != Z_OK) {
-    fclose(d_fp);
-    throw runtime_error("Could not initialize zlib");
-  }
-  cerr<<(void*)d_zs.s.zalloc<<", "<<(void*)d_zs.s.zfree<<endl;  
   int ret = fread(d_zs.d_inbuffer, 1, sizeof(d_zs.d_inbuffer), d_fp);
   d_zs.s.avail_in=ret;
   d_zs.s.next_in = (Bytef*)d_zs.d_inbuffer;
@@ -99,11 +81,12 @@ bool ZLineReader::getChar(char* c)
       //      cerr<<"zlib has a bit more to chew on"<<endl;
       auto res=inflate(&d_zs.s, Z_NO_FLUSH);
       if(res!= Z_OK) {
-	if(res == Z_STREAM_END) {
-	  cerr<<"Available in: "<<d_zs.s.avail_in<<endl;
-	  return false;
-	}
-	throw runtime_error("Error inflating 1: "+ string(d_zs.s.msg ? d_zs.s.msg : "no error message"));
+        if(res == Z_STREAM_END) {
+          if(d_zs.s.next_out == (Bytef*)d_zs.d_outbuffer)
+            return false;
+        }
+        else
+          throw runtime_error("Error inflating 1: "+ string(d_zs.s.msg ? d_zs.s.msg : "no error message"));
       }
       d_zs.d_have = d_zs.s.next_out - (Bytef*)d_zs.d_outbuffer;
     }
@@ -113,12 +96,14 @@ bool ZLineReader::getChar(char* c)
       d_zs.s.avail_in = fread(d_zs.s.next_in, 1, sizeof(d_zs.d_inbuffer) - d_zs.s.avail_in, d_fp);
       //      cerr<<"d_zs.s.avail_in: "<<d_zs.s.avail_in<<endl;
       if(!d_zs.s.avail_in)
-	return false;
+        return false;
       auto res = inflate(&d_zs.s, Z_NO_FLUSH);
-      if(res == Z_STREAM_END)
-	return false;
-      if(res != Z_OK)
-	throw runtime_error("Error inflating 2: "+ string(d_zs.s.msg ? d_zs.s.msg : "no error message"));
+      if(res == Z_STREAM_END) {
+        if(d_zs.s.next_out == (Bytef*)d_zs.d_outbuffer)
+          return false;
+      }
+      else if(res != Z_OK)
+        throw runtime_error("Error inflating 2: "+ string(d_zs.s.msg ? d_zs.s.msg : "no error message"));
       d_zs.d_have = d_zs.s.next_out - (Bytef*)d_zs.d_outbuffer;
     }
   }
@@ -131,13 +116,32 @@ bool ZLineReader::getChar(char* c)
   return true;
 }
 
+int ZLineReader::fgets(char* line, int num)
+{
+   if(!d_haveSeeked && (d_restarts.empty() || d_uncPos - d_restarts.rbegin()->first > 100000)) {
+    d_zs.fpos = ftell(d_fp);
+    d_restarts[d_uncPos]=d_zs;
+  }
+
+  char c;
+  int i;
+  for(i=0; i<num;++i) {
+    if(!getChar(&c))
+      break;
+    *line++=c;
+    if(c=='\n')
+      break;
+  }
+  *line=0;
+
+  return i;
+}
+
 bool ZLineReader::getLine(std::string* line)
 {
-  if(!d_haveSeeked && (d_restarts.empty() || d_uncPos - d_restarts.rbegin()->first > 1000000)) {
+  if(!d_haveSeeked && (d_restarts.empty() || d_uncPos - d_restarts.rbegin()->first > 100000)) {
     d_zs.fpos = ftell(d_fp);
-    cerr<<"before: "<<(void*)d_zs.s.zalloc<<", "<<(void*)d_zs.s.zfree<<endl;  
     d_restarts[d_uncPos]=d_zs;
-    cerr<<"after"<<endl;
   }
 
   *line="";
@@ -162,21 +166,21 @@ void ZLineReader::seek(uint64_t pos)
   d_haveSeeked=1;
   auto iter = d_restarts.lower_bound(pos);
   if(iter == d_restarts.end()) {
-    cerr<<"Found nothing for pos = "<<pos<<endl;
+    throw runtime_error("Found nothing for pos = "+boost::lexical_cast<string>(pos));
   }
   if(iter != d_restarts.begin())
     --iter;
-  cerr<<"Want to seek to uncompressed pos: "<<pos<<", seeking to fpos: "<<iter->second.fpos;
-  cerr<<", giving us uncompressed pos "<<iter->first<<endl;
+  //cerr<<"Want to seek to uncompressed pos: "<<pos<<", seeking to fpos: "<<iter->second.fpos;
+  //cerr<<", giving us uncompressed pos "<<iter->first<<endl;
   fseek(d_fp, iter->second.fpos, SEEK_SET);
   d_zs = iter->second;
+  d_uncPos = iter->first;
   char dontcare;
-  cerr<<"Now need to skip "<<pos - iter->first<<" bytes!"<<endl;
+  //cerr<<"Now need to skip "<<pos - iter->first<<" bytes!"<<endl;
   for(unsigned int i = 0 ; i < pos - iter->first; ++i) {
     if(!getChar(&dontcare)) {
       throw runtime_error("Had EOF while seeking?!");
     }
-    cerr<<dontcare;
   }
 }
 

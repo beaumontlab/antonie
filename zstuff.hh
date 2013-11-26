@@ -11,6 +11,7 @@ public:
   ZLineReader(const std::string& fname);
   ~ZLineReader();
   bool getLine(std::string* str);
+  int fgets(char* line, int num);
   bool getChar(char* c);
   uint64_t getUncPos()
   {
@@ -24,6 +25,8 @@ private:
   struct ZState {
     ZState();
     ZState(const ZState& orig);
+    ~ZState();
+    ZState& operator=(const ZState& rhs);
     uint64_t fpos;
     z_stream s;
     char d_inbuffer[4096], d_outbuffer[8192];

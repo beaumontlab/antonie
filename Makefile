@@ -23,7 +23,7 @@ strdiff: strdiff.o $(MBA_OBJECTS)
 antonie: $(ANTONIE_OBJECTS)
 	$(CXX) $(ANTONIE_OBJECTS) $(LDFLAGS) $(STATICFLAGS) -lz -o $@
 
-SEARCHER_OBJECTS=16ssearcher.o hash.o misc.o fastq.o githash.o
+SEARCHER_OBJECTS=16ssearcher.o hash.o misc.o fastq.o zstuff.o githash.o
 
 16ssearcher: $(SEARCHER_OBJECTS)
 	$(CXX) $(LDFLAGS) $(SEARCHER_OBJECTS) -lz -o $@

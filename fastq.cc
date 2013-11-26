@@ -9,11 +9,8 @@ using namespace std;
 constexpr uint64_t StereoFASTQReader::s_mask;
 
 FASTQReader::FASTQReader(const std::string& str, unsigned int qoffset, unsigned int snipLeft, unsigned int snipRight) 
-  :  d_snipLeft{snipLeft}, d_snipRight{snipRight} 
+  :  d_snipLeft{snipLeft}, d_snipRight{snipRight}, d_reader(str) 
 {
-  d_fp = fopen(str.c_str(), "r");
-  if(!d_fp) 
-    throw std::runtime_error("Unable to open file '"+str+"' for FASTQ input");
   d_qoffset=qoffset;
 }
 
@@ -45,9 +42,9 @@ void FastQRead::reverse()
 
 unsigned int FASTQReader::getRead(FastQRead* fq)
 {
-  uint64_t pos = ftell(d_fp);
+  uint64_t pos = d_reader.getUncPos();
   char line[1024]="";
-  if(!fgets(line, sizeof(line), d_fp)) 
+  if(!d_reader.fgets(line, sizeof(line)))
     return 0;
   if(line[0] != '@')
     throw runtime_error("Input not FASTQ");
@@ -55,15 +52,16 @@ unsigned int FASTQReader::getRead(FastQRead* fq)
   chomp(line);
   fq->d_header.assign(line+1);
 
-  sfgets(line, sizeof(line), d_fp);
+  d_reader.fgets(line, sizeof(line));
   chomp(line);
   
   if(d_snipLeft || d_snipRight)
     fq->d_nucleotides.assign(line + d_snipLeft, strlen(line) -d_snipLeft-d_snipRight);
   else
     fq->d_nucleotides.assign(line);
-  sfgets(line, sizeof(line), d_fp);
-  sfgets(line, sizeof(line), d_fp);
+  d_reader.fgets(line, sizeof(line));
+  d_reader.fgets(line, sizeof(line));
+
   chomp(line);
 
   if(d_snipLeft || d_snipRight)
@@ -79,7 +77,7 @@ unsigned int FASTQReader::getRead(FastQRead* fq)
 
   fq->reversed=0;
   fq->position=pos;
-  return ftell(d_fp) - pos;
+  return d_reader.getUncPos() - pos;
 }
 
 unsigned int StereoFASTQReader::getRead(uint64_t pos, FastQRead* fq)
@@ -100,13 +98,15 @@ unsigned int StereoFASTQReader::getRead(uint64_t pos, FastQRead* fq)
 
 unsigned int StereoFASTQReader::getReadPair(FastQRead* fq1, FastQRead* fq2)
 {
-  unsigned int ret;
-  ret=d_fq1.getRead(fq1);
-  if(d_fq2.getRead(fq2) != ret) {
-    throw runtime_error("Difference between paired files in read!");
+  unsigned int ret1, ret2;
+  ret1=d_fq1.getRead(fq1);
+  ret2=d_fq2.getRead(fq2);
+
+  if(ret1 != ret2) {
+    throw runtime_error("Difference between paired files in read: " + boost::lexical_cast<string>(ret1) +" != "+ boost::lexical_cast<string>(ret2));
   }
   fq2->position |= (1ULL<<63);
-  return ret;
+  return ret1;
 }
 
 

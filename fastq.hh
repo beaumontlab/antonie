@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdexcept>
+#include "zstuff.hh"
 
 //! Represents a FastQRead. Can be reversed or not. 
 struct FastQRead
@@ -26,14 +27,14 @@ public:
 
   void seek(uint64_t pos) 
   {
-    fseek(d_fp, pos, SEEK_SET);
+    d_reader.seek(pos);
   }
 
   unsigned int getRead(FastQRead* fq); //!< Get a FastQRead, return number of bytes read
 private:
-  FILE *d_fp;
   unsigned int d_qoffset;
   unsigned int d_snipLeft, d_snipRight;
+  ZLineReader d_reader;
 };
 
 //! Reads FASTQs from two (synchronised) files at a time. Does magic with 64 bits offsets to encode which of the two FASTQReader to read from.
