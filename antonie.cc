@@ -615,6 +615,7 @@ int main(int argc, char** argv)
   bytes=fastq.getReadPair(&fqfrag1, &fqfrag2); // get a read to index based on its size
   
   ReferenceGenome rg(referenceArg.getValue());
+  (*g_log)<<"Read FASTA reference genome of '"<<rg.d_fullname<<"'\n";
   double genomeGCRatio = 1.0*(rg.d_cCount + rg.d_gCount)/(rg.d_cCount + rg.d_gCount + rg.d_aCount + rg.d_tCount);
   (*g_log)<<"GC Content of reference genome: "<<100.0*genomeGCRatio<<"%"<<endl;
   rg.index(fqfrag1.d_nucleotides.size());

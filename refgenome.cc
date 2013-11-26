@@ -116,12 +116,14 @@ ReferenceGenome::ReferenceGenome(const string& fname)
 
   if(line[0] != '>') 
     throw runtime_error("Input not FASTA");
-  // (*g_log)<<"Reading FASTA reference genome of '"<<line+1<<"'\n";
+  d_fullname=line+1;
+
   char* spacepos=strchr(line+1, ' ');
+
   if(spacepos)
     *spacepos=0;
   d_name=line+1;
-
+  
   d_genome="*"; // this gets all our offsets ""right""
   while(fgets(line, sizeof(line), fp)) {
     chomp(line);

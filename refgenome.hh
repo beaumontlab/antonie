@@ -98,6 +98,7 @@ public:
   locimap_t d_locimap;
   unordered_map<dnapos_t, unsigned int> d_insertCounts;
   string d_name;
+  string d_fullname;
 
 private:
   ReferenceGenome() = default;
