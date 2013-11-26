@@ -951,7 +951,7 @@ int main(int argc, char** argv)
   Clusterer<ClusterLocus> vcl(100);
 
   ofstream ofs("loci");
-  ofs<<"locus\tnumdiff\tA\tAq\tC\tCq\tG\tGq\tT\tTq\ttotQ\tfracHead"<<endl;
+  ofs<<"locus\tnumdiff\tdepth\tA\tAq\tC\tCq\tG\tGq\tT\tTq\tdels\ttotQ\tfracHead"<<endl;
   map<dnapos_t, ReferenceGenome::LociStats> slocimap;
 
   for(auto& p : rg.d_locimap) {
@@ -982,14 +982,14 @@ int main(int argc, char** argv)
     if(fraction < 0.1 || fraction > 0.9)
       continue;
 
-    ofs<<p.first<<"\t"<<p.second.samples.size()<<"\t";
+    ofs<<p.first<<"\t"<<p.second.samples.size()<<"\t"<<rg.d_mapping[p.first].coverage<<"\t";
     ofs<<aCount<<"\t"<<aQual<<"\t";
     ofs<<cCount<<"\t"<<cQual<<"\t";
     ofs<<gCount<<"\t"<<gQual<<"\t";
     ofs<<tCount<<"\t"<<tQual<<"\t";
     ofs<<xCount<<"\t";
     ofs<<aQual+cQual+gQual+tQual<<"\t";
-    ofs<<fraction<<"\t";
+    ofs<<fraction<<"\t#";
     for(auto ga : gar.lookup(p.first))
       ofs<<ga.name<<"\t["<<ga.tag<<"]"<<"\t";
     ofs<<"\n";
