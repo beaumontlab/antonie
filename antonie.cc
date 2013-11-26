@@ -31,6 +31,7 @@
 #include <fenv.h>
 #include <memory>
 #include <sstream>
+#include "zstuff.hh"
 #include "geneannotated.hh"
 #include "misc.hh"
 #include "fastq.hh"
@@ -572,7 +573,26 @@ int main(int argc, char** argv)
 #ifdef __linux__
   feenableexcept(FE_DIVBYZERO | FE_INVALID); 
 #endif 
-  
+  srand(time(0));  
+  ZLineReader zlr("P1-1-35_S5_L001_R1_001.fastq.gz");
+  string line;
+  uint64_t count=0;
+  uint64_t spos;
+  vector<uint64_t> tpos;
+  while(spos=zlr.getUncPos(), zlr.getLine(&line)) {
+    if(rand()%1000)
+      tpos.push_back(spos);
+    count++;
+  }
+  random_shuffle(tpos.begin(), tpos.end());
+  for(auto p : tpos) {
+    zlr.seek(p);
+    zlr.getLine(&line);
+    cout<<p<<": "<<line<<endl;
+  }
+
+  cerr<<"count: "<<count<<endl;
+  return 0;
   TCLAP::CmdLine cmd("Command description message", ' ', "g" + string(g_gitHash));
 
   TCLAP::ValueArg<std::string> annotationsArg("a","annotations","read annotations for reference genome from this file",false, "", "filename", cmd);
@@ -596,7 +616,7 @@ int main(int argc, char** argv)
 
   unsigned int qlimit = qlimitArg.getValue();
   unsigned int duplimit = duplimitArg.getValue();
-  srand(time(0));
+
   ostringstream jsonlog;  
   TeeDevice td(cerr, jsonlog);
   g_log = new TeeStream(td);

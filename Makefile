@@ -1,8 +1,8 @@
 -include sysdeps/$(shell uname).inc
 
 VERSION=0.1
-CXXFLAGS=-Wall -I. -Iext/libmba -MMD -MP -O3 $(CXX2011FLAGS) # -Wno-unused-local-typedefs 
-CFLAGS=-I. -Iext/libmba -O3 -MMD -MP
+CXXFLAGS=-Wall -I. -Iext/libmba -MMD -MP -O3 $(CXX2011FLAGS) -ggdb # -Wno-unused-local-typedefs 
+CFLAGS=-Wall -I. -Iext/libmba -O3 -MMD -MP
 LDFLAGS=$(CXX2011FLAGS)  
 CHEAT_ARG := $(shell ./update-git-hash-if-necessary)
 
@@ -14,14 +14,14 @@ all: $(PROGRAMS)
 
 .PHONY:	antonie.exe codedocs/html/index.html check
 
-MBA_OBJECTS = ext/libmba/allocator.o  ext/libmba/diff.o  ext/libmba/msgno.o  ext/libmba/suba.o  ext/libmba/varray.o 
-ANTONIE_OBJECTS = antonie.o refgenome.o hash.o geneannotated.o misc.o fastq.o saminfra.o dnamisc.o githash.o phi-x174.o $(MBA_OBJECTS)
+MBA_OBJECTS = ext/libmba/allocator.o ext/libmba/diff.o ext/libmba/msgno.o ext/libmba/suba.o ext/libmba/varray.o 
+ANTONIE_OBJECTS = antonie.o refgenome.o hash.o geneannotated.o misc.o fastq.o saminfra.o dnamisc.o githash.o phi-x174.o zstuff.o $(MBA_OBJECTS)
 
 strdiff: strdiff.o $(MBA_OBJECTS)
 	$(CC) strdiff.o $(MBA_OBJECTS) -o $@
 
 antonie: $(ANTONIE_OBJECTS)
-	$(CXX) $(ANTONIE_OBJECTS) $(LDFLAGS) $(STATICFLAGS) -o $@
+	$(CXX) $(ANTONIE_OBJECTS) $(LDFLAGS) $(STATICFLAGS) -lz -o $@
 
 SEARCHER_OBJECTS=16ssearcher.o hash.o misc.o fastq.o githash.o
 
@@ -53,7 +53,7 @@ codedocs/html/index.html:
 
 antonie.exe: 
 	make clean
-	STATICFLAGS="-static -static-libgcc -static-libstdc++" CXX=i686-w64-mingw32-g++  CC=i686-w64-mingw32-gcc make antonie
+	STATICFLAGS="-static -static-libgcc -static-libstdc++" CXX=i686-w64-mingw32-g++ CC=i686-w64-mingw32-gcc make antonie
 	mv antonie antonie.exe
 
 check: testrunner
