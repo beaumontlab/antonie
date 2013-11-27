@@ -570,6 +570,10 @@ void printQualities(FILE* jsfp, const qstats_t& qstats)
 
 int main(int argc, char** argv)
 {
+  ZWriter zw("hello.gz");
+  zw.writeBAMString("Hello, world!");
+  return 0;
+
 #ifdef __linux__
   feenableexcept(FE_DIVBYZERO | FE_INVALID); 
 #endif 

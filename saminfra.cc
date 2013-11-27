@@ -77,3 +77,25 @@ void SAMWriter::write(dnapos_t pos, const FastQRead& fqfrag, int indel, int flag
 }
 
 
+/* calculate bin given an alignment covering [beg,end) (zero-based, half-close-half-open) */
+static int reg2bin(int beg, int end)
+{
+  --end;
+  if (beg>>14 == end>>14) return ((1<<15)-1)/7 + (beg>>14);
+  if (beg>>17 == end>>17) return ((1<<12)-1)/7 + (beg>>17);
+  if (beg>>20 == end>>20) return ((1<<9)-1)/7 + (beg>>20);
+  if (beg>>23 == end>>23) return ((1<<6)-1)/7 + (beg>>23);
+  if (beg>>26 == end>>26) return ((1<<3)-1)/7 + (beg>>26);
+  return 0;
+}
+
+BAMWriter::BAMWriter(const std::string& fname, const std::string& header, const std::string& refname, dnapos_t reflen) : d_zw(fname)
+{
+  char magic[]="BAM\1";
+  d_zw.write(magic, 4);
+  d_zw.writeBAMString(header);
+  d_zw.write32(1);
+  d_zw.writeBAMString(refname);  
+  d_zw.write32(reflen);
+}
+
