@@ -233,12 +233,15 @@ ZWriter::ZWriter(const std::string& fname)
   d_extra.append(1, 66);
   d_extra.append(1, 67);
   d_extra.append(1, 2);
+  d_extra.append(1, 0);
+
   d_extra.append(2, 0);
+  
   d_gzheader.extra=(Bytef*)d_extra.c_str();
   d_gzheader.extra_len=d_extra.length();
 
   memset(&d_s, 0, sizeof(d_s));
-  auto res = deflateInit2(&d_s, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 16, 8, Z_DEFAULT_STRATEGY);
+  auto res = deflateInit2(&d_s, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 16+15, 8, Z_DEFAULT_STRATEGY);
   if(res != Z_OK) {
     cerr<<res<<endl;
     throw runtime_error("Unable to initialize compression");
@@ -261,13 +264,13 @@ void ZWriter::write(const char*c, unsigned int len, bool flush)
     d_s.next_out = (Bytef*) buffer;
     d_s.avail_out=sizeof(buffer);
 
-    cerr<<d_s.avail_out<<endl;
-    cerr<<"avail_in: "<<d_s.avail_in<<", flush: "<<flush<<endl;
+    //cerr<<d_s.avail_out<<endl;
+    //cerr<<"avail_in: "<<d_s.avail_in<<", flush: "<<flush<<endl;
     auto res = deflate(&d_s, flush ? Z_FINISH : 0);
-    cerr<<"avail_in post: "<<d_s.avail_in<<", res="<<res<<endl;
+    //cerr<<"avail_in post: "<<d_s.avail_in<<", res="<<res<<endl;
     if(res != Z_OK && res != Z_STREAM_END)
       throw runtime_error("Unable to deflate data: "+string(d_s.msg ? d_s.msg : "no error"));
-    cerr<<"Got "<<(d_s.next_out - (Bytef*)buffer)<<" bytes (end="<<(res==Z_STREAM_END)<<")"<<endl;
+    //cerr<<"Got "<<(d_s.next_out - (Bytef*)buffer)<<" bytes (end="<<(res==Z_STREAM_END)<<")"<<endl;
     fwrite(buffer, d_s.next_out - (Bytef*)buffer, 1, d_fp);
   } while(d_s.avail_in);
 
@@ -290,11 +293,6 @@ void ZWriter::writeBAMString(const std::string& str)
 ZWriter::~ZWriter()
 {
   write(0, 0, true);
-  uint32_t val= d_s.adler;
-  fwrite(&val, 1, sizeof(val), d_fp); 
-  val=d_written;
-  fwrite(&val, 1, sizeof(val), d_fp);
-
   deflateEnd(&d_s);
   fclose(d_fp);
 }
