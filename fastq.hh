@@ -27,14 +27,14 @@ public:
 
   void seek(uint64_t pos) 
   {
-    d_reader.seek(pos);
+    d_reader->seek(pos);
   }
 
   unsigned int getRead(FastQRead* fq); //!< Get a FastQRead, return number of bytes read
 private:
   unsigned int d_qoffset;
   unsigned int d_snipLeft, d_snipRight;
-  ZLineReader d_reader;
+  std::unique_ptr<LineReader> d_reader;
 };
 
 //! Reads FASTQs from two (synchronised) files at a time. Does magic with 64 bits offsets to encode which of the two FASTQReader to read from.

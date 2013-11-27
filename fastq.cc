@@ -9,7 +9,7 @@ using namespace std;
 constexpr uint64_t StereoFASTQReader::s_mask;
 
 FASTQReader::FASTQReader(const std::string& str, unsigned int qoffset, unsigned int snipLeft, unsigned int snipRight) 
-  :  d_snipLeft{snipLeft}, d_snipRight{snipRight}, d_reader(str) 
+  :  d_snipLeft{snipLeft}, d_snipRight{snipRight}, d_reader(LineReader::make(str)) 
 {
   d_qoffset=qoffset;
 }
@@ -42,9 +42,9 @@ void FastQRead::reverse()
 
 unsigned int FASTQReader::getRead(FastQRead* fq)
 {
-  uint64_t pos = d_reader.getUncPos();
+  uint64_t pos = d_reader->getUncPos();
   char line[1024]="";
-  if(!d_reader.fgets(line, sizeof(line)))
+  if(!d_reader->fgets(line, sizeof(line)))
     return 0;
   if(line[0] != '@')
     throw runtime_error("Input not FASTQ");
@@ -52,15 +52,15 @@ unsigned int FASTQReader::getRead(FastQRead* fq)
   chomp(line);
   fq->d_header.assign(line+1);
 
-  d_reader.fgets(line, sizeof(line));
+  d_reader->fgets(line, sizeof(line));
   chomp(line);
   
   if(d_snipLeft || d_snipRight)
     fq->d_nucleotides.assign(line + d_snipLeft, strlen(line) -d_snipLeft-d_snipRight);
   else
     fq->d_nucleotides.assign(line);
-  d_reader.fgets(line, sizeof(line));
-  d_reader.fgets(line, sizeof(line));
+  d_reader->fgets(line, sizeof(line));
+  d_reader->fgets(line, sizeof(line));
 
   chomp(line);
 
@@ -77,7 +77,7 @@ unsigned int FASTQReader::getRead(FastQRead* fq)
 
   fq->reversed=0;
   fq->position=pos;
-  return d_reader.getUncPos() - pos;
+  return d_reader->getUncPos() - pos;
 }
 
 unsigned int StereoFASTQReader::getRead(uint64_t pos, FastQRead* fq)
