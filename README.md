@@ -89,6 +89,11 @@ To compile, get a recent C++ compiler, and run 'make':
 
 Antonie depends on Boost being installed at compile time, but not at runtime.
 
+To install boost, perform one of: 
+ * apt-get install libboost-dev (Debian, Ubuntu)
+ * yum -y install boost-devel (RPM based)
+ * brew install boost (OSX, get Brew from http://brew.sh)
+
 Test builds are performed by Travis on
 https://travis-ci.org/beaumontlab/antonie and you can check the unit tests
 performed there.
