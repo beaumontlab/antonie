@@ -111,17 +111,18 @@ LIMITATIONS
 SAMPLE USE
 ==========
 
-> $ antonie -f tot.fastq -r PfSBW25\_genome\_FASTA.fna -x phi-x174.fasta -a NC_012660.gff -u > report
+> $ antonie -1 P1-R1.fastq.gz -2 P1-R2.fastq.gz -r sbw25/NC_012660.fna -x -a NC_012660.gff -s P1.sam -u > report
 
-This will align the reads from 'tot.fastq' against the Pseudomonas SBW25
-reference genome, while stripping out any PhiX reads. Annotations will be read from
-'NC_012660.gff'. A human readable, but large, text based report will be written to 'report'.
+This will align the paired reads from P1-R[12].fastq.gz against the
+Pseudomonas SBW25 reference genome, while stripping out any PhiX reads. 
+Annotations will be read from 'NC_012660.gff'.  A human readable, but large,
+text based report will be written to 'report'.
 
-The mapping will be saved as 'data.sam', and can for example be viewed in
+The mapping will be saved as 'P1.sam', and can for example be viewed in
 [Tablet](http://bioinf.scri.ac.uk/tablet/) from the James Hutton Institute,
 or post-processed using [samtools](http://samtools.sourceforge.net/).
 
-Meanwhile, because we passed -u, unmatched reads from 'tot.fastq' will be
+Meanwhile, because we passed -u, unmatched reads from the FASTQ files will be
 written to 'unfound.fastq', and could for example be reprocessed against
 another reference file to see what is in there.  Alternatively, paste output
 from 'unfound.fastq' into BLAST.
@@ -182,15 +183,7 @@ As an example, for "Escherichia coli str. K-12 substr. MG1655", head to
 <ftp://ftp.ncbi.nlm.nih.gov/genomes/Bacteria/Escherichia_coli_K_12_substr__MG1655_uid57779/>
 
 To get sample FASTQ, head to the [European Nucleotide
-Archive](http://www.ebi.ac.uk/ena/) and search for "Escherichia coli MG1655", and find the two FASTQ files:
-
-
-
-Now down
-
-> $ antonie -f SRR956947.fastq -a Escherichia\_coli\_K\_12\_substr\_\_MG1655\_uid57779/\*.gff -r Escherichia\_coli\_K\_12\_substr\_\_MG1655\_uid57779/\*.fna > report
-
-And the resulting report should look like this <http://ds9a.nl/antonie/SRR956947/report.html>
+Archive](http://www.ebi.ac.uk/ena/).
 
 FUTURE DIRECTION
 ================
