@@ -222,74 +222,26 @@ unique_ptr<LineReader> LineReader::make(const std::string& fname)
     return unique_ptr<LineReader>(new PlainLineReader(fname));
 }
 
-void emitGZBF(FILE* fp, const std::string& block)
-{
-  z_stream ds;
-  gz_header gzh;
-  memset(&gzh, 0, sizeof(gzh));
-
-  gzh.time=time(0);
-
-  string extra;
-  extra.append(1, 66);
-  extra.append(1, 67);
-  extra.append(1, 2);
-  extra.append(1, 0);
-  uint16_t len=block.length();
-
-  extra.append((const char*)&len, 2);
-  
-  gzh.extra=(Bytef*)extra.c_str();
-  gzh.extra_len=extra.length();
-
-  memset(&ds, 0, sizeof(ds));
-  auto res = deflateInit2(&ds, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 16+15, 8, Z_DEFAULT_STRATEGY);
-  if(res != Z_OK) {
-    throw runtime_error("Unable to initialize compression");
-  }
-  
-  if(deflateSetHeader(&ds, &gzh) != Z_OK)
-    throw runtime_error("Unable to initialize compression header");
-  
-  ds.next_in = (Bytef*) block.c_str();
-  ds.avail_in = block.length();
-
-  char buffer[16384];
-
-  do {
-  retry:;
-    ds.next_out = (Bytef*) buffer;
-    ds.avail_out=sizeof(buffer);
-
-    bool done = ds.next_in == (Bytef*) block.c_str() + block.length();
-    cerr<<"Done: "<<done<<endl;
-    res = deflate(&ds, done ? Z_FINISH : 0);
-
-    if(res != Z_OK && res != Z_STREAM_END) 
-      throw runtime_error("Unable to deflate data: "+string(ds.msg ? ds.msg : "no error"));
-    
-    fwrite(buffer, ds.next_out - (Bytef*)buffer, 1, fp);
-    cerr<<"Wrote "<< (ds.next_out - (Bytef*)buffer) <<" bytes\n";
-    if(!done && !ds.avail_in)
-      goto retry;
-
-  } while(ds.avail_in);
-  deflateEnd(&ds);
-}
 
 ZWriter::ZWriter(const std::string& fname)
 {
   d_fp=fopen(fname.c_str(), "w");
   if(!d_fp)
     throw runtime_error("Unable to open '"+fname+"' for ZWriter"+ string(strerror(errno)));
+  beginBlock();
+}
+
+void ZWriter::beginBlock()
+{
+  d_block.clear();
   memset(&d_gzheader, 0, sizeof(d_gzheader));
   d_gzheader.time=time(0);
-  d_extra.append(1, 66);
+  d_extra.assign(1, 66);
   d_extra.append(1, 67);
   d_extra.append(1, 2);
-  d_extra.append(1, 0);
+  d_extra.append(1, (char)0);
 
-  d_extra.append(2, 0);
+  d_extra.append(2, 0); // our size, we spoof it in afterwards
   
   d_gzheader.extra=(Bytef*)d_extra.c_str();
   d_gzheader.extra_len=d_extra.length();
@@ -297,7 +249,6 @@ ZWriter::ZWriter(const std::string& fname)
   memset(&d_s, 0, sizeof(d_s));
   auto res = deflateInit2(&d_s, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 16+15, 8, Z_DEFAULT_STRATEGY);
   if(res != Z_OK) {
-    cerr<<res<<endl;
     throw runtime_error("Unable to initialize compression");
   }
   
@@ -307,8 +258,7 @@ ZWriter::ZWriter(const std::string& fname)
   d_written=0;
 }
 
-
-void ZWriter::write(const char*c, unsigned int len, bool flush)
+void ZWriter::write(const char*c, unsigned int len)
 {
   d_s.next_in = (Bytef*) c;
   d_s.avail_in = len;
@@ -320,16 +270,39 @@ void ZWriter::write(const char*c, unsigned int len, bool flush)
 
     //cerr<<d_s.avail_out<<endl;
     //cerr<<"avail_in: "<<d_s.avail_in<<", flush: "<<flush<<endl;
-    auto res = deflate(&d_s, flush ? Z_FINISH : 0);
+    auto res = deflate(&d_s, 0);
     //cerr<<"avail_in post: "<<d_s.avail_in<<", res="<<res<<endl;
-    if(res != Z_OK && res != Z_STREAM_END)
+    if(res != Z_OK)
       throw runtime_error("Unable to deflate data: "+string(d_s.msg ? d_s.msg : "no error"));
     //cerr<<"Got "<<(d_s.next_out - (Bytef*)buffer)<<" bytes (end="<<(res==Z_STREAM_END)<<")"<<endl;
-    fwrite(buffer, d_s.next_out - (Bytef*)buffer, 1, d_fp);
+    d_block.append(buffer, d_s.next_out - (Bytef*)buffer);
   } while(d_s.avail_in);
-
-
   d_written+=len;
+  if(d_written > 65000)
+    emitBlock();
+}
+
+void ZWriter::emitBlock()
+{
+  char buffer[65535];
+  d_s.next_out = (Bytef*) buffer;
+  d_s.avail_out=sizeof(buffer);
+  d_s.avail_in=0;
+  auto res = deflate(&d_s, Z_FINISH);
+  if(res != Z_STREAM_END) {
+    throw runtime_error("Shit");
+  }
+  auto got = d_s.next_out - (Bytef*) buffer;
+  d_block.append(buffer, got);
+  uint16_t len = d_block.size()-1;
+  d_block.replace(16, 2, (char*)&len, 2);
+  fwrite(d_block.c_str(), 1, d_block.size(), d_fp);
+  // cerr<<"Writing block of "<<d_block.size()<<endl;
+  d_block.clear();
+  d_extra.clear();
+  d_written=0;
+  deflateEnd(&d_s);
+  beginBlock();
 }
 
 void ZWriter::write32(uint32_t val)
@@ -346,7 +319,6 @@ void ZWriter::writeBAMString(const std::string& str)
 
 ZWriter::~ZWriter()
 {
-  write(0, 0, true);
-  deflateEnd(&d_s);
+  emitBlock();
   fclose(d_fp);
 }

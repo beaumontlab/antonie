@@ -33,13 +33,7 @@ void SAMWriter::write(dnapos_t pos, const FastQRead& fqfrag, int indel, int flag
   if(!d_fp) 
     return;
 
-  string header;
-  string::size_type spacepos = fqfrag.d_header.find(' ');
-  if(spacepos != string::npos)
-    header = fqfrag.d_header.substr(0, spacepos);
-  else
-    header = fqfrag.d_header;
-
+  string name = fqfrag.getNameFromHeader();
   string quality = fqfrag.d_quality;
   for(auto& c : quality) {
     c+=33; // we always output Sanger
@@ -69,7 +63,7 @@ void SAMWriter::write(dnapos_t pos, const FastQRead& fqfrag, int indel, int flag
   fprintf(d_fp, "%s\t%u\t%s\t%u\t42\t%s\t"
 	  "%s\t%u\t%d\t"
 	  "%s\t%s\n",
-	  header.c_str(), 
+	  name.c_str(), 
 	  flags + (fqfrag.reversed ? 0x10: 0),
 	  d_genomeName.c_str(), pos, cigar.c_str(),
 	  rnext.c_str(), pnext, tlen,
@@ -107,23 +101,101 @@ struct BAMBuilder
 
   void writeBAMString(const std::string& str)
   {
-    write32(str.length());
+    write32(str.length()+1);
     d_str->append(str);
+    d_str->append(1,0);
   }
 
   string* d_str;
 };
 
-BAMWriter::BAMWriter(const std::string& fname, const std::string& header, const std::string& refname, dnapos_t reflen) 
+BAMWriter::BAMWriter(const std::string& fname, const std::string& refname, dnapos_t reflen) : d_zw(fname)
 {
-  BAMBuilder bb(&d_block);
+  string block;
+  BAMBuilder bb(&block);
 
   char magic[]="BAM\1";
 
   bb.write(magic, 4);
+
+  string header("@HD\tVN:1.0\tSO:unsorted\n");
+  header.append("@SQ\tSN:");
+  header.append(refname.c_str());
+  header.append("\tLN:");
+  header.append(lexical_cast<string>(reflen));
+  header.append("\n@PG\tID:antonie\tPN:antonie\tVN:0.0.0\n");  
+
   bb.writeBAMString(header);
+
   bb.write32(1);
+
   bb.writeBAMString(refname);  
   bb.write32(reflen);
+
+  d_zw.write(block.c_str(), block.size());
 }
 
+string bamCompress(const std::string& dna)
+{
+  const char table[]="ACMGRSVTWYHKDBN";
+  string ret;
+  int offset=0;
+
+  unsigned char emit=0;
+  char val;
+  const char *p;
+  for(const auto& c: dna) {
+    p=strchr(table, c);
+    if(!p)
+      val=15;
+    else
+      val=p-table;
+
+    if(offset & 1) {// odd position
+      emit |= val;
+      ret.append(1, (char) emit);
+      emit=0;
+    }
+    else {
+      emit |= (val<<4);
+    }
+    offset++;
+  }
+  if(offset & 1) 
+    ret.append(1, (char) emit);
+  return ret;
+}
+
+void BAMWriter::write(dnapos_t pos, const FastQRead& fqfrag, int indel, int flags, const std::string& rnext, dnapos_t pnext, int32_t tlen)
+{
+  string block;
+  BAMBuilder bb(&block);
+  bb.write32(0); // length, placeholder
+  bb.write32(1); // reference sequence ID
+  bb.write32(pos-1); // 0-based!
+  auto bin = reg2bin(pos-1, pos+fqfrag.d_nucleotides.length()-1); // 0-based!
+  int mapq=0;
+  string name = fqfrag.getNameFromHeader();
+  bb.write32((bin<<16) | (mapq<<8) | (name.length()));
+  bb.write32((flags << 16) | 1); // cigar ops
+  bb.write32(fqfrag.d_nucleotides.length());
+  bb.write32(1); // next reference sequence ID
+  bb.write32(pnext - 1);
+  bb.write32(tlen);
+
+
+
+  bb.write(name.c_str(), name.length());
+  bb.write32(fqfrag.d_nucleotides.length()); // ==150M
+  string bamcompressed=bamCompress(fqfrag.d_nucleotides);
+  bb.write(bamcompressed.c_str(), bamcompressed.length());
+  bb.write(fqfrag.d_quality.c_str(), fqfrag.d_quality.length());
+  uint32_t len = block.length()-4;
+  block.replace(0, 4, (char*)&len, 4);
+  d_zw.write(block.c_str(), block.length());
+}
+
+BAMWriter::~BAMWriter()
+{
+  
+}

@@ -77,14 +77,18 @@ class ZWriter
 public:
   ZWriter(const std::string& fname);
   ~ZWriter();
-  void write(const char*, unsigned int len, bool flush=false);
+  void write(const char*, unsigned int len);
   void write32(uint32_t val);
   void writeBAMString(const std::string& str);
+  void emitBlock();
 private:
+
+  void beginBlock();
   FILE* d_fp;
   z_stream d_s;
   std::string d_extra;
   gz_header d_gzheader;
+  std::string d_block;
   uint32_t d_written;
 };
 

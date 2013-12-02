@@ -313,7 +313,7 @@ struct qtally
   uint64_t incorrect;
 };
 
-int MapToReference(ReferenceGenome& rg, dnapos_t pos, FastQRead fqfrag, int qlimit, SAMWriter* sw, vector<qtally>* qqcounts, int* outIndel=0)
+int MapToReference(ReferenceGenome& rg, dnapos_t pos, FastQRead fqfrag, int qlimit, BAMWriter* sbw, vector<qtally>* qqcounts, int* outIndel=0)
 {
   if(outIndel)
     *outIndel=0;
@@ -332,8 +332,8 @@ int MapToReference(ReferenceGenome& rg, dnapos_t pos, FastQRead fqfrag, int qlim
   if(diffcount < 5) {
     didMap=true;
     rg.mapFastQ(pos, fqfrag);
-    if(sw)
-      sw->write(pos, fqfrag);
+    if(sbw)
+      sbw->write(pos, fqfrag);
   }
   else {
     int indel=MBADiff(pos, fqfrag, reference);
@@ -341,8 +341,8 @@ int MapToReference(ReferenceGenome& rg, dnapos_t pos, FastQRead fqfrag, int qlim
       *outIndel=indel;
     if(indel) {
       rg.mapFastQ(pos, fqfrag, indel);
-      if(sw)
-	sw->write(pos, fqfrag, indel);
+      if(sbw)
+	sbw->write(pos, fqfrag, indel);
       didMap=true;
       diffcount=1;
       if(indel > 0) { // our read has an insert at this position
@@ -570,13 +570,6 @@ void printQualities(FILE* jsfp, const qstats_t& qstats)
 
 int main(int argc, char** argv)
 {
-  FILE* fp=fopen("hello.gz", "w");
-
-  emitGZBF(fp, "hallo!");
-  emitGZBF(fp, " daar!\n");
-  fclose(fp);
-  return 0;
-
 #ifdef __linux__
   feenableexcept(FE_DIVBYZERO | FE_INVALID); 
 #endif 
@@ -651,7 +644,7 @@ int main(int argc, char** argv)
   uint64_t withAny=0, found=0, total=0, qualityExcluded=0, 
     phixFound=0, differentLength=0, tooFrequent=0, goodPairMatches=0, badPairMatches=0;
 
-  SAMWriter sw(samFileArg.getValue(), rg.d_name, rg.size());
+  BAMWriter sbw(samFileArg.getValue(), rg.d_name, rg.size());
 
   (*g_log)<<"Performing exact matches of reads to reference genome"<<endl;
   boost::progress_display show_progress(filesize(fastq1Arg.getValue().c_str()), cerr);
@@ -779,12 +772,12 @@ int main(int argc, char** argv)
 	  fqfrag->reverse();
 
 	if(otherDup && !dup) {
-	  MapToReference(rg, pos, *fqfrag, qlimit, &sw, &qqcounts);
+	  MapToReference(rg, pos, *fqfrag, qlimit, &sbw, &qqcounts);
 	}
 	else if(!otherDup && !dup) {
 	  int indel;
 	  if(MapToReference(rg, pos, *fqfrag, qlimit, 0, &qqcounts, &indel)) {
-	    sw.write(pos, *fqfrag, indel, 3 + (paircount ? 0x80 : 0x40),
+	    sbw.write(pos, *fqfrag, indel, 3 + (paircount ? 0x80 : 0x40),
 		     "=", 
 		     paircount ? chosen.first.pos : chosen.second.pos, 
 		     (chosen.first.reverse ^ paircount) ? -distance : distance);
@@ -815,7 +808,7 @@ int main(int argc, char** argv)
 	if(fqfrag->reversed != pick.reverse)
 	  fqfrag->reverse();
 
-	MapToReference(rg, pick.pos, *fqfrag, qlimit, &sw, &qqcounts);
+	MapToReference(rg, pick.pos, *fqfrag, qlimit, &sbw, &qqcounts);
 	found++;
       }
     } 
