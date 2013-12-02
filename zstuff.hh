@@ -72,11 +72,11 @@ private:
   bool d_haveSeeked;
 };
 
-class ZWriter
+class BGZFWriter
 {
 public:
-  ZWriter(const std::string& fname);
-  ~ZWriter();
+  BGZFWriter(const std::string& fname);
+  ~BGZFWriter();
   void write(const char*, unsigned int len);
   void write32(uint32_t val);
   void writeBAMString(const std::string& str);
@@ -92,4 +92,4 @@ private:
   uint32_t d_written;
 };
 
-void emitGZBF(FILE* fp, const std::string& block);
+void emitBGZF(FILE* fp, const std::string& block);

@@ -30,5 +30,5 @@ private:
 
   std::string d_fname;
   std::string d_genomeName;
-  ZWriter d_zw;
+  BGZFWriter d_zw;
 };

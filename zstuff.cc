@@ -223,15 +223,15 @@ unique_ptr<LineReader> LineReader::make(const std::string& fname)
 }
 
 
-ZWriter::ZWriter(const std::string& fname)
+BGZFWriter::BGZFWriter(const std::string& fname)
 {
   d_fp=fopen(fname.c_str(), "w");
   if(!d_fp)
-    throw runtime_error("Unable to open '"+fname+"' for ZWriter"+ string(strerror(errno)));
+    throw runtime_error("Unable to open '"+fname+"' for BGZFWriter"+ string(strerror(errno)));
   beginBlock();
 }
 
-void ZWriter::beginBlock()
+void BGZFWriter::beginBlock()
 {
   d_block.clear();
   memset(&d_gzheader, 0, sizeof(d_gzheader));
@@ -258,7 +258,7 @@ void ZWriter::beginBlock()
   d_written=0;
 }
 
-void ZWriter::write(const char*c, unsigned int len)
+void BGZFWriter::write(const char*c, unsigned int len)
 {
   d_s.next_in = (Bytef*) c;
   d_s.avail_in = len;
@@ -282,7 +282,7 @@ void ZWriter::write(const char*c, unsigned int len)
     emitBlock();
 }
 
-void ZWriter::emitBlock()
+void BGZFWriter::emitBlock()
 {
   char buffer[65535];
   d_s.next_out = (Bytef*) buffer;
@@ -305,19 +305,19 @@ void ZWriter::emitBlock()
   beginBlock();
 }
 
-void ZWriter::write32(uint32_t val)
+void BGZFWriter::write32(uint32_t val)
 {
   uint32_t nval = htonl(val);
   write((char*)&nval, 4);
 }
 
-void ZWriter::writeBAMString(const std::string& str)
+void BGZFWriter::writeBAMString(const std::string& str)
 {
   write32(str.length());
   write(str.c_str(), str.length());
 }
 
-ZWriter::~ZWriter()
+BGZFWriter::~BGZFWriter()
 {
   emitBlock();
   fclose(d_fp);
