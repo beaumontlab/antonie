@@ -235,7 +235,8 @@ void BGZFWriter::beginBlock()
 {
   d_block.clear();
   memset(&d_gzheader, 0, sizeof(d_gzheader));
-  d_gzheader.time=time(0);
+  d_gzheader.time=0;
+  d_gzheader.os=0xff;
   d_extra.assign(1, 66);
   d_extra.append(1, 67);
   d_extra.append(1, 2);
@@ -282,8 +283,10 @@ void BGZFWriter::write(const char*c, unsigned int len)
     emitBlock();
 }
 
-void BGZFWriter::emitBlock()
+void BGZFWriter::emitBlock(bool force)
 {
+  if(!d_written && !force)
+    return;
   char buffer[65535];
   d_s.next_out = (Bytef*) buffer;
   d_s.avail_out=sizeof(buffer);
@@ -320,5 +323,7 @@ void BGZFWriter::writeBAMString(const std::string& str)
 BGZFWriter::~BGZFWriter()
 {
   emitBlock();
+  emitBlock(true);
+  deflateEnd(&d_s);
   fclose(d_fp);
 }
