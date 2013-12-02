@@ -12,6 +12,7 @@ struct FastQRead
   std::string d_nucleotides;
   std::string d_quality;
   std::string d_header;
+  std::string getNameFromHeader() const;
   bool exceedsQuality(unsigned int);
   std::string getSangerQualityString() const;
   void reverse();

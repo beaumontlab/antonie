@@ -5,8 +5,11 @@
 #include <map>
 #include <stdexcept>
 #include <boost/utility.hpp>
+#include <arpa/inet.h>
 #include <memory>
+#include <boost/crc.hpp>
 
+//! Virtual base for seekable line readers
 class LineReader
 {
 public:
@@ -18,8 +21,7 @@ public:
   static std::unique_ptr<LineReader> make(const std::string& fname);
 };
 
-
-
+//! A plain text seekable line reader
 class PlainLineReader : public LineReader, boost::noncopyable
 {
 public:
@@ -34,6 +36,7 @@ private:
 };
 
 
+//! A gzipped compressed seekable line reader
 class ZLineReader : public LineReader, boost::noncopyable
 {
 public:
@@ -68,3 +71,25 @@ private:
   uint64_t d_uncPos;
   bool d_haveSeeked;
 };
+
+class BGZFWriter
+{
+public:
+  BGZFWriter(const std::string& fname);
+  ~BGZFWriter();
+  void write(const char*, unsigned int len);
+  void write32(uint32_t val);
+  void writeBAMString(const std::string& str);
+  void emitBlock(bool force=false);
+private:
+
+  void beginBlock();
+  FILE* d_fp;
+  z_stream d_s;
+  std::string d_extra;
+  gz_header d_gzheader;
+  std::string d_block;
+  uint32_t d_written;
+};
+
+void emitBGZF(FILE* fp, const std::string& block);

@@ -1,7 +1,7 @@
 -include sysdeps/$(shell uname).inc
 
 VERSION=0.1
-CXXFLAGS=-Wall -I. -Iext/libmba -MMD -MP -O3 $(CXX2011FLAGS) -ggdb # -Wno-unused-local-typedefs 
+CXXFLAGS=-Wall -I. -Iext/libmba -MMD -MP -O3 $(CXX2011FLAGS) # -Wno-unused-local-typedefs 
 CFLAGS=-Wall -I. -Iext/libmba -O3 -MMD -MP
 LDFLAGS=$(CXX2011FLAGS)  
 CHEAT_ARG := $(shell ./update-git-hash-if-necessary)
@@ -59,5 +59,5 @@ antonie.exe:
 check: testrunner
 	./testrunner
 
-testrunner: test-misc_hh.o test-dnamisc_cc.o testrunner.o misc.o dnamisc.o
-	$(CXX) $^ -lboost_unit_test_framework -o $@
+testrunner: test-misc_hh.o test-dnamisc_cc.o test-saminfra_cc.o testrunner.o misc.o dnamisc.o saminfra.o zstuff.o fastq.o
+	$(CXX) $^ -lboost_unit_test_framework -lz -o $@ 

@@ -5,6 +5,7 @@
 #include "zstuff.hh"
 #include <stdexcept>
 #include <iostream>
+#include <arpa/inet.h>
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
 
@@ -219,4 +220,110 @@ unique_ptr<LineReader> LineReader::make(const std::string& fname)
     return unique_ptr<LineReader>(new ZLineReader(fname));
   else
     return unique_ptr<LineReader>(new PlainLineReader(fname));
+}
+
+
+BGZFWriter::BGZFWriter(const std::string& fname)
+{
+  d_fp=fopen(fname.c_str(), "w");
+  if(!d_fp)
+    throw runtime_error("Unable to open '"+fname+"' for BGZFWriter"+ string(strerror(errno)));
+  beginBlock();
+}
+
+void BGZFWriter::beginBlock()
+{
+  d_block.clear();
+  memset(&d_gzheader, 0, sizeof(d_gzheader));
+  d_gzheader.time=0;
+  d_gzheader.os=0xff;
+  d_extra.assign(1, 66);
+  d_extra.append(1, 67);
+  d_extra.append(1, 2);
+  d_extra.append(1, (char)0);
+
+  d_extra.append(2, 0); // our size, we spoof it in afterwards
+  
+  d_gzheader.extra=(Bytef*)d_extra.c_str();
+  d_gzheader.extra_len=d_extra.length();
+
+  memset(&d_s, 0, sizeof(d_s));
+  auto res = deflateInit2(&d_s, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 16+15, 8, Z_DEFAULT_STRATEGY);
+  if(res != Z_OK) {
+    throw runtime_error("Unable to initialize compression");
+  }
+  
+  if(deflateSetHeader(&d_s, &d_gzheader) != Z_OK)
+    throw runtime_error("Unable to initialize compression header");
+
+  d_written=0;
+}
+
+void BGZFWriter::write(const char*c, unsigned int len)
+{
+  d_s.next_in = (Bytef*) c;
+  d_s.avail_in = len;
+
+  char buffer[1024+len*2];
+  do {
+    d_s.next_out = (Bytef*) buffer;
+    d_s.avail_out=sizeof(buffer);
+
+    //cerr<<d_s.avail_out<<endl;
+    //cerr<<"avail_in: "<<d_s.avail_in<<", flush: "<<flush<<endl;
+    auto res = deflate(&d_s, 0);
+    //cerr<<"avail_in post: "<<d_s.avail_in<<", res="<<res<<endl;
+    if(res != Z_OK)
+      throw runtime_error("Unable to deflate data: "+string(d_s.msg ? d_s.msg : "no error"));
+    //cerr<<"Got "<<(d_s.next_out - (Bytef*)buffer)<<" bytes (end="<<(res==Z_STREAM_END)<<")"<<endl;
+    d_block.append(buffer, d_s.next_out - (Bytef*)buffer);
+  } while(d_s.avail_in);
+  d_written+=len;
+  if(d_written > 65000)
+    emitBlock();
+}
+
+void BGZFWriter::emitBlock(bool force)
+{
+  if(!d_written && !force)
+    return;
+  char buffer[65535];
+  d_s.next_out = (Bytef*) buffer;
+  d_s.avail_out=sizeof(buffer);
+  d_s.avail_in=0;
+  auto res = deflate(&d_s, Z_FINISH);
+  if(res != Z_STREAM_END) {
+    throw runtime_error("Shit");
+  }
+  auto got = d_s.next_out - (Bytef*) buffer;
+  d_block.append(buffer, got);
+  uint16_t len = d_block.size()-1;
+  d_block.replace(16, 2, (char*)&len, 2);
+  fwrite(d_block.c_str(), 1, d_block.size(), d_fp);
+  //  cerr<<"Writing block of "<<d_block.size()<<" ("<<d_written<<")"<<endl;
+  d_block.clear();
+  d_extra.clear();
+  d_written=0;
+  deflateEnd(&d_s);
+  beginBlock();
+}
+
+void BGZFWriter::write32(uint32_t val)
+{
+  uint32_t nval = htonl(val);
+  write((char*)&nval, 4);
+}
+
+void BGZFWriter::writeBAMString(const std::string& str)
+{
+  write32(str.length());
+  write(str.c_str(), str.length());
+}
+
+BGZFWriter::~BGZFWriter()
+{
+  emitBlock();
+  emitBlock(true);
+  deflateEnd(&d_s);
+  fclose(d_fp);
 }

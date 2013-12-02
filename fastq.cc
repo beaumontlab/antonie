@@ -40,6 +40,17 @@ void FastQRead::reverse()
   reversed = !reversed;
 }
 
+std::string FastQRead::getNameFromHeader() const
+{
+  string name;
+  string::size_type spacepos = d_header.find(' ');
+  if(spacepos != string::npos)
+    name = d_header.substr(0, spacepos);
+  else
+    name = d_header;
+  return name;
+}
+
 unsigned int FASTQReader::getRead(FastQRead* fq)
 {
   uint64_t pos = d_reader->getUncPos();
