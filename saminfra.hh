@@ -32,3 +32,5 @@ private:
   std::string d_genomeName;
   BGZFWriter d_zw;
 };
+
+std::string bamCompress(const std::string& dna);

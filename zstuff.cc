@@ -300,7 +300,7 @@ void BGZFWriter::emitBlock(bool force)
   uint16_t len = d_block.size()-1;
   d_block.replace(16, 2, (char*)&len, 2);
   fwrite(d_block.c_str(), 1, d_block.size(), d_fp);
-  // cerr<<"Writing block of "<<d_block.size()<<endl;
+  //  cerr<<"Writing block of "<<d_block.size()<<" ("<<d_written<<")"<<endl;
   d_block.clear();
   d_extra.clear();
   d_written=0;

@@ -137,7 +137,7 @@ BAMWriter::BAMWriter(const std::string& fname, const std::string& refname, dnapo
 
 string bamCompress(const std::string& dna)
 {
-  const char table[]="ACMGRSVTWYHKDBN";
+  const char table[]="=ACMGRSVTWYHKDBN";
   string ret;
   int offset=0;
 
@@ -169,24 +169,49 @@ string bamCompress(const std::string& dna)
 void BAMWriter::write(dnapos_t pos, const FastQRead& fqfrag, int indel, int flags, const std::string& rnext, dnapos_t pnext, int32_t tlen)
 {
   string block;
+
+  string cigar;
+  uint32_t i;
+  if(!indel) {
+    i=fqfrag.d_nucleotides.length()<<4;
+    cigar.assign((char*)&i, 4); // "150M"
+  }
+  else if(indel < 0) {
+    i=(-indel)<<4;
+    cigar.assign((char*)&i, 4); // first part M
+    i= (1<<4) | 2;              // 1D
+    cigar.append((char*)&i, 4); 
+    i=(fqfrag.d_nucleotides.length()+indel)<<4; // restM
+    cigar.append((char*)&i, 4); 
+  }
+  else if(indel > 0) {
+    i = indel <<4;
+    cigar.assign((char*)&i, 4); // "150M"
+    i= (1<<4) | 1;              // 1I
+    cigar.append((char*)&i, 4); 
+    
+    i=(fqfrag.d_nucleotides.length()-1-indel)<<4; // restM
+    cigar.append((char*)&i, 4); 
+  }
+
   BAMBuilder bb(&block);
   bb.write32(0); // length, placeholder
-  bb.write32(1); // reference sequence ID
+  bb.write32(0); // reference sequence ID
   bb.write32(pos-1); // 0-based!
   auto bin = reg2bin(pos-1, pos+fqfrag.d_nucleotides.length()-1); // 0-based!
   int mapq=0;
   string name = fqfrag.getNameFromHeader();
-  bb.write32((bin<<16) | (mapq<<8) | (name.length()));
-  bb.write32((flags << 16) | 1); // cigar ops
+  bb.write32((bin<<16) | (mapq<<8) | (name.length()+1));
+  flags += (fqfrag.reversed ? 0x10: 0);
+  bb.write32((flags << 16) | (cigar.length()/4)); // cigar ops
   bb.write32(fqfrag.d_nucleotides.length());
-  bb.write32(1); // next reference sequence ID
+  bb.write32(0); // next reference sequence ID
   bb.write32(pnext - 1);
   bb.write32(tlen);
 
+  bb.write(name.c_str(), name.length()+1);
+  bb.write(cigar.c_str(), cigar.length());
 
-
-  bb.write(name.c_str(), name.length());
-  bb.write32(fqfrag.d_nucleotides.length()); // ==150M
   string bamcompressed=bamCompress(fqfrag.d_nucleotides);
   bb.write(bamcompressed.c_str(), bamcompressed.length());
   bb.write(fqfrag.d_quality.c_str(), fqfrag.d_quality.length());
