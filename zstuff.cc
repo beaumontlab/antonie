@@ -222,6 +222,60 @@ unique_ptr<LineReader> LineReader::make(const std::string& fname)
     return unique_ptr<LineReader>(new PlainLineReader(fname));
 }
 
+void emitGZBF(FILE* fp, const std::string& block)
+{
+  z_stream ds;
+  gz_header gzh;
+  memset(&gzh, 0, sizeof(gzh));
+
+  gzh.time=time(0);
+
+  string extra;
+  extra.append(1, 66);
+  extra.append(1, 67);
+  extra.append(1, 2);
+  extra.append(1, 0);
+  uint16_t len=block.length();
+
+  extra.append((const char*)&len, 2);
+  
+  gzh.extra=(Bytef*)extra.c_str();
+  gzh.extra_len=extra.length();
+
+  memset(&ds, 0, sizeof(ds));
+  auto res = deflateInit2(&ds, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 16+15, 8, Z_DEFAULT_STRATEGY);
+  if(res != Z_OK) {
+    throw runtime_error("Unable to initialize compression");
+  }
+  
+  if(deflateSetHeader(&ds, &gzh) != Z_OK)
+    throw runtime_error("Unable to initialize compression header");
+  
+  ds.next_in = (Bytef*) block.c_str();
+  ds.avail_in = block.length();
+
+  char buffer[16384];
+
+  do {
+  retry:;
+    ds.next_out = (Bytef*) buffer;
+    ds.avail_out=sizeof(buffer);
+
+    bool done = ds.next_in == (Bytef*) block.c_str() + block.length();
+    cerr<<"Done: "<<done<<endl;
+    res = deflate(&ds, done ? Z_FINISH : 0);
+
+    if(res != Z_OK && res != Z_STREAM_END) 
+      throw runtime_error("Unable to deflate data: "+string(ds.msg ? ds.msg : "no error"));
+    
+    fwrite(buffer, ds.next_out - (Bytef*)buffer, 1, fp);
+    cerr<<"Wrote "<< (ds.next_out - (Bytef*)buffer) <<" bytes\n";
+    if(!done && !ds.avail_in)
+      goto retry;
+
+  } while(ds.avail_in);
+  deflateEnd(&ds);
+}
 
 ZWriter::ZWriter(const std::string& fname)
 {

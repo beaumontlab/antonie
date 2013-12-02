@@ -89,13 +89,41 @@ static int reg2bin(int beg, int end)
   return 0;
 }
 
-BAMWriter::BAMWriter(const std::string& fname, const std::string& header, const std::string& refname, dnapos_t reflen) : d_zw(fname)
+
+struct BAMBuilder
 {
+  BAMBuilder(std::string* str) : d_str(str)
+  {}
+
+  void write(const char* p, int num)
+  {
+    d_str->append(p, num);
+  }
+
+  void write32(uint32_t val) 
+  {
+    d_str->append((const char*)&val, 4);
+  }
+
+  void writeBAMString(const std::string& str)
+  {
+    write32(str.length());
+    d_str->append(str);
+  }
+
+  string* d_str;
+};
+
+BAMWriter::BAMWriter(const std::string& fname, const std::string& header, const std::string& refname, dnapos_t reflen) 
+{
+  BAMBuilder bb(&d_block);
+
   char magic[]="BAM\1";
-  d_zw.write(magic, 4);
-  d_zw.writeBAMString(header);
-  d_zw.write32(1);
-  d_zw.writeBAMString(refname);  
-  d_zw.write32(reflen);
+
+  bb.write(magic, 4);
+  bb.writeBAMString(header);
+  bb.write32(1);
+  bb.writeBAMString(refname);  
+  bb.write32(reflen);
 }
 

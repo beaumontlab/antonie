@@ -87,3 +87,5 @@ private:
   gz_header d_gzheader;
   uint32_t d_written;
 };
+
+void emitGZBF(FILE* fp, const std::string& block);

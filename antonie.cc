@@ -570,8 +570,11 @@ void printQualities(FILE* jsfp, const qstats_t& qstats)
 
 int main(int argc, char** argv)
 {
-  ZWriter zw("hello.gz");
-  zw.writeBAMString("Hello, world!");
+  FILE* fp=fopen("hello.gz", "w");
+
+  emitGZBF(fp, "hallo!");
+  emitGZBF(fp, " daar!\n");
+  fclose(fp);
   return 0;
 
 #ifdef __linux__
