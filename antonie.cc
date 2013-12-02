@@ -646,7 +646,7 @@ int main(int argc, char** argv)
 
   BAMWriter sbw(samFileArg.getValue(), rg.d_name, rg.size());
 
-  (*g_log)<<"Performing exact matches of reads to reference genome"<<endl;
+  (*g_log)<<"Performing matches of reads to reference genome"<<endl;
   boost::progress_display show_progress(filesize(fastq1Arg.getValue().c_str()), cerr);
  
   for(auto& kmers : rg.d_kmerMappings) 
@@ -1123,7 +1123,7 @@ int main(int argc, char** argv)
   replace_all(log, "\n", "\\n");
   fprintf(jsfp.get(), "var antonieLog=\"%s\";\n", log.c_str());
 
-  exit(EXIT_SUCCESS);
+  return EXIT_SUCCESS;
 }
 
 #if 0
