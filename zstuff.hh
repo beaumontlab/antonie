@@ -80,7 +80,7 @@ public:
   void write(const char*, unsigned int len);
   void write32(uint32_t val);
   void writeBAMString(const std::string& str);
-  void emitBlock();
+  void emitBlock(bool force=false);
 private:
 
   void beginBlock();
