@@ -77,7 +77,8 @@ class BGZFWriter
 public:
   BGZFWriter(const std::string& fname);
   ~BGZFWriter();
-  void write(const char*, unsigned int len);
+  uint64_t write(const char*, unsigned int len);
+
   void write32(uint32_t val);
   void writeBAMString(const std::string& str);
   void emitBlock(bool force=false);
@@ -90,6 +91,7 @@ private:
   gz_header d_gzheader;
   std::string d_block;
   uint32_t d_written;
+  uint64_t d_blockstartpos;
 };
 
 void emitBGZF(FILE* fp, const std::string& block);

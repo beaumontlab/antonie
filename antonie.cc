@@ -333,7 +333,7 @@ int MapToReference(ReferenceGenome& rg, dnapos_t pos, FastQRead fqfrag, int qlim
     didMap=true;
     rg.mapFastQ(pos, fqfrag);
     if(sbw)
-      sbw->write(pos, fqfrag);
+      sbw->qwrite(pos, fqfrag);
   }
   else {
     int indel=MBADiff(pos, fqfrag, reference);
@@ -342,7 +342,7 @@ int MapToReference(ReferenceGenome& rg, dnapos_t pos, FastQRead fqfrag, int qlim
     if(indel) {
       rg.mapFastQ(pos, fqfrag, indel);
       if(sbw)
-	sbw->write(pos, fqfrag, indel);
+	sbw->qwrite(pos, fqfrag, indel);
       didMap=true;
       diffcount=1;
       if(indel > 0) { // our read has an insert at this position
@@ -668,6 +668,8 @@ int main(int argc, char** argv)
     show_progress += bytes;
     vector<ReferenceGenome::MatchDescriptor > pairpositions[2];
     bool dup1(false), dup2(false);
+    //    if(total > 100000)
+    //  break;
     for(unsigned int paircount=0; paircount < 2; ++paircount) {
       FastQRead& fqfrag(paircount ? fqfrag2 : fqfrag1);
       total++;
@@ -777,7 +779,7 @@ int main(int argc, char** argv)
 	else if(!otherDup && !dup) {
 	  int indel;
 	  if(MapToReference(rg, pos, *fqfrag, qlimit, 0, &qqcounts, &indel)) {
-	    sbw.write(pos, *fqfrag, indel, 3 + (paircount ? 0x80 : 0x40),
+	    sbw.qwrite(pos, *fqfrag, indel, 3 + (paircount ? 0x80 : 0x40),
 		     "=", 
 		     paircount ? chosen.first.pos : chosen.second.pos, 
 		     (chosen.first.reverse ^ paircount) ? -distance : distance);
@@ -878,6 +880,11 @@ int main(int argc, char** argv)
 	       % sqrt(-10.0*log10(variance(qstat)) )).str();
 
   seenAlready.clear();
+
+  if(!samFileArg.getValue().empty()) {
+    (*g_log) << "Writing sorted & indexed BAM file to '"<< samFileArg.getValue()<<"'"<<endl;
+    sbw.runQueue(fastq);
+  }
 
   for(auto& i : rg.d_correctMappings) {
     i=found;

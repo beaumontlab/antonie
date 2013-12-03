@@ -3,8 +3,17 @@
 #include <stdexcept>
 #include <string.h>
 #include <string>
+#include <algorithm>
+#include <iostream>
 #include <boost/lexical_cast.hpp>
+#include <boost/progress.hpp>
+
 using std::string;
+using std::sort;
+using std::cout;
+using std::endl;
+using std::vector;
+using std::pair;
 using boost::lexical_cast;
 
 SAMWriter::~SAMWriter()
@@ -99,6 +108,12 @@ struct BAMBuilder
     d_str->append((const char*)&val, 4);
   }
 
+  void write64(uint64_t val) 
+  {
+    d_str->append((const char*)&val, 8);
+  }
+
+
   void writeBAMString(const std::string& str)
   {
     write32(str.length()+1);
@@ -109,8 +124,10 @@ struct BAMBuilder
   string* d_str;
 };
 
-BAMWriter::BAMWriter(const std::string& fname, const std::string& refname, dnapos_t reflen) : d_zw(fname)
+BAMWriter::BAMWriter(const std::string& fname, const std::string& refname, dnapos_t reflen) : d_fname(fname), d_zw(fname)
 {
+  if(d_fname.empty())
+    return;
   string block;
   BAMBuilder bb(&block);
 
@@ -166,7 +183,118 @@ string bamCompress(const std::string& dna)
   return ret;
 }
 
-void BAMWriter::write(dnapos_t pos, const FastQRead& fqfrag, int indel, int flags, const std::string& rnext, dnapos_t pnext, int32_t tlen)
+void BAMWriter::qwrite(dnapos_t pos, const FastQRead& fqfrag, int indel, int flags, const std::string& rnext, dnapos_t pnext, int32_t tlen)
+{
+  if(d_fname.empty())
+    return;
+  Write w{pos, fqfrag.position, fqfrag.reversed, indel, flags, rnext, pnext, tlen};
+  d_queue.push_back(w);
+}
+
+void BAMWriter::runQueue(StereoFASTQReader& sfq)
+{
+  if(d_fname.empty())
+    return;
+  sort(d_queue.begin(), d_queue.end());
+  FastQRead fqfrag;
+  std::map<unsigned int, std::vector<std::vector<Write>::iterator>> bins;
+
+  boost::progress_display show_progress(d_queue.size(), std::cerr);
+
+  for(auto iter = d_queue.begin() ; iter != d_queue.end(); ++iter) {
+    ++show_progress;
+    sfq.getRead(iter->fpos, &fqfrag);
+    if(iter->reversed)
+      fqfrag.reverse();
+    iter->voffset = write(iter->pos, fqfrag, iter->indel, iter->flags, iter->rnext, iter->pnext, iter->tlen);
+    iter->bin=reg2bin(iter->pos, iter->pos +fqfrag.d_nucleotides.length());
+    bins[iter->bin].push_back(iter);
+  }
+
+  string index;
+  BAMBuilder bb(&index);
+  bb.write("BAI\1",4);
+  bb.write32(1);
+  bb.write32(bins.size()+1); // +1 is for magic stats
+
+  for(const auto& bin: bins) {
+    bb.write32(bin.first);
+
+    //    cout<<"In bin "<<bin.first<<endl;
+    if(bin.second.empty()){
+      bb.write32(0); // really shouldn't happen, silly
+      continue;
+    }
+
+    vector<pair<uint64_t, uint64_t>> chunks;
+    auto start = *bin.second.begin();
+    auto stop = *bin.second.rbegin();
+    ++stop;
+    bool in=false;
+    auto startIter = start;
+    for(auto iter = start; iter != stop ; ++iter) {
+      if(iter->bin == bin.first && in==true) {
+	// stay on target
+      }
+      else if(iter->bin != bin.first && in==true) {
+	//	cout<<"Range: "<<startIter->voffset <<" - " << iter->voffset<< endl;
+	chunks.push_back({startIter->voffset, iter->voffset});
+	in=false;
+      }
+      else if(iter->bin != bin.first && in==false) {
+	// stay on target!!
+      }
+      else if(iter->bin == bin.first && in==false) {
+	startIter=iter;
+	in=true;
+      }
+    }
+    if(in) {
+      chunks.push_back({startIter->voffset, prev(stop)->voffset});
+	
+      //      cout<<"Final range: "<<startIter->voffset << " - "<<prev(stop)->voffset<<endl;
+    }
+
+    bb.write32(chunks.size());
+    for(auto chunk: chunks) {
+      bb.write64(chunk.first);
+      bb.write64(chunk.second);
+    }      
+  }
+
+  // now add the magic stats
+  bb.write32(37450);
+  bb.write32(2);
+  bb.write64(0);
+  bb.write64(0);
+  bb.write64(d_queue.size());
+  bb.write64(0);
+
+  // linear index
+  int numWindows = d_queue.rbegin()->pos/16384;
+  bb.write32(numWindows);
+  vector<uint64_t> lims(numWindows);
+  for(auto& lim : lims) {
+    lim = std::numeric_limits<uint64_t>::max();
+  }
+
+  for(const auto& w : d_queue) {
+    lims[w.pos/16384] = std::min(lims[w.pos/16384], w.voffset);
+  }
+  
+  for(const auto& lim : lims)
+    bb.write64(lim);
+
+  string fname=d_fname+".bai";
+  d_baifp=fopen(fname.c_str(), "w");
+  if(!d_baifp)
+    throw std::runtime_error("Unable to open '"+fname+"' for writing BAM index file"+strerror(errno));
+  fwrite(index.c_str(), 1, index.size(), d_baifp);
+  fclose(d_baifp);
+  d_queue.clear();
+}
+
+uint64_t BAMWriter::write(dnapos_t pos, const FastQRead& fqfrag, int indel, int flags, const std::string& rnext, dnapos_t pnext, int32_t tlen)
 {
   string block;
 
@@ -217,7 +345,7 @@ void BAMWriter::write(dnapos_t pos, const FastQRead& fqfrag, int indel, int flag
   bb.write(fqfrag.d_quality.c_str(), fqfrag.d_quality.length());
   uint32_t len = block.length()-4;
   block.replace(0, 4, (char*)&len, 4);
-  d_zw.write(block.c_str(), block.length());
+  return d_zw.write(block.c_str(), block.length());
 }
 
 BAMWriter::~BAMWriter()

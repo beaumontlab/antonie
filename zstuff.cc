@@ -225,6 +225,10 @@ unique_ptr<LineReader> LineReader::make(const std::string& fname)
 
 BGZFWriter::BGZFWriter(const std::string& fname)
 {
+  if(fname.empty()) {
+    d_fp=0;
+    return;
+  }
   d_fp=fopen(fname.c_str(), "w");
   if(!d_fp)
     throw runtime_error("Unable to open '"+fname+"' for BGZFWriter"+ string(strerror(errno)));
@@ -233,6 +237,7 @@ BGZFWriter::BGZFWriter(const std::string& fname)
 
 void BGZFWriter::beginBlock()
 {
+  d_blockstartpos = ftell(d_fp);
   d_block.clear();
   memset(&d_gzheader, 0, sizeof(d_gzheader));
   d_gzheader.time=0;
@@ -259,8 +264,9 @@ void BGZFWriter::beginBlock()
   d_written=0;
 }
 
-void BGZFWriter::write(const char*c, unsigned int len)
+uint64_t BGZFWriter::write(const char*c, unsigned int len)
 {
+  uint64_t pos = (d_blockstartpos<<16) | (d_written);
   d_s.next_in = (Bytef*) c;
   d_s.avail_in = len;
 
@@ -281,6 +287,7 @@ void BGZFWriter::write(const char*c, unsigned int len)
   d_written+=len;
   if(d_written > 65000)
     emitBlock();
+  return pos;
 }
 
 void BGZFWriter::emitBlock(bool force)
@@ -322,6 +329,8 @@ void BGZFWriter::writeBAMString(const std::string& str)
 
 BGZFWriter::~BGZFWriter()
 {
+  if(d_fp==0)
+    return;
   emitBlock();
   emitBlock(true);
   deflateEnd(&d_s);
