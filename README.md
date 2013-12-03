@@ -84,11 +84,15 @@ So as a formula:
 
 FASTQ + FASTA + GFF3 -> JSON + BAM + BAM.BAI -> PRETTY HTML
 
-![First graphs](http://ds9a.nl/antonie/antonie1.png)
+![First graphs](http://ds9a.nl/antonie/Antonie1.png)
 
-![Second graphs](http://ds9a.nl/antonie/antonie2.png)
+![Second graphs](http://ds9a.nl/antonie/Antonie2.png)
 
-![Third graphs](http://ds9a.nl/antonie/antonie3.png)
+![Third graphs](http://ds9a.nl/antonie/Antonie3.png)
+
+![Fourth graphs](http://ds9a.nl/antonie/Antonie4.png)
+
+![Fifth graphs](http://ds9a.nl/antonie/Antonie5.png)
 
 CODE
 ====
