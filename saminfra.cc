@@ -30,7 +30,7 @@ SAMWriter::SAMWriter(const std::string& fname, const std::string& genomeName, dn
   }
   d_fp = fopen(fname.c_str(), "w");
   if(!d_fp) 
-    throw std::runtime_error("Unable to open '"+fname+"' for writing SAM file"+strerror(errno));
+    throw std::runtime_error("Unable to open '"+fname+"' for writing SAM file: "+strerror(errno));
 
   fprintf(d_fp, "@HD\tVN:1.0\tSO:unsorted\n");
   fprintf(d_fp, "@SQ\tSN:%s\tLN:%u\n", d_genomeName.c_str(), len);
