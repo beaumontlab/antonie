@@ -25,7 +25,7 @@ Hubert.
 For more information, please see:
 
  * [Bionanoscience department](http://www.tnw.tudelft.nl/en/about-faculty/departments/bionanoscience/)
- * [Bertus Beaumont Lab](http://bertusbeaumontlab.tudelft.nl/)
+ * [Bertus Beaumont Lab](http://bertusbeaumontlab.tudelft.nl/) and the [Antonie page there](http://bertusbeaumontlab.tudelft.nl/software.html)
  * [bert hubert](http://ds9a.nl/)
 
 Please contact us at a.w.r.hubert at tudelft dot nl, or report issues
@@ -53,6 +53,7 @@ performed further downstream, for example by
 [gatk](http://www.broadinstitute.org/gatk/). 
 
 So, the input of Antonie is:
+
  * FASTQ or
  * FASTQ.gz
  * FASTA
