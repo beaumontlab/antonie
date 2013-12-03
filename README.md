@@ -34,21 +34,29 @@ through our Github page on <https://github.com/beaumontlab/antonie>.
 CAPABILITIES
 ============
 Currently, Antonie can map the FASTQ output of sequencers to a FASTA
-reference genome.  In addition, it can also exclude known contaminants, like
-for example PhiX.  Finally, if GFF3 annotation of the reference genome is
-available, features found by Antonie will be annotated.
+reference genome. It records the mapping as a sorted and indexed BAM file. 
+In addition, it can also exclude known contaminants, like for example PhiX. 
+Finally, if GFF3 annotation of the reference genome is available, features
+found by Antonie will be annotated.
 
 Antonie performs similar functions as for example
 [bowtie](http://bowtie-bio.sourceforge.net/index.shtml), except somewhat
 faster for small genomes, while also performing some of the analysis usually
 performed further downstream, for example by
-[fastqc](http://www.bioinformatics.babraham.ac.uk/projects/fastqc/).
+[fastqc](http://www.bioinformatics.babraham.ac.uk/projects/fastqc/) or
+[gatk](http://www.broadinstitute.org/gatk/). 
+
+So, the input of Antonie is:
+ * FASTQ or
+ * FASTQ.gz
+ * FASTA
+ * GFF3
 
 The output of Antonie is:
 
  * A JSON-compatible file with analysis, graphs, data, log, annotations
  * A pretty webpage displaying the JSON data ([sample](http://ds9a.nl/antonie/SRR956947/))
- * SAM file, mapping the reads to the reference genome
+ * A sorted and indexed BAM file, mapping the reads to the reference genome
 
 The analysis includes calls for:
 
@@ -68,7 +76,7 @@ In addition, there are graphs of:
 
 So as a formula:
 
-FASTQ + FASTA + GFF3 -> JSON + SAM -> PRETTY HTML
+FASTQ + FASTA + GFF3 -> JSON + BAM + BAM.BAI -> PRETTY HTML
 
 ![First graphs](http://ds9a.nl/antonie/antonie1.png)
 
@@ -104,7 +112,7 @@ http://ds9a.nl/antonie/codedocs/
 LIMITATIONS
 ===========
 
- * The current algorithm is fast on common hardware, but needs around 200MB of
+ * The current algorithm is fast on common hardware, but needs around 500MB of
    memory for a typical prokaryote.  It also assumes it is aligning against a
    single chromosome.  Combined, this means that right now, eukaryotic
    processing is hard to do using Antonie.
@@ -116,14 +124,14 @@ LIMITATIONS
 SAMPLE USE
 ==========
 
-> $ antonie -1 P1-R1.fastq.gz -2 P1-R2.fastq.gz -r sbw25/NC_012660.fna -x -a NC_012660.gff -s P1.sam -u > report
+> $ antonie -1 P1-R1.fastq.gz -2 P1-R2.fastq.gz -r sbw25/NC_012660.fna -x -a NC_012660.gff -s P1.bam -u > report
 
 This will align the paired reads from P1-R[12].fastq.gz against the
 Pseudomonas SBW25 reference genome, while stripping out any PhiX reads. 
 Annotations will be read from 'NC_012660.gff'.  A human readable, but large,
 text based report will be written to 'report'.
 
-The mapping will be saved as 'P1.sam', and can for example be viewed in
+The mapping will be saved as 'P1.bam', and can for example be viewed in
 [Tablet](http://bioinf.scri.ac.uk/tablet/) from the James Hutton Institute,
 or post-processed using [samtools](http://samtools.sourceforge.net/).
 
@@ -197,6 +205,5 @@ FUTURE DIRECTION
    Project](http://galaxyproject.org/).
  * The program needs to automate its detection of quality, and not draw conclusions on bad data, but 
    suggest filtering instead: "Antonie is unhappy with the Phred scores at positions < 12".
- * BAM file output (smaller, compressed version of SAM)
  * Automated post-analysis of unmatched reads against Golomb compressed set of common contaminants
  * Detect indels of >1 nucleotide
