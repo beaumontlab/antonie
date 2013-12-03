@@ -578,7 +578,7 @@ int main(int argc, char** argv)
 
   TCLAP::ValueArg<std::string> annotationsArg("a","annotations","read annotations for reference genome from this file",false, "", "filename", cmd);
   TCLAP::ValueArg<std::string> referenceArg("r","reference","read annotations for reference genome from this file",true,"","string", cmd);
-  TCLAP::ValueArg<std::string> fastqArg("f","fastq","read annotations for reference genome from this file",false,"","string", cmd);
+  //  TCLAP::ValueArg<std::string> fastqArg("f","fastq","read annotations for reference genome from this file",false,"","string", cmd);
   TCLAP::ValueArg<std::string> fastq1Arg("1","fastq1","read annotations for reference genome from this file",true,"","string", cmd);
   TCLAP::ValueArg<std::string> fastq2Arg("2","fastq2","read annotations for reference genome from this file",true,"","string", cmd);
 

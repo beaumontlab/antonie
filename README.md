@@ -29,7 +29,13 @@ For more information, please see:
  * [bert hubert](http://ds9a.nl/)
 
 Please contact us at a.w.r.hubert at tudelft dot nl, or report issues
-through our Github page on <https://github.com/beaumontlab/antonie>.
+through our GitHub page on <https://github.com/beaumontlab/antonie>.
+
+DOWNLOADING
+===========
+Antonie is actively being developed, latest sources can be found from
+GitHub (see below).  However, for your convenience, we regularly provide
+RPM, DEB, OSX and Windows versions of Antonie on <http://ds9a.nl/antonie/packages/>
 
 CAPABILITIES
 ============
@@ -197,6 +203,10 @@ As an example, for "Escherichia coli str. K-12 substr. MG1655", head to
 
 To get sample FASTQ, head to the [European Nucleotide
 Archive](http://www.ebi.ac.uk/ena/).
+
+FURTHER DETAILS
+===============
+Try 'antonie --help'.
 
 FUTURE DIRECTION
 ================
