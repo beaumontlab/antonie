@@ -4,6 +4,7 @@
 #include <functional>
 #include <stdlib.h>
 #include <sstream> 
+#include <iomanip>
 #include "antonie.hh"
 
 extern const char* g_gitHash;
@@ -130,6 +131,7 @@ std::string jsonVector(const std::vector<T>& v, const std::string& name,
 }
 
 
+
 template<typename T>
 std::string jsonVectorD(const std::vector<T>& v, 
 		  std::function<double(double)> yAdjust = [](double d){return d;},
@@ -140,11 +142,30 @@ std::string jsonVectorD(const std::vector<T>& v,
   for(auto iter = v.begin(); iter != v.end(); ++iter) {
     if(iter != v.begin())
       ret<<',';
-    ret << '[' << std::fixed<< xAdjust(iter - v.begin()) <<','<< std::scientific << yAdjust(*iter)<<']';
+    ret << '[' << std::fixed<< xAdjust(iter - v.begin()) <<',';
+    ret.unsetf(std::ios_base::floatfield);
+    ret << yAdjust(*iter)<<']';
   }
   ret <<"]";
   return ret.str();
 }
+
+template<typename T>
+std::string jsonVectorX(const std::vector<T>& v, 
+		  std::function<int(int)> xAdjust = [](int i){return i;})
+{
+  std::ostringstream ret;
+  ret<<"[";
+  for(auto iter = v.begin(); iter != v.end(); ++iter) {
+    if(iter != v.begin())
+      ret<<',';
+    ret << '[' << xAdjust(iter - v.begin()) <<',';
+    ret << *iter<<']';
+  }
+  ret <<"]";
+  return ret.str();
+}
+
 
 //! maps 'len' nucleotides from 'str' at offset offset to a 32 bit string. At most 16 nuclotides therefore!
 uint32_t kmerMapper(const std::string& str, int offset, int unsigned len);
