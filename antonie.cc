@@ -422,10 +422,10 @@ void emitRegion(FILE*fp, ReferenceGenome& rg, StereoFASTQReader& fastq, GeneAnno
   }
   
   fprintf(fp, "aProb: %s, cProb: %s, gProb: %s, tProb: %s,",
-	  jsonVectorD(aProb, [](double d){return d;}, [start](int i){return i+start;}).c_str(), 
-	  jsonVectorD(cProb, [](double d){return d;}, [start](int i){return i+start;}).c_str(), 
-	  jsonVectorD(gProb, [](double d){return d;}, [start](int i){return i+start;}).c_str(), 
-	  jsonVectorD(tProb, [](double d){return d;}, [start](int i){return i+start;}).c_str());
+	  jsonVectorX(aProb, [start](int i){return i+start;}).c_str(), 
+	  jsonVectorX(cProb, [start](int i){return i+start;}).c_str(), 
+	  jsonVectorX(gProb, [start](int i){return i+start;}).c_str(), 
+	  jsonVectorX(tProb, [start](int i){return i+start;}).c_str());
 
   string picture=rg.getMatchingFastQs(start, stop, fastq);
   replace_all(picture, "\n", "\\n");
@@ -437,7 +437,7 @@ void emitRegion(FILE*fp, ReferenceGenome& rg, StereoFASTQReader& fastq, GeneAnno
     annotations += ga.name+" [" + ga.tag  + "], ";
   }
   
-  fprintf(fp,"picture: '%s', annotations: '%s', report: '%s'};\n", picture.c_str(), annotations.c_str(), report.c_str());
+  fprintf(fp,"picture: '%s', annotations: '%s', report: '%s'};\n", "", annotations.c_str(), report.c_str());
   
   fputs("\n", fp);
   fflush(fp);
@@ -562,7 +562,7 @@ void printQualities(FILE* jsfp, const qstats_t& qstats)
     qhi.push_back(-10.0*log10(mean(q)) +sqrt(-10.0*log10(variance(q))));
   }
 
-  fprintf(jsfp, "var qlo=%s;var qhi=%s;", jsonVectorD(qlo).c_str(), jsonVectorD(qhi).c_str());
+  fprintf(jsfp, "var qlo=%s;\nvar qhi=%s;\n", jsonVectorD(qlo).c_str(), jsonVectorD(qhi).c_str());
 
   fflush(jsfp);
 }
