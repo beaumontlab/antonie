@@ -116,9 +116,12 @@ void ReferenceGenome::printCoverage(FILE* jsfp, const std::string& histoName)
 
   vector<unsigned int> covhisto;
   covhisto.resize(1000);
+  VarMeanEstimator vmeDepth;
   d_unmRegions.clear();
   for(string::size_type pos = 0; pos < d_mapping.size(); ++pos) {
     cov = d_mapping[pos].coverage;
+    vmeDepth(cov);
+
     bool noCov = cov < 2;
     if(cov >= covhisto.size()) {
       covhisto.resize(2*cov+1);
@@ -155,8 +158,11 @@ void ReferenceGenome::printCoverage(FILE* jsfp, const std::string& histoName)
     cl.feed(unm);
   }
 
-  (*g_log) << (boost::format("Average depth: %|40t|    %10.2f\n") % (1.0*totCoverage/d_mapping.size())).str();
-  (*g_log) << (boost::format("Undercovered nucleotides: %|40t| %10d (%.2f%%), %d ranges\n") % noCoverages % (noCoverages*100.0/d_mapping.size()) % cl.d_clusters.size()).str();
+  (*g_log) << (boost::format("Average depth: %|40t|    %10.2f +- %.2f\n") % mean(vmeDepth) % sqrt(variance(vmeDepth))).str();
+
+  double expected=size()*(1-erf(mean(vmeDepth)/(sqrt(variance(vmeDepth))*sqrt(2))));
+  (*g_log) << (boost::format("Undercovered nucleotides: %|40t| %10d (%.2f%%), %d ranges, %.1f could be expected\n") % noCoverages % (noCoverages*100.0/d_mapping.size()) % cl.d_clusters.size() %expected).str();
+  
 
   uint64_t total = std::accumulate(covhisto.begin(), covhisto.end(), 0), cumul=0;
 
@@ -398,7 +404,7 @@ int MapToReference(ReferenceGenome& rg, dnapos_t pos, FastQRead fqfrag, int qlim
 
 
 void emitRegion(FILE*fp, ReferenceGenome& rg, StereoFASTQReader& fastq, GeneAnnotationReader& gar, const string& name, unsigned int index, dnapos_t start, 
-        dnapos_t stop, const std::string& report_="")
+		dnapos_t stop, const std::string& report_="", int maxVarcount=-1)
 {
   dnapos_t dnapos = (start+stop)/2;
   fprintf(fp, "region[%d]={name:'%s', pos: %d, depth: [", index, name.c_str(), dnapos);
@@ -433,11 +439,14 @@ void emitRegion(FILE*fp, ReferenceGenome& rg, StereoFASTQReader& fastq, GeneAnno
 
   string annotations;
   auto gas=gar.lookup(dnapos);
-  for(auto& ga : gas) {
+  int gene=0;
+  for(const auto& ga : gas) {
     annotations += ga.name+" [" + ga.tag  + "], ";
+    if(ga.gene)
+      gene=1;
   }
   
-  fprintf(fp,"picture: '%s', annotations: '%s', report: '%s'};\n", "", annotations.c_str(), report.c_str());
+  fprintf(fp,"picture: '%s', maxVarcount: %d, gene: %d, annotations: '%s', report: '%s'};\n", "", maxVarcount, gene, annotations.c_str(), report.c_str());
   
   fputs("\n", fp);
   fflush(fp);
@@ -616,7 +625,7 @@ int main(int argc, char** argv)
   bytes=fastq.getReadPair(&fqfrag1, &fqfrag2); // get a read to index based on its size
   
   ReferenceGenome rg(referenceArg.getValue());
-  (*g_log)<<"Read FASTA reference genome of '"<<rg.d_fullname<<"'\n";
+  (*g_log)<<"Read FASTA reference genome of '"<<rg.d_fullname<<"', "<<rg.size()<<" nucleotides"<<endl;
   double genomeGCRatio = 1.0*(rg.d_cCount + rg.d_gCount)/(rg.d_cCount + rg.d_gCount + rg.d_aCount + rg.d_tCount);
   (*g_log)<<"GC Content of reference genome: "<<100.0*genomeGCRatio<<"%"<<endl;
   rg.index(fqfrag1.d_nucleotides.size());
@@ -881,10 +890,7 @@ int main(int argc, char** argv)
 
   seenAlready.clear();
 
-  if(!samFileArg.getValue().empty()) {
-    (*g_log) << "Writing sorted & indexed BAM file to '"<< samFileArg.getValue()<<"'"<<endl;
-    sbw.runQueue(fastq);
-  }
+
 
   for(auto& i : rg.d_correctMappings) {
     i=found;
@@ -898,6 +904,12 @@ int main(int argc, char** argv)
 
   rg.printCoverage(jsfp.get(), "fullHisto");
   printQualities(jsfp.get(), qstats);
+
+  if(!samFileArg.getValue().empty()) {
+    (*g_log) << "Writing sorted & indexed BAM file to '"<< samFileArg.getValue()<<"'"<<endl;
+    sbw.runQueue(fastq);
+  }
+
 
   if(unmatchedDumpSwitch.getValue())
     writeUnmatchedReads(unfoundReads, fastq);
@@ -1022,8 +1034,10 @@ int main(int argc, char** argv)
   if(!skipVariableSwitch.getValue()) {
     for(auto& cluster : cll.d_clusters) {
       vector<pair<string, dnapos_t>> reports;
+      int maxVarcount=0;
       for(auto& locus : cluster.d_members) {
-	unsigned int varcount=variabilityCount(rg, locus.pos, locus.locistat, &fraction);
+	int varcount=variabilityCount(rg, locus.pos, locus.locistat, &fraction);
+	maxVarcount = max(varcount, maxVarcount);
 	if(varcount < 10) 
 	  continue;
 	ostringstream report;
@@ -1085,7 +1099,7 @@ int main(int argc, char** argv)
 	  maxPos=max(r.second, maxPos);
 	}
 
-	emitRegion(jsfp.get(), rg, fastq, gar, "Variable", index++, minPos-100, maxPos+100, theReport);
+	emitRegion(jsfp.get(), rg, fastq, gar, "Variable", index++, minPos-100, maxPos+100, theReport, maxVarcount);
       }
     }
     (*g_log)<<"Found "<<significantlyVariable<<" significantly variable loci"<<endl;

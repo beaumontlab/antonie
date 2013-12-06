@@ -23,6 +23,7 @@ GeneAnnotationReader::GeneAnnotationReader(const std::string& fname)
 
   while(stringfgets(fp, &line)) {
     GeneAnnotation ga;
+    ga.gene=false;
     if(line[0]=='#') {
       //      cerr<<"Annotations from: "<<line;
       continue;
@@ -50,8 +51,9 @@ GeneAnnotationReader::GeneAnnotationReader(const std::string& fname)
       }
       field++;
     } while((p=strtok(0, "\t\n")));
-    if(ga.type=="repeat_region")
-      continue;
+    //    if(ga.type=="repeat_region")
+    //  continue;
+
 
     map<string, string> attributes;
     if((p=strtok((char*)attributeStr.c_str(), ";"))) {
@@ -63,7 +65,8 @@ GeneAnnotationReader::GeneAnnotationReader(const std::string& fname)
       }while((p=strtok(0, ";")));
     }
     ga.tag.clear();
-
+    
+    
     for(const auto& val : attributes) {
       if(val.first=="Note" || val.first=="Name" || val.first=="Product" || val.first=="product") {
 	ga.tag.append(val.second);
@@ -73,7 +76,15 @@ GeneAnnotationReader::GeneAnnotationReader(const std::string& fname)
 	goto no;
     }
 
-    d_gas.push_back(ga);
+
+    if(ga.type =="gene" || ga.type=="CDS")
+      ga.gene=true;
+    if(!ga.tag.empty()) {
+      ga.tag = ga.type+": "+ga.tag;
+      d_gas.push_back(ga);
+    }
+
+      
   no:;
   }
 

@@ -11,6 +11,7 @@ struct GeneAnnotation
   bool strand;
   uint64_t startPos;
   uint64_t stopPos;
+  bool gene;
 };
 
 inline bool operator<(const GeneAnnotation&A, const GeneAnnotation& B)

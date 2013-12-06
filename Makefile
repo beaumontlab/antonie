@@ -6,7 +6,7 @@ CFLAGS=-Wall -I. -Iext/libmba -O3 -MMD -MP
 LDFLAGS=$(CXX2011FLAGS)  
 CHEAT_ARG := $(shell ./update-git-hash-if-necessary)
 
-PROGRAMS=antonie 16ssearcher
+PROGRAMS=antonie 16ssearcher digisplice
 
 all: $(PROGRAMS)
 
@@ -27,6 +27,9 @@ SEARCHER_OBJECTS=16ssearcher.o hash.o misc.o fastq.o zstuff.o githash.o
 
 16ssearcher: $(SEARCHER_OBJECTS)
 	$(CXX) $(LDFLAGS) $(SEARCHER_OBJECTS) -lz -o $@
+
+digisplice: digisplice.o refgenome.o misc.o fastq.o hash.o zstuff.o dnamisc.o geneannotated.o
+	$(CXX) $(LDFLAGS) $^ -lz -o $@
 
 install: antonie
 	mkdir -p $(DESTDIR)/usr/bin/

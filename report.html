@@ -92,7 +92,7 @@ work, please cite xyz.
 
 
 <table id="toctable" border="1" cellpadding="4">
-<tr><th>Type</th><th>Locus</th><th>Annotation(s)</th></tr>
+<tr><th>Type</th><th>Locus</th><th>Var count</th><th>Annotation(s)</th></tr>
 </table>
 
 <a href="#regions" onClick="regionStart+=10;printRegions(regionStart);return false;">Next 10 graphs</a>
@@ -480,9 +480,12 @@ nv.addGraph(function() {
 });
 
 for(i = 0 ; i < region.length; ++i) {
+	if(!region[i].gene)
+		continue;
 	  var toctable=d3.select('#toctable').append('tr');
 	  toctable.append('td').append('a').attr('href','#region'+i).attr('onClick','showRegion('+i+');return true;').text(region[i].name+' '+i);
 	  toctable.append('td').text(region[i].pos);
+	  toctable.append('td').text(region[i].maxVarcount);
 	  toctable.append('td').text(decodeURIComponent(region[i].annotations));
 
 }
@@ -498,7 +501,11 @@ function showRegion(region)
 function printRegions(start)
 {
 	d3.select('#regions').html('');
-	for(i = start ; i < start+10 && i < region.length; ++i) {
+	var emitted=0;
+	for(i = start ; emitted < 10 && i < region.length; ++i) {
+	if(!region[i].gene)
+		continue;
+	emitted++;
 	nv.addGraph((function() {
 	  var item = i;
 	  var chart = nv.models.lineChart()
