@@ -525,6 +525,7 @@ function printRegions(start)
 	  ourdiv.append('h3').text('Region '+i+': '+region[item].name + ' @ ' +region[item].pos );
 	  ourdiv.append('p').text(decodeURIComponent(region[item].annotations));
 	  ourdiv.append('pre').text(region[item].report);	  
+	  ourdiv.append('pre').text(region[item].snippet);	  	  
 	  ourdiv.append('svg').datum(getPoints5(region[item].depth, "Depth",
 	  region[item].aProb, "aProb", 
 	  region[item].cProb, "cProb", 
