@@ -434,6 +434,7 @@ void emitRegion(FILE*fp, ReferenceGenome& rg, StereoFASTQReader& fastq, GeneAnno
 	  jsonVectorX(tProb, [start](int i){return i+start;}).c_str());
 
   string picture=rg.getMatchingFastQs(start, stop, fastq);
+  string snippet=rg.snippet(start, stop);
   replace_all(picture, "\n", "\\n");
   string report = replace_all_copy(report_, "\n", "\\n");
 
@@ -446,7 +447,7 @@ void emitRegion(FILE*fp, ReferenceGenome& rg, StereoFASTQReader& fastq, GeneAnno
       gene=1;
   }
   
-  fprintf(fp,"picture: '%s', maxVarcount: %d, gene: %d, annotations: '%s', report: '%s'};\n", "", maxVarcount, gene, annotations.c_str(), report.c_str());
+  fprintf(fp,"picture: '%s', snippet: '%s', maxVarcount: %d, gene: %d, annotations: '%s', report: '%s'};\n", "", snippet.c_str(), maxVarcount, gene, annotations.c_str(), report.c_str());
   
   fputs("\n", fp);
   fflush(fp);
