@@ -3,9 +3,7 @@
 #include <iostream>
 #include "misc.hh"
 #include <set>
-#include <thread>
 #include <algorithm>
-#include <future>
 #include <fstream>
 
 extern "C" {
@@ -28,6 +26,7 @@ struct HashedPos
 
 unique_ptr<vector<HashedPos> > indexFASTQ(FASTQReader* fqreader, const std::string& fname)
 {
+
   unique_ptr<vector<HashedPos> > hpos(new vector<HashedPos>());
   FILE* fp=fopen((fname+".index").c_str(), "r");
   if(fp) {
@@ -40,7 +39,7 @@ unique_ptr<vector<HashedPos> > indexFASTQ(FASTQReader* fqreader, const std::stri
     fclose(fp);
     return hpos;
   }
-
+  cerr<<"Indexing "<<fname<<endl;
   FastQRead fqr;
   while(fqreader->getRead(&fqr)) {
     uint32_t h = hash(fqr.d_nucleotides.c_str(), 50, 0);
@@ -193,17 +192,11 @@ int main(int argc, char**argv)
   map<FASTQReader*, unique_ptr<vector<HashedPos> > > fhpos;
 
   FASTQReader* fqreader;
-  vector<pair<FASTQReader*, decltype(std::async(std::launch::async, indexFASTQ, fqreader, ""))> > futures;
+
   for(int f = 4; f < argc; ++f) {
     fqreader = new FASTQReader(argv[f], 33, 10);
-    cerr<<"Reading "<<argv[f]<<"\n";
-    futures.emplace_back(make_pair(fqreader, std::async(std::launch::async, indexFASTQ, fqreader, argv[f])));
+    fhpos[fqreader]=indexFASTQ(fqreader, argv[f]);
   }
-  for(auto& fut : futures) {
-    auto res = fut.second.get();
-    fhpos[fut.first]=std::move(res);
-  }
-
   string genome;
   string startseed = rg.snippet(startpos, startpos+100);
   string endseed = rg.snippet(endpos, endpos+100);
