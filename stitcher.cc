@@ -102,7 +102,7 @@ bool startProcessing(string snippet, dnapos_t pos, const std::string& endseed, c
 
   string::size_type endseedpos=snippet.find(endseed);
   if(endseedpos != string::npos) {
-    g_candidates.insert({snippet.substr(0, endseedpos + endseed.length())});
+    g_candidates.insert(snippet.substr(0, endseedpos + endseed.length()));
     cerr<<"Got one, now have "<<g_candidates.size()<<" candidates"<<endl;
     cout<<"Got one, now have "<<g_candidates.size()<<" candidates"<<endl;
     cout<<"Candidate: "<<snippet.substr(0, endseedpos + endseed.length())<<endl;
