@@ -4,6 +4,7 @@
 #include "misc.hh"
 #include <set>
 #include <algorithm>
+#include "dnamisc.hh"
 #include <fstream>
 
 extern "C" {
@@ -24,6 +25,8 @@ struct HashedPos
   }
 };
 
+int g_chunklen=30;
+
 unique_ptr<vector<HashedPos> > indexFASTQ(FASTQReader* fqreader, const std::string& fname)
 {
 
@@ -42,10 +45,10 @@ unique_ptr<vector<HashedPos> > indexFASTQ(FASTQReader* fqreader, const std::stri
   cerr<<"Indexing "<<fname<<endl;
   FastQRead fqr;
   while(fqreader->getRead(&fqr)) {
-    uint32_t h = hash(fqr.d_nucleotides.c_str(), 50, 0);
+    uint32_t h = hash(fqr.d_nucleotides.c_str(), g_chunklen, 0);
     hpos->push_back({h, fqr.position});
     fqr.reverse();
-    h = hash(fqr.d_nucleotides.c_str(), 50, 0);
+    h = hash(fqr.d_nucleotides.c_str(), g_chunklen, 0);
     hpos->push_back({h, fqr.position});
   }
   std::sort(hpos->begin(), hpos->end());
@@ -73,114 +76,102 @@ int dnaDiff(const std::string& a, const std::string& b)
 {
   if(a==b)
     return 0;
-  cout<<"A: "<<a<<endl;
-  cout<<"B: "<<b<<endl;
-  cout<<"   ";
+  //  cout<<"A: "<<a<<endl;
+  //  cout<<"B: "<<b<<endl;
+  //  cout<<"   ";
   int diff=0;
   for(string::size_type o = 0 ; o < a.length() && o < b.length(); ++o) {
     if(a[o] != b[o]) {
-      cout<<'!';
+      //      cout<<'!';
       diff++;
     }
     else
-      cout<<' ';
+      ;
+      //      cout<<' ';
   }
   
-  cout<<endl<<"diff: "<<diff<<endl;
+  //  cout<<endl<<"diff: "<<diff<<endl;
   return diff;
 }
 
-bool startProcessing(string snippet, dnapos_t pos, const std::string& endseed, const map<FASTQReader*, unique_ptr<vector<HashedPos> > > & fhpos, int depth=0)
+struct Hypothesis
 {
-  if(!depth)
-    g_bestcontig.clear();
-  bool reallyDone=false;
-  if(!(g_maxdepth < depth)) {
-  //    cerr<<"New depth: "<<depth<<endl;
-    g_maxdepth = depth;
-  } 
+  Hypothesis(const std::string& str) : d_nucs(str), d_trypos(30)
+  {}
+  string d_nucs; 
+  unsigned int d_trypos;
 
-  string::size_type endseedpos=snippet.find(endseed);
-  if(endseedpos != string::npos) {
-    g_candidates.insert(snippet.substr(0, endseedpos + endseed.length()));
-    cerr<<"Got one, now have "<<g_candidates.size()<<" candidates"<<endl;
-    cout<<"Got one, now have "<<g_candidates.size()<<" candidates"<<endl;
-    cout<<"Candidate: "<<snippet.substr(0, endseedpos + endseed.length())<<endl;
-    return false;
-  }
-
-  if(snippet.length() > 3000 ) 
-    return true;
+  vector<pair<int, Hypothesis*> > d_children;
   
-  for( ; pos < snippet.length()-50; ++pos) {
-    uint32_t h = hash(snippet.c_str(), snippet.length(), 0);
-    if(g_beenthere.count({h, pos})) {
-      cout<<"Been here"<<endl;
-      goto done;
-    }
-    g_beenthere.insert({h,pos});
-    
-    h = hash(snippet.c_str() + pos, 50, 0);
-    cout<<"Looking for hash '"<<h<<"':\n";
-    HashedPos fnd({h, 0});
+  void getLiveLeaves(vector<Hypothesis*>& ret);
+  int depth(int d=0) const;
+  int print(int d=0) const;
+  int longest(int d=0) const;
+};
 
-    vector<FastQRead> options;
-    
-    for(auto& hpos : fhpos) {
-      auto range = equal_range(hpos.second->begin(), hpos.second->end(), fnd);
-      for(;range.first != range.second; ++range.first) {
-	FastQRead fqr;
-	cout<<"\tFound potential hit at offset "<<range.first->position<<"!"<<endl;
-	hpos.first->seek(range.first->position);
-	hpos.first->getRead(&fqr);
-	if(fqr.d_nucleotides.substr(0,50) != snippet.substr(pos, 50)) {
-	  fqr.reverse();
-      
-	  if(fqr.d_nucleotides.substr(0,50) != snippet.substr(pos, 50)) {
-	    cout<<"\thash lied\n";
-	    continue;
-	  }
-	}
-       
-	string belief(snippet.substr(pos+50));
-	string measure(fqr.d_nucleotides.substr(50, snippet.length()-pos-50));
-	auto diff = dnaDiff(belief, measure);
+int Hypothesis::depth(int d) const
+{
+  set<int> depths;
+  d++;
+  depths.insert(d);
+  for(const auto& child : d_children) 
+    depths.insert(child.second->depth(d));
+  return *depths.rbegin();
+}
+
+int Hypothesis::print(int offset) const
+{
+  cout<<string(offset, ' ')<<d_nucs<<endl;
+  for(const auto& child : d_children) 
+    child.second->print(offset+child.first);
+  return 0;
+}
+
+int Hypothesis::longest(int offset) const
+{
+  int maxret=offset;
+  for(const auto& child : d_children) {
+    maxret = max(child.second->longest(offset+child.first), maxret);
+  }
+  return maxret;
+}
+
+void Hypothesis::getLiveLeaves(vector<Hypothesis*>& ret)
+{
+  if(d_trypos != d_nucs.length())
+    ret.push_back(this);
+  for(auto& child : d_children)
+    child.second->getLiveLeaves(ret);
+}
+
+vector<string> getConsensusMatches(const std::string& consensus, map<FASTQReader*, unique_ptr<vector<HashedPos> > >& fhpos)
+{
+  vector<string> ret;
+  uint32_t h = hash(consensus.c_str(), consensus.length(), 0);
+  //  cout<<"Looking for "<<consensus<<endl;
+  HashedPos fnd({h, 0});
+  
+  vector<FastQRead> options;
+  
+  for(auto& hpos : fhpos) {
+    auto range = equal_range(hpos.second->begin(), hpos.second->end(), fnd);
+    for(;range.first != range.second; ++range.first) {
+      FastQRead fqr;
+      //cout<<"\tFound potential hit at offset "<<range.first->position<<"!"<<endl;
+      hpos.first->seek(range.first->position);
+      hpos.first->getRead(&fqr);
+      if(fqr.d_nucleotides.substr(0,g_chunklen) != consensus) {
+	fqr.reverse();
 	
-	if(diff < 4) {
-	  options.push_back(fqr);  
-	}	
+	if(fqr.d_nucleotides.substr(0,g_chunklen) != consensus) {
+	  cout<<"\thash lied\n";
+	  continue;
+	}
       }
-    }
-
-    set<string> tot;
-    cout<<"Have "<<options.size()<<" options at this point"<<endl;
-    for(auto& option: options) {
-      if(tot.count(option.d_nucleotides)) {
-	cout<<" duplicate"<<endl;
-	continue;
-      }
-      tot.insert(option.d_nucleotides);
-      auto additlen = pos + option.d_nucleotides.length() - snippet.length();
-      cout<<string(pos, ' ')<<option.d_nucleotides<< " ("<<additlen<<", "<<option.reversed<<")"<<endl;
-      //      string newbit = option.d_nucleotides.substr(option.d_nucleotides.length() - additlen);
-      //cout<<snippet+newbit<<endl;
-     
-      string newsnippet=snippet.substr(0, pos) + option.d_nucleotides;
-      cout<<newsnippet<<endl;
-      if(startProcessing(newsnippet, pos+1, endseed, fhpos, depth+1)) {
-	reallyDone=true;
-	goto done;
-      }
+      ret.push_back(fqr.d_nucleotides);
     }
   }
- done:;
-  if(snippet.length() > g_record) {
-    cout<<"Final: "<<snippet.length()<<" "<<snippet<<endl;
-    g_record = snippet.length();
-    g_bestcontig = snippet;
-    cerr<<g_record<<endl;
-  }
-  return reallyDone;
+  return ret;
 }
 
 // stitcher fasta startpos fastq fastq
@@ -205,17 +196,42 @@ int main(int argc, char**argv)
   cout << "Endseed: "<<endseed<<endl;
   cout << "Reference: "<<rg.snippet(startpos, endpos+100) << endl;
 
-  startProcessing(startseed, 0, endseed, fhpos);
+  Hypothesis hypo(startseed);
+  for(unsigned int n=0;;++n) {
+    vector<Hypothesis*> leaves;
+    hypo.getLiveLeaves(leaves);
+    if(leaves.empty())
+      break;
+    for(auto leaf : leaves) {
+      if(leaf->d_trypos + g_chunklen > leaf->d_nucs.length()) {
+	leaf->d_trypos = leaf->d_nucs.length();
+	continue;
+      }
+      string consensus(leaf->d_nucs.substr(leaf->d_trypos, g_chunklen));
+
+      auto matches = getConsensusMatches(consensus, fhpos);
+      for(auto& match : matches) {
+	int diff = dnaDiff(leaf->d_nucs.substr(leaf->d_trypos), match);
+	if(diff < 5)
+	  leaf->d_children.push_back({leaf->d_trypos, new Hypothesis(match)});	  
+      }
+      leaf->d_trypos++;
+    }
+
+    cout<<"Have "<<leaves.size()<<" leaves, "<<hypo.depth()<<" deep"<<endl;
+    cout<<"Longest: "<<hypo.longest()<<endl;
+  }
+  
 
   cout<<"Candidates: "<<endl;
   for(auto& candidate : g_candidates) {
     cout<<candidate<<endl;
   }
-  rg.index(50);
+  rg.index(g_chunklen);
   
   ofstream graph("synten");
-  for(auto iter = g_bestcontig.begin(); iter + 50 < g_bestcontig.end(); ++iter) {
-    string stretch(iter, iter+50);
+  for(auto iter = g_bestcontig.begin(); iter + g_chunklen < g_bestcontig.end(); ++iter) {
+    string stretch(iter, iter+g_chunklen);
     for(int n=0; n < 2; ++n) {
       auto positions = rg.getReadPositions(stretch);
       for(auto pos : positions) {
@@ -247,4 +263,173 @@ int main(int argc, char**argv)
     cerr<<"genome size: "<<genome.size()<<endl;
     cerr<<"New snippet: "<<snippet<<endl;
   }
+#endif
+
+#if 0
+struct Hyposition
+{
+  Hyposition() : aCount(0), cCount(0), gCount(0), tCount(0)
+  {}
+  int aCount, cCount, gCount, tCount;
+};
+
+struct Hypothesis
+{
+  void mapString(const std::string& str, dnapos_t position);
+  string getConsensus(dnapos_t position, dnapos_t length);
+  string getConsensus() 
+  {
+    return getConsensus(0, d_hypo.size());
+  }
+  void getEnsemble(dnapos_t position, dnapos_t length, vector<string>* ensemble, string sofar="");
+  int diff(dnapos_t position, const std::string& sug);
+  vector<Hyposition> d_hypo;
+  size_t size()
+  {
+    return d_hypo.size();
+  }
+};
+
+void Hypothesis::mapString(const std::string& str, dnapos_t position)
+{
+  if(d_hypo.size() < position+str.length())
+    d_hypo.resize(position+str.length());
+  for(string::size_type i = 0; i < str.length(); ++position, ++i) {
+    Hyposition& hyp = d_hypo[position];
+    acgtDo(str[i],
+	       [&]() { hyp.aCount++; }, 
+	       [&]() { hyp.cCount++; }, 
+	       [&]() { hyp.gCount++; }, 
+	       [&]() { hyp.tCount++; });
+
+  }
+}
+
+string Hypothesis::getConsensus(dnapos_t position, dnapos_t length)
+{
+  string ret;
+  dnapos_t endpos = position+length;
+  for(; position  < endpos; ++position) {
+    Hyposition& hyp = d_hypo[position];
+    vector<pair<int, char>> counts{{hyp.aCount, 'A'}, 
+	{hyp.cCount, 'C'}, 
+	  {hyp.gCount, 'G'}, 
+	    {hyp.tCount, 'T'} };
+  
+    sort(counts.begin(), counts.end());
+    ret.append(1, counts.rbegin()->second);
+    for(auto c: counts)
+      cout<< c.second<<": "<<c.first<< " ";
+    cout<<endl;
+  }  
+  return ret;
+}
+
+void Hypothesis::getEnsemble(dnapos_t position, dnapos_t length, vector<string>* ensemble, string sofar)
+{
+  if(ensemble->size() > 5000000)
+    return;
+  //  cout<<"Position is position "<<position<<" length is "<<length<<endl;
+  string ret;
+  dnapos_t endpos = position+length;
+  for(; position  < endpos; ++position) {
+    Hyposition& hyp = d_hypo[position];
+    if(hyp.aCount && !hyp.cCount && !hyp.gCount && !hyp.tCount)
+      sofar+="A";
+    else
+    if(!hyp.aCount && hyp.cCount && !hyp.gCount && !hyp.tCount)
+      sofar+="C";
+    else
+    if(!hyp.aCount && !hyp.cCount && hyp.gCount && !hyp.tCount)
+      sofar+="G";
+    else
+    if(!hyp.aCount && !hyp.cCount && !hyp.gCount && hyp.tCount)
+      sofar+="T";
+    else {
+      if(hyp.aCount) {
+	getEnsemble(position+1, endpos - position - 1, ensemble, sofar+"A");
+      }
+      if(hyp.cCount) {
+	getEnsemble(position+1, endpos - position - 1, ensemble, sofar+"C");
+      }
+      if(hyp.gCount) {
+	getEnsemble(position+1, endpos - position - 1, ensemble, sofar+"G");
+      }
+      if(hyp.tCount) {
+	getEnsemble(position+1, endpos - position - 1, ensemble, sofar+"T");
+      }
+      return;
+    }    
+  }
+  ensemble->push_back(sofar);
+
+}
+
+int Hypothesis::diff(dnapos_t position, const std::string& sug)
+{
+  dnapos_t endpos = position + sug.length();
+  if(endpos > d_hypo.size())
+    endpos = d_hypo.size();
+
+  int diff=0;
+  for(string::size_type sugpos=0; sugpos < sug.length() && position < endpos ; ++position, ++sugpos) {
+    Hyposition& hyp = d_hypo[position];
+    vector<pair<int, char>> counts{{hyp.aCount, 'A'}, 
+	{hyp.cCount, 'C'}, 
+	  {hyp.gCount, 'G'}, 
+	    {hyp.tCount, 'T'} };
+  
+    sort(counts.begin(), counts.end());
+    if(sug[sugpos] != counts[3].second && !(counts[2].first && sug[sugpos] == counts[2].second))
+      diff++;
+  }
+  return diff;
+}
+#endif
+
+#if 0
+bool startProcessing(Hypothesis& hypo, dnapos_t pos, const std::string& endseed, const map<FASTQReader*, unique_ptr<vector<HashedPos> > > & fhpos, int depth=0)
+{
+  bool reallyDone=false;
+  for( ; pos < hypo.size()-g_chunklen; ++pos) {
+    vector<string> ensemble;
+    
+    hypo.getEnsemble(pos, g_chunklen, &ensemble);
+    cout<<"Got "<<ensemble.size()<<" ensemble options"<<endl;
+    for(auto& consensus : ensemble) {
+      uint32_t h = hash(consensus.c_str(), consensus.length(), 0);
+      cout<<"At position "<<pos<<", looking for "<<consensus<<endl;
+      HashedPos fnd({h, 0});
+      
+      vector<FastQRead> options;
+      
+      for(auto& hpos : fhpos) {
+	auto range = equal_range(hpos.second->begin(), hpos.second->end(), fnd);
+	for(;range.first != range.second; ++range.first) {
+	  FastQRead fqr;
+	  cout<<"\tFound potential hit at offset "<<range.first->position<<"!"<<endl;
+	  hpos.first->seek(range.first->position);
+	  hpos.first->getRead(&fqr);
+	  if(fqr.d_nucleotides.substr(0,g_chunklen) != consensus) {
+	    fqr.reverse();
+	    
+	    if(fqr.d_nucleotides.substr(0,g_chunklen) != consensus) {
+	      cout<<"\thash lied\n";
+	      continue;
+	    }
+	  }
+	  int diff = hypo.diff(pos, fqr.d_nucleotides);
+	  if(diff < 15) {
+	    cout<<"Mapping @ "<<pos<<", diff = "<<diff<<endl;
+	    hypo.mapString(fqr.d_nucleotides, pos);
+	  }
+	  else
+	    cout<<"Not mapping, diff = "<<diff<<endl;
+	  
+	}
+      }
+    }
+  }
+  return reallyDone;
+}
 #endif
