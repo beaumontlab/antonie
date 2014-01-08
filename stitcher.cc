@@ -26,9 +26,21 @@ struct HashedPos
   }
 };
 
-unique_ptr<vector<HashedPos> > indexFASTQ(FASTQReader* fqreader)
+unique_ptr<vector<HashedPos> > indexFASTQ(FASTQReader* fqreader, const std::string& fname)
 {
   unique_ptr<vector<HashedPos> > hpos(new vector<HashedPos>());
+  FILE* fp=fopen((fname+".index").c_str(), "r");
+  if(fp) {
+    HashedPos hpo;
+    while(fread(&hpo.hash, 1, sizeof(hpo.hash), fp) == sizeof(hpo.hash) &&  
+	  fread(&hpo.position, 1, sizeof(hpo.position), fp) == sizeof(hpo.position))
+      hpos->push_back(hpo);
+    if(!feof(fp)) 
+      throw runtime_error("Index corrupt");
+    fclose(fp);
+    return hpos;
+  }
+
   FastQRead fqr;
   while(fqreader->getRead(&fqr)) {
     uint32_t h = hash(fqr.d_nucleotides.c_str(), 50, 0);
@@ -38,6 +50,14 @@ unique_ptr<vector<HashedPos> > indexFASTQ(FASTQReader* fqreader)
     hpos->push_back({h, fqr.position});
   }
   std::sort(hpos->begin(), hpos->end());
+
+  fp=fopen((fname+".index").c_str(), "w");
+  for(const auto& hpo : *hpos) {
+    fwrite(&hpo.hash, 1, sizeof(hpo.hash), fp);
+    fwrite(&hpo.position, 1, sizeof(hpo.position), fp);
+  }
+  fclose(fp);
+
   return hpos;
 }
 int g_maxdepth;
@@ -75,6 +95,7 @@ bool startProcessing(string snippet, dnapos_t pos, const std::string& endseed, c
 {
   if(!depth)
     g_bestcontig.clear();
+  bool reallyDone=false;
   if(!(g_maxdepth < depth)) {
   //    cerr<<"New depth: "<<depth<<endl;
     g_maxdepth = depth;
@@ -89,7 +110,7 @@ bool startProcessing(string snippet, dnapos_t pos, const std::string& endseed, c
     return false;
   }
 
-  if(snippet.length() > 40000 ) 
+  if(snippet.length() > 3000 ) 
     return true;
   
   for( ; pos < snippet.length()-50; ++pos) {
@@ -147,8 +168,10 @@ bool startProcessing(string snippet, dnapos_t pos, const std::string& endseed, c
      
       string newsnippet=snippet.substr(0, pos) + option.d_nucleotides;
       cout<<newsnippet<<endl;
-      if(startProcessing(newsnippet, pos+1, endseed, fhpos, depth+1))
+      if(startProcessing(newsnippet, pos+1, endseed, fhpos, depth+1)) {
+	reallyDone=true;
 	goto done;
+      }
     }
   }
  done:;
@@ -158,7 +181,7 @@ bool startProcessing(string snippet, dnapos_t pos, const std::string& endseed, c
     g_bestcontig = snippet;
     cerr<<g_record<<endl;
   }
-  return false;
+  return reallyDone;
 }
 
 // stitcher fasta startpos fastq fastq
@@ -170,11 +193,11 @@ int main(int argc, char**argv)
   map<FASTQReader*, unique_ptr<vector<HashedPos> > > fhpos;
 
   FASTQReader* fqreader;
-  vector<pair<FASTQReader*, decltype(std::async(std::launch::async, indexFASTQ, fqreader))> > futures;
+  vector<pair<FASTQReader*, decltype(std::async(std::launch::async, indexFASTQ, fqreader, ""))> > futures;
   for(int f = 4; f < argc; ++f) {
     fqreader = new FASTQReader(argv[f], 33, 10);
     cerr<<"Reading "<<argv[f]<<"\n";
-    futures.emplace_back(make_pair(fqreader, std::async(std::launch::async, indexFASTQ, fqreader)));
+    futures.emplace_back(make_pair(fqreader, std::async(std::launch::async, indexFASTQ, fqreader, argv[f])));
   }
   for(auto& fut : futures) {
     auto res = fut.second.get();
@@ -195,7 +218,27 @@ int main(int argc, char**argv)
   for(auto& candidate : g_candidates) {
     cout<<candidate<<endl;
   }
+  rg.index(50);
+  
+  ofstream graph("synten");
+  for(auto iter = g_bestcontig.begin(); iter + 50 < g_bestcontig.end(); ++iter) {
+    string stretch(iter, iter+50);
+    for(int n=0; n < 2; ++n) {
+      auto positions = rg.getReadPositions(stretch);
+      for(auto pos : positions) {
+	graph << (startpos + (iter - g_bestcontig.begin())) << '\t';
+	if(!n)
+	  graph<< "NaN\t"<<pos << '\n';
+	else
+	  graph << pos << "\tNaN\n";
+      }
+      
+      reverseNucleotides(&stretch);
+    }
+  }
 }
+
+
 
 #if 0
   while(genome.length() < rg.size()) {
