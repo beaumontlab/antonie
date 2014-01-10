@@ -48,7 +48,7 @@ install: antonie
 	mkdir -p $(DESTDIR)/usr/bin/
 	mkdir -p $(DESTDIR)/usr/share/doc/antonie/
 	mkdir -p $(DESTDIR)/usr/share/doc/antonie/ext
-	cp antonie $(DESTDIR)/usr/bin/
+	cp $(PROGRAMS) $(DESTDIR)/usr/bin/
 	cp report.html $(DESTDIR)/usr/share/doc/antonie
 	cp -r ext/html $(DESTDIR)/usr/share/doc/antonie/ext
 
