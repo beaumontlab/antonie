@@ -1,12 +1,12 @@
 -include sysdeps/$(shell uname).inc
 
 VERSION=0.1
-CXXFLAGS=-Wall -ggdb -I. -Iext/libmba -pthread -MMD -MP  $(CXX2011FLAGS) # -Wno-unused-local-typedefs 
+CXXFLAGS=-Wall -O3 -I. -Iext/libmba -pthread -MMD -MP  $(CXX2011FLAGS) # -Wno-unused-local-typedefs 
 CFLAGS=-Wall -I. -Iext/libmba -O3 -MMD -MP
 LDFLAGS=$(CXX2011FLAGS)  
 CHEAT_ARG := $(shell ./update-git-hash-if-necessary)
 
-PROGRAMS=antonie 16ssearcher digisplice stitcher
+PROGRAMS=antonie 16ssearcher digisplice stitcher fqgrep pfqgrep
 
 all: $(PROGRAMS)
 
@@ -33,6 +33,15 @@ digisplice: digisplice.o refgenome.o misc.o fastq.o hash.o zstuff.o dnamisc.o ge
 
 stitcher: stitcher.o refgenome.o misc.o fastq.o hash.o zstuff.o dnamisc.o geneannotated.o
 	$(CXX) $(LDFLAGS) $^ -lz -pthread -o $@
+
+invert: invert.o misc.o
+	$(CXX) $(LDFLAGS) $^ -o $@
+
+fqgrep: fqgrep.o misc.o fastq.o dnamisc.o zstuff.o
+	$(CXX) $(LDFLAGS) $^ -lz -o $@
+
+pfqgrep: pfqgrep.o misc.o fastq.o dnamisc.o zstuff.o
+	$(CXX) $(LDFLAGS) $^ -lz -o $@
 
 
 install: antonie
