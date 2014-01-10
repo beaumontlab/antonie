@@ -60,7 +60,8 @@ private:
 };
 
 typedef std::function<void(void)> acgt_t;
-inline void acgtDo(char c, acgt_t aDo, acgt_t cDo, acgt_t gDo, acgt_t tDo)
+inline void acgtDo(char c, const acgt_t& aDo, 
+		   const acgt_t& cDo, const acgt_t& gDo, const acgt_t& tDo)
 {
   switch(c) {
   case 'A':
@@ -77,6 +78,7 @@ inline void acgtDo(char c, acgt_t aDo, acgt_t cDo, acgt_t gDo, acgt_t tDo)
     break;
   }
 }
+
 
 typedef std::function<void(void)> acgt_t;
 inline void acgtxDo(char c, acgt_t aDo, acgt_t cDo, acgt_t gDo, acgt_t tDo, acgt_t xDo)

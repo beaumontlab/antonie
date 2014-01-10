@@ -96,18 +96,57 @@ int dnaDiff(const std::string& a, const std::string& b)
 
 struct Hypothesis
 {
-  Hypothesis(const std::string& str) : d_nucs(str), d_trypos(30)
+  Hypothesis(const std::string& str, Hypothesis* parent=0) : d_nucs(str), d_trypos(20), d_parent(parent)
   {}
   string d_nucs; 
   unsigned int d_trypos;
 
   vector<pair<int, Hypothesis*> > d_children;
+  Hypothesis* d_parent;
   
+  bool isDead()
+  {
+    return d_trypos+g_chunklen >= d_nucs.length();
+  }
   void getLiveLeaves(vector<Hypothesis*>& ret);
+  string tracePrint();
+  pair<int, Hypothesis*> getLongestLiveLeave(dnapos_t len=0);
   int depth(int d=0) const;
   int print(int d=0) const;
   int longest(int d=0) const;
 };
+
+
+string Hypothesis::tracePrint()
+{
+  int ourpos=-1;
+  auto parent = d_parent;
+  string ret = d_nucs;
+  vector<pair<int, Hypothesis*> > chain;
+  Hypothesis* us = this; 
+  while(parent) {
+    for(const auto& child : parent->d_children) {
+      if(child.second == us) {
+	ourpos = child.first;
+        chain.push_back({ourpos, parent});
+	break;
+      }
+    }
+    ret = parent->d_nucs.substr(0, ourpos) + " " + ret;
+    us = parent;
+    parent = parent->d_parent; 
+  }
+  /*
+  reverse(chain.begin(), chain.end());
+  int offset=0;
+  for(auto& e : chain) {
+    cout<<string(offset, ' ')<<e.second->d_nucs<<endl;
+    offset+=e.first;
+  }
+  */
+  return ret;
+
+} 
 
 int Hypothesis::depth(int d) const
 {
@@ -118,6 +157,19 @@ int Hypothesis::depth(int d) const
     depths.insert(child.second->depth(d));
   return *depths.rbegin();
 }
+
+pair<int, Hypothesis*> Hypothesis::getLongestLiveLeave(dnapos_t len) 
+{
+  set<pair<int, Hypothesis*> > depths;
+  depths.insert({len, this});
+  for(const auto& child : d_children) 
+    depths.insert(child.second->getLongestLiveLeave(len + child.first));
+  for(auto iter = depths.rbegin(); iter != depths.rend(); ++iter) 
+    if(iter->second && !iter->second->isDead())
+      return *iter;
+  return {0,nullptr};
+}
+
 
 int Hypothesis::print(int offset) const
 {
@@ -198,31 +250,38 @@ int main(int argc, char**argv)
 
   Hypothesis hypo(startseed);
   for(unsigned int n=0;;++n) {
-    vector<Hypothesis*> leaves;
-    hypo.getLiveLeaves(leaves);
-    if(leaves.empty())
+    auto longest=hypo.getLongestLiveLeave();
+    
+    Hypothesis* leaf = longest.second;
+    if(!leaf)
       break;
-    for(auto leaf : leaves) {
-      if(leaf->d_trypos + g_chunklen > leaf->d_nucs.length()) {
-	leaf->d_trypos = leaf->d_nucs.length();
-	continue;
-      }
-      string consensus(leaf->d_nucs.substr(leaf->d_trypos, g_chunklen));
+    
+    if(!(n%100))
+      cout<<"Interim: "<<leaf->tracePrint()<<endl;
+    
+    string consensus(leaf->d_nucs.substr(leaf->d_trypos, g_chunklen));
 
-      auto matches = getConsensusMatches(consensus, fhpos);
-      for(auto& match : matches) {
-	int diff = dnaDiff(leaf->d_nucs.substr(leaf->d_trypos), match);
-	if(diff < 5)
-	  leaf->d_children.push_back({leaf->d_trypos, new Hypothesis(match)});	  
+    auto matches = getConsensusMatches(consensus, fhpos);
+    for(auto& match : matches) {
+      int diff = dnaDiff(leaf->d_nucs.substr(leaf->d_trypos), match);
+      if(diff < 5) {
+	auto newChild = new Hypothesis(match, leaf);
+	leaf->d_children.push_back({leaf->d_trypos, newChild});	  
+	if(match.find(endseed) != string::npos) {
+	  cout<<"Got hit: "<<endl;
+	  cout<<newChild->tracePrint()<<endl;
+	  leaf->d_trypos=leaf->d_nucs.length();
+	  newChild->d_trypos=newChild->d_nucs.length();
+	}
       }
-      leaf->d_trypos++;
     }
-
-    cout<<"Have "<<leaves.size()<<" leaves, "<<hypo.depth()<<" deep"<<endl;
+    leaf->d_trypos++;
+    
     cout<<"Longest: "<<hypo.longest()<<endl;
+    //    if(!(n%100))
+    //  hypo.print();
   }
   
-
   cout<<"Candidates: "<<endl;
   for(auto& candidate : g_candidates) {
     cout<<candidate<<endl;
