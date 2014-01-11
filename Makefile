@@ -1,12 +1,12 @@
 -include sysdeps/$(shell uname).inc
 
 VERSION=0.1
-CXXFLAGS=-Wall -I. -Iext/libmba -MMD -MP -O3 $(CXX2011FLAGS) # -Wno-unused-local-typedefs 
+CXXFLAGS=-Wall -O3 -I. -Iext/libmba -pthread -MMD -MP  $(CXX2011FLAGS) # -Wno-unused-local-typedefs 
 CFLAGS=-Wall -I. -Iext/libmba -O3 -MMD -MP
 LDFLAGS=$(CXX2011FLAGS)  
 CHEAT_ARG := $(shell ./update-git-hash-if-necessary)
 
-PROGRAMS=antonie 16ssearcher digisplice
+PROGRAMS=antonie 16ssearcher digisplice stitcher fqgrep pfqgrep
 
 all: $(PROGRAMS)
 
@@ -31,11 +31,24 @@ SEARCHER_OBJECTS=16ssearcher.o hash.o misc.o fastq.o zstuff.o githash.o
 digisplice: digisplice.o refgenome.o misc.o fastq.o hash.o zstuff.o dnamisc.o geneannotated.o
 	$(CXX) $(LDFLAGS) $^ -lz -o $@
 
+stitcher: stitcher.o refgenome.o misc.o fastq.o hash.o zstuff.o dnamisc.o geneannotated.o
+	$(CXX) $(LDFLAGS) $^ -lz -pthread -o $@
+
+invert: invert.o misc.o
+	$(CXX) $(LDFLAGS) $^ -o $@
+
+fqgrep: fqgrep.o misc.o fastq.o dnamisc.o zstuff.o
+	$(CXX) $(LDFLAGS) $^ -lz -o $@
+
+pfqgrep: pfqgrep.o misc.o fastq.o dnamisc.o zstuff.o
+	$(CXX) $(LDFLAGS) $^ -lz -o $@
+
+
 install: antonie
 	mkdir -p $(DESTDIR)/usr/bin/
 	mkdir -p $(DESTDIR)/usr/share/doc/antonie/
 	mkdir -p $(DESTDIR)/usr/share/doc/antonie/ext
-	cp antonie $(DESTDIR)/usr/bin/
+	cp $(PROGRAMS) $(DESTDIR)/usr/bin/
 	cp report.html $(DESTDIR)/usr/share/doc/antonie
 	cp -r ext/html $(DESTDIR)/usr/share/doc/antonie/ext
 

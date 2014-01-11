@@ -156,12 +156,24 @@ unique_ptr<ReferenceGenome> ReferenceGenome::makeFromString(const std::string& g
 void ReferenceGenome::initGenome()
 {
   d_aCount = d_cCount = d_gCount = d_tCount = 0;
-  for(auto c : d_genome) {
-    acgtDo(c, [&](){ ++d_aCount; }, [&](){ ++d_cCount; }, [&](){ ++d_gCount; }, [&](){ ++d_tCount; });
+  for(const auto& c : d_genome) {
+    switch(c) {
+    case 'A':
+      ++d_aCount;
+      break;
+    case 'C':
+      ++d_cCount;
+      break;
+    case 'G':
+      ++d_gCount;
+      break;
+    case 'T':
+      ++d_tCount;
+      break;
+    }
   }
 
   d_mapping.resize(d_genome.size());
-
 }
 
 // returns as if we sampled once per index length, an array of index length bins
