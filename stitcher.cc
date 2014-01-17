@@ -25,7 +25,7 @@ struct HashedPos
   }
 };
 
-int g_chunklen=30;
+int g_chunklen=35;
 
 unique_ptr<vector<HashedPos> > indexFASTQ(FASTQReader* fqreader, const std::string& fname)
 {
@@ -94,111 +94,9 @@ int dnaDiff(const std::string& a, const std::string& b)
   return diff;
 }
 
-struct Hypothesis
+vector<FastQRead> getConsensusMatches(const std::string& consensus, map<FASTQReader*, unique_ptr<vector<HashedPos> > >& fhpos)
 {
-  Hypothesis(const std::string& str, Hypothesis* parent=0) : d_nucs(str), d_trypos(20), d_parent(parent)
-  {}
-  string d_nucs; 
-  unsigned int d_trypos;
-
-  vector<pair<int, Hypothesis*> > d_children;
-  Hypothesis* d_parent;
-  
-  bool isDead()
-  {
-    return d_trypos+g_chunklen >= d_nucs.length();
-  }
-  void getLiveLeaves(vector<Hypothesis*>& ret);
-  string tracePrint();
-  pair<int, Hypothesis*> getLongestLiveLeave(dnapos_t len=0);
-  int depth(int d=0) const;
-  int print(int d=0) const;
-  int longest(int d=0) const;
-};
-
-
-string Hypothesis::tracePrint()
-{
-  int ourpos=-1;
-  auto parent = d_parent;
-  string ret = d_nucs;
-  vector<pair<int, Hypothesis*> > chain;
-  Hypothesis* us = this; 
-  while(parent) {
-    for(const auto& child : parent->d_children) {
-      if(child.second == us) {
-	ourpos = child.first;
-        chain.push_back({ourpos, parent});
-	break;
-      }
-    }
-    ret = parent->d_nucs.substr(0, ourpos) + " " + ret;
-    us = parent;
-    parent = parent->d_parent; 
-  }
-  /*
-  reverse(chain.begin(), chain.end());
-  int offset=0;
-  for(auto& e : chain) {
-    cout<<string(offset, ' ')<<e.second->d_nucs<<endl;
-    offset+=e.first;
-  }
-  */
-  return ret;
-
-} 
-
-int Hypothesis::depth(int d) const
-{
-  set<int> depths;
-  d++;
-  depths.insert(d);
-  for(const auto& child : d_children) 
-    depths.insert(child.second->depth(d));
-  return *depths.rbegin();
-}
-
-pair<int, Hypothesis*> Hypothesis::getLongestLiveLeave(dnapos_t len) 
-{
-  set<pair<int, Hypothesis*> > depths;
-  depths.insert({len, this});
-  for(const auto& child : d_children) 
-    depths.insert(child.second->getLongestLiveLeave(len + child.first));
-  for(auto iter = depths.rbegin(); iter != depths.rend(); ++iter) 
-    if(iter->second && !iter->second->isDead())
-      return *iter;
-  return {0,nullptr};
-}
-
-
-int Hypothesis::print(int offset) const
-{
-  cout<<string(offset, ' ')<<d_nucs<<endl;
-  for(const auto& child : d_children) 
-    child.second->print(offset+child.first);
-  return 0;
-}
-
-int Hypothesis::longest(int offset) const
-{
-  int maxret=offset;
-  for(const auto& child : d_children) {
-    maxret = max(child.second->longest(offset+child.first), maxret);
-  }
-  return maxret;
-}
-
-void Hypothesis::getLiveLeaves(vector<Hypothesis*>& ret)
-{
-  if(d_trypos != d_nucs.length())
-    ret.push_back(this);
-  for(auto& child : d_children)
-    child.second->getLiveLeaves(ret);
-}
-
-vector<string> getConsensusMatches(const std::string& consensus, map<FASTQReader*, unique_ptr<vector<HashedPos> > >& fhpos)
-{
-  vector<string> ret;
+  vector<FastQRead> ret;
   uint32_t h = hash(consensus.c_str(), consensus.length(), 0);
   //  cout<<"Looking for "<<consensus<<endl;
   HashedPos fnd({h, 0});
@@ -220,11 +118,49 @@ vector<string> getConsensusMatches(const std::string& consensus, map<FASTQReader
 	  continue;
 	}
       }
-      ret.push_back(fqr.d_nucleotides);
+      ret.push_back(fqr);
     }
   }
   return ret;
 }
+
+struct Base
+{
+  Base() : aCount(0), cCount(0), gCount(0), tCount(0){};
+  int aCount, cCount, gCount, tCount;
+  char getBest()
+  {
+    if(!aCount && !cCount && !gCount && !tCount)
+      return 'N';
+    vector<pair<int, int*> > scores{
+      {aCount, &aCount},
+	{cCount, &cCount},
+	  {gCount, &gCount},
+	    {tCount, &tCount}};
+    sort(scores.begin(), scores.end());
+    auto& best = scores[3].second;
+    if(best == &aCount)
+      return 'A';
+    else if(best == &cCount)
+      return 'C';
+    else if(best == &gCount)
+      return 'G';
+    else 
+      return 'T';
+  }
+  void feed(char c, int amount=1)
+  {
+    if(c=='A')
+      aCount+=amount;
+    else if(c=='C')
+      cCount+=amount;
+    else if(c=='G')
+      gCount+=amount;
+    else if(c=='T')
+      tCount+=amount;
+  }
+};
+
 
 // stitcher fasta startpos fastq fastq
 int main(int argc, char**argv)
@@ -237,7 +173,7 @@ int main(int argc, char**argv)
   FASTQReader* fqreader;
 
   for(int f = 4; f < argc; ++f) {
-    fqreader = new FASTQReader(argv[f], 33, 10);
+    fqreader = new FASTQReader(argv[f], 33, 0);
     fhpos[fqreader]=indexFASTQ(fqreader, argv[f]);
   }
   string genome;
@@ -246,42 +182,52 @@ int main(int argc, char**argv)
 
   cout << "Startseed: "<<startseed<<endl;
   cout << "Endseed: "<<endseed<<endl;
-  cout << "Reference: "<<rg.snippet(startpos, endpos+100) << endl;
+  cout << "Reference: \n"<<rg.snippet(startpos, endpos+100) << endl;
 
-  Hypothesis hypo(startseed);
-  for(unsigned int n=0;;++n) {
-    auto longest=hypo.getLongestLiveLeave();
-    
-    Hypothesis* leaf = longest.second;
-    if(!leaf)
-      break;
-    
-    if(!(n%100))
-      cout<<"Interim: "<<leaf->tracePrint()<<endl;
-    
-    string consensus(leaf->d_nucs.substr(leaf->d_trypos, g_chunklen));
-
-    auto matches = getConsensusMatches(consensus, fhpos);
-    for(auto& match : matches) {
-      int diff = dnaDiff(leaf->d_nucs.substr(leaf->d_trypos), match);
-      if(diff < 5) {
-	auto newChild = new Hypothesis(match, leaf);
-	leaf->d_children.push_back({leaf->d_trypos, newChild});	  
-	if(match.find(endseed) != string::npos) {
-	  cout<<"Got hit: "<<endl;
-	  cout<<newChild->tracePrint()<<endl;
-	  leaf->d_trypos=leaf->d_nucs.length();
-	  newChild->d_trypos=newChild->d_nucs.length();
+  cout << startseed<<endl;
+  int offset=0;
+  string totconsensus;
+  for(;;) {
+    vector<pair<string,string> > story;
+    story.push_back(make_pair(startseed, string(startseed.size(), (char)40)));
+    for(unsigned int n=0; n < startseed.size() - g_chunklen;++n) {
+      string part=startseed.substr(n, g_chunklen);
+      auto matches = getConsensusMatches(part, fhpos);
+      for(auto& match : matches) {
+	int diff = dnaDiff(startseed.substr(n), match.d_nucleotides);
+	if(diff < 5) {
+	  cout << string(offset,'-')<<string(n, ' ') << match.d_nucleotides<<endl;
+	  story.push_back({string(n, ' ')+match.d_nucleotides,
+		string(n, ' ')+match.d_quality});
 	}
       }
     }
-    leaf->d_trypos++;
-    
-    cout<<"Longest: "<<hypo.longest()<<endl;
-    //    if(!(n%100))
-    //  hypo.print();
+    vector<Base> consensus;
+    consensus.resize(startseed.size()*1.5);
+    for(unsigned int n = 0 ; n < consensus.size(); ++n) {
+      for(const auto& candidate : story) {
+	if(n < candidate.first.size())
+	  consensus[n].feed(candidate.first[n], candidate.second[n]);
+      }
+    }
+    string newconsensus;
+    cout<<totconsensus;
+    for(unsigned int n = 0 ; n < consensus.size();++n) {
+      cout<<consensus[n].getBest();
+      newconsensus.append(1, consensus[n].getBest());
+    }
+    cout<<endl;
+    startseed=newconsensus.substr(startseed.length()/2, startseed.length());
+    totconsensus+=startseed.substr(0, 50);
+    offset+=50;
+    cout<<"--"<<endl;
   }
+
   
+}
+
+
+#if 0
   cout<<"Candidates: "<<endl;
   for(auto& candidate : g_candidates) {
     cout<<candidate<<endl;
@@ -304,11 +250,11 @@ int main(int argc, char**argv)
       reverseNucleotides(&stretch);
     }
   }
-}
-
-
+#endif
 
 #if 0
+
+
   while(genome.length() < rg.size()) {
     startProcessing(snippet, 0, endseed, fhpos);
     g_bestcontig = g_bestcontig.substr(0, g_bestcontig.size()-1000);
@@ -491,4 +437,109 @@ bool startProcessing(Hypothesis& hypo, dnapos_t pos, const std::string& endseed,
   }
   return reallyDone;
 }
+#endif
+
+#if 0
+struct Hypothesis
+{
+  Hypothesis(const std::string& str, Hypothesis* parent=0) : d_nucs(str), d_trypos(20), d_parent(parent)
+  {}
+  string d_nucs; 
+  unsigned int d_trypos;
+
+  vector<pair<int, Hypothesis*> > d_children;
+  Hypothesis* d_parent;
+  
+  bool isDead()
+  {
+    return d_trypos+g_chunklen >= d_nucs.length();
+  }
+  void getLiveLeaves(vector<Hypothesis*>& ret);
+  string tracePrint();
+  pair<int, Hypothesis*> getLongestLiveLeave(dnapos_t len=0);
+  int depth(int d=0) const;
+  int print(int d=0) const;
+  int longest(int d=0) const;
+};
+
+
+string Hypothesis::tracePrint()
+{
+  int ourpos=-1;
+  auto parent = d_parent;
+  string ret = d_nucs;
+  vector<pair<int, Hypothesis*> > chain;
+  Hypothesis* us = this; 
+  while(parent) {
+    for(const auto& child : parent->d_children) {
+      if(child.second == us) {
+	ourpos = child.first;
+        chain.push_back({ourpos, parent});
+	break;
+      }
+    }
+    ret = parent->d_nucs.substr(0, ourpos) + " " + ret;
+    us = parent;
+    parent = parent->d_parent; 
+  }
+  /*
+  reverse(chain.begin(), chain.end());
+  int offset=0;
+  for(auto& e : chain) {
+    cout<<string(offset, ' ')<<e.second->d_nucs<<endl;
+    offset+=e.first;
+  }
+  */
+  return ret;
+
+} 
+
+int Hypothesis::depth(int d) const
+{
+  set<int> depths;
+  d++;
+  depths.insert(d);
+  for(const auto& child : d_children) 
+    depths.insert(child.second->depth(d));
+  return *depths.rbegin();
+}
+
+pair<int, Hypothesis*> Hypothesis::getLongestLiveLeave(dnapos_t len) 
+{
+  set<pair<int, Hypothesis*> > depths;
+  depths.insert({len, this});
+  for(const auto& child : d_children) 
+    depths.insert(child.second->getLongestLiveLeave(len + child.first));
+  for(auto iter = depths.rbegin(); iter != depths.rend(); ++iter) 
+    if(iter->second && !iter->second->isDead())
+      return *iter;
+  return {0,nullptr};
+}
+
+
+int Hypothesis::print(int offset) const
+{
+  cout<<string(offset, ' ')<<d_nucs<<endl;
+  for(const auto& child : d_children) 
+    child.second->print(offset+child.first);
+  return 0;
+}
+
+int Hypothesis::longest(int offset) const
+{
+  int maxret=offset;
+  for(const auto& child : d_children) {
+    maxret = max(child.second->longest(offset+child.first), maxret);
+  }
+  return maxret;
+}
+
+void Hypothesis::getLiveLeaves(vector<Hypothesis*>& ret)
+{
+  if(d_trypos != d_nucs.length())
+    ret.push_back(this);
+  for(auto& child : d_children)
+    child.second->getLiveLeaves(ret);
+}
+
 #endif
