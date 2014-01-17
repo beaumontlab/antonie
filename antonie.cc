@@ -134,7 +134,7 @@ void ReferenceGenome::printCoverage(FILE* jsfp, const std::string& histoName)
     else
       cout <<gcsnip.length()<<endl;
 
-    covfile << pos << '\t' << cov << '\t' << ((int)cov)-prevcov << '\t' << gc  <<'\n';
+    covfile << pos << '\t' << cov << '\t' << ((int)cov)-prevcov << '\t' << gc  <<'\t' << getGCContent(snippet(pos > 7 ? pos-7 : 1, pos+8)) << '\n';
     prevcov=cov;
 
     vmeDepth(cov);

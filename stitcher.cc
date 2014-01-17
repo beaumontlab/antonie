@@ -97,6 +97,9 @@ int dnaDiff(const std::string& a, const std::string& b)
 vector<FastQRead> getConsensusMatches(const std::string& consensus, map<FASTQReader*, unique_ptr<vector<HashedPos> > >& fhpos)
 {
   vector<FastQRead> ret;
+  if(consensus.find('N') != string::npos)
+    return ret;
+
   uint32_t h = hash(consensus.c_str(), consensus.length(), 0);
   //  cout<<"Looking for "<<consensus<<endl;
   HashedPos fnd({h, 0});
@@ -180,16 +183,27 @@ int main(int argc, char**argv)
   string startseed = rg.snippet(startpos, startpos+100);
   string endseed = rg.snippet(endpos, endpos+100);
 
-  cout << "Startseed: "<<startseed<<endl;
+  cout << "Startseed: "<<startseed<< " (" <<startseed.size()<<")\n";
   cout << "Endseed: "<<endseed<<endl;
   cout << "Reference: \n"<<rg.snippet(startpos, endpos+100) << endl;
 
   cout << startseed<<endl;
   int offset=0;
   string totconsensus;
+  // cons:
+  // start: ABCDEFGHIJKLMNOPQRSTUVWXYZ
+  // new:          HIJKLMNOPQRSTYVWXYZ123456
+  // new:                 OPQRSTYVWXYZ123456789
+  // new:                    RSTYVWXYZ123456789012
+  // new                          WXYZ123456789012ABCDEF
+  // end:   ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789012  // <- 50% longer
+  // cons:  ABCDEFGHIJKLMNOPQRSTUVWXYZ // move 100% of original length of consensus so connsensus
+  //
+  // start: NOPQRSTUVWXYZ123456789012  // move ahead 50% of original lenght
   for(;;) {
     vector<pair<string,string> > story;
     story.push_back(make_pair(startseed, string(startseed.size(), (char)40)));
+
     for(unsigned int n=0; n < startseed.size() - g_chunklen;++n) {
       string part=startseed.substr(n, g_chunklen);
       auto matches = getConsensusMatches(part, fhpos);
@@ -218,8 +232,8 @@ int main(int argc, char**argv)
     }
     cout<<endl;
     startseed=newconsensus.substr(startseed.length()/2, startseed.length());
-    totconsensus+=startseed.substr(0, 50);
-    offset+=50;
+    totconsensus+=newconsensus.substr(0, startseed.length()/2);
+    offset+=startseed.length()/2;
     cout<<"--"<<endl;
   }
 
