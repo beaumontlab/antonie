@@ -53,11 +53,16 @@ work, please cite xyz.
   <svg></svg>
 </div>
 
-
 <div class="chart" id="qreads" >
 <h3>Reported quality &amp; empirically observed quality across reads</h3>
   <svg></svg>
 </div>
+
+<div class="chart" id="gccov" >
+<h3>Coverage/depth versus GC content, 40 base window</h3>
+  <svg></svg>
+</div>
+
 
 <div class="chart" id="qq" >
 <h3>Q-Q Plot: reported versus empirical qualities</h3>
@@ -284,6 +289,36 @@ nv.addGraph(function() {
 
   d3.select('#qreads svg')
     .datum(getPoints(qualities, "reported", referenceQ, "empirical", qlo, "Low reported range", qhi, "High reported range"))
+    .call(chart);
+
+  nv.utils.windowResize(chart.update);
+  return chart;
+});
+
+
+nv.addGraph(function() {
+  var chart = nv.models.lineChart()
+  .options({
+    margin: {left: 100, bottom: 75},
+    x: function(d,i) { return 100.0*d.x;},
+    showXAxis: true,
+    showYAxis: true,
+    transitionDuration: 250
+  })
+  .forceY([0])
+  ;
+
+  chart.xAxis
+    .axisLabel("GC Content (percent)")
+    .tickFormat(d3.format(',f'));
+
+  chart.yAxis
+    .axisLabel('Coverage')
+    .tickFormat(d3.format(',.2f'))
+    ;
+
+  d3.select('#gccov svg')
+    .datum(getPoints(gccov, "Coverage", gccovlo, "-1 SD",  gccovhi, "+1 SD"))
     .call(chart);
 
   nv.utils.windowResize(chart.update);
