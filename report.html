@@ -46,53 +46,90 @@ work, please cite xyz.
 <div class="chart" id="kmer" >
 <h3>K-Mer diversity across reads</h3>
   <svg></svg>
-</div>
-
-<div class="chart" id="gc" >
-<h3>GC content across reads</h3>
-  <svg></svg>
-</div>
-
-<div class="chart" id="qreads" >
-<h3>Reported quality &amp; empirically observed quality across reads</h3>
-  <svg></svg>
-</div>
-
-<div class="chart" id="gccov" >
-<h3>Coverage/depth versus GC content, 40 base window</h3>
-  <svg></svg>
-</div>
-
-
-<div class="chart" id="qq" >
-<h3>Q-Q Plot: reported versus empirical qualities</h3>
-  <svg></svg>
-</div>
-
-<div class="chart" id="qhisto" >
-<h3>Quality histogram</h3>
-  <svg></svg>
+This graph should be mostly flat. If it slopes at the beginning or the end,
+  consider trimming enough bases so only the flat bit remains.
 </div>
 
 <div class="chart" id="gchisto" >
 <h3>GC Content of reads</h3>
   <svg></svg>
+For each read, the GC content is measured. Simultaneously, for the read
+  length, the reference genome has been sampled to measure its GC content
+  distribution. For most scenarios, the measured and reference GC
+  distributions should be a close match.
 </div>
 
+
+<div class="chart" id="gc" >
+<h3>GC content across reads</h3>
+  <svg></svg>
+This graph should be mostly flat. If it slopes at the beginning or the end,
+  consider trimming enough bases so only the flat bit remains. The 'Genome
+  average' line should be (very) close to the GC content line. If it is not,
+  you may not have the right reference genome.
+</div>
+
+<div class="chart" id="qreads" >
+<h3>Reported quality &amp; empirically observed quality across reads</h3>
+  <svg></svg>
+This graph typically shows an evolution of quality across the length of a
+  read, and this is normal. The 'reported' and 'empirical' qualities should
+  lie close together, and if they don't, the sequencer may need to be
+   recalibrated. If the empirical quality drops too far at the beginning of
+  the end of reads, consider adjusting read trimming.
+</div>
+
+<div class="chart" id="qq" >
+<h3>Q-Q Plot: reported versus empirical qualities</h3>
+  <svg></svg>
+This graph shows the correspondence between the quality scores reported by
+  the sequencer, and the empirical quality scores as determined by mismatch
+  rate against reference. The balls (especially the big ones) should lie
+  close to the straight line. If they don't the sequencer may need
+  recalibration.
+</div>
+
+<div class="chart" id="qhisto" >
+<h3>Quality histogram</h3>
+  <svg></svg>
+This graph should show a large peak of disirable quality scores (&gt;30). 
+</div>
 
 <div class="chart" id="depthhisto" >
 <h3>Depth histogram</h3>
   <svg></svg>
+This graph should be roughly bell shaped (although it is not a normal
+  distribution!). The peak should be around the average depth reported in
+  the log.
 </div>
+
+<div class="chart" id="gccov" >
+<h3>Coverage/depth versus GC content, 40 base window</h3>
+  <svg></svg>
+This graph plots the depth versus GC content of a specified window. At the
+  very ends, the standard deviation bars may converge because very low and
+  very high GC contents are very rare. It is common for the +1 -1SD interval
+  to include 0 at high GC contents.
+</div>
+
 
 <div class="chart" id="dups" >
 <h3>Duplicate reads</h3>
   <svg></svg>
+Duplication &amp; amplification techniques can cause some reads to appear
+  many, many times, which leads to odd jumps in depths. This graph shows the
+  percentage of reads appearing once, twice, three times etc. Exact repeats
+  do occur if reading at sufficient depth, and are not a cause for concern,
+  but excessive repeats are. 
 </div>
 
 <div class="chart" id="pairdist" >
 <h3>Paired read distance histogram</h3>
   <svg></svg>
+When performing paired-end reads, this graph will show the distribution of
+  the 'end-to-end' covered range of reads. Depending on the library
+  preparation used, this graph can be truncated Bell-like (Enzyme based,
+  like Nextera) or far more discrete (TruSeq).
 </div>
 
 
