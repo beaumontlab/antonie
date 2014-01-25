@@ -5,8 +5,11 @@
 #include <string.h>
 #include <stdio.h>
 #include <iostream>
+#include <algorithm>
 #include <boost/foreach.hpp>
 #include "fastq.hh"
+#include "fastqindex.hh"
+#include "stitchalg.hh"
 
 extern "C" {
 #include "hash.h"
@@ -15,141 +18,133 @@ extern "C" {
 #include "misc.hh"
 using namespace std;
 
-string compactify(const std::string& text)
+Search16S::Search16S(const std::string& fname)
 {
-  unsigned char c=0;
-  unsigned char t=0;
-  string ret;
-  string::size_type i;
-  for(i = 0; i < text.length(); ++i) {
-    if(text[i]=='A') 
-      t=0;
-    else if(text[i]=='C')
-      t=1;
-    else if(text[i]=='G')
-      t=2;
-    else if(text[i]=='T')
-      t=3;
-    c<<=2;
-    c|=t;
-    if(i && !(i%4)) {
-      ret.append(1,c);
-      c=0;
-    }
-  }
-  
-  return ret;
-}
-
-#define INDEXSIZE 24
-
-Search16S::Search16S(const std::string& fname, int indexlength)
-{
-  gzFile fp = gzopen(fname.c_str(), "r");
-  if(!fp) 
+  d_fp = fopen(fname.c_str(), "r");
+  if(!d_fp) 
     throw runtime_error("Unable to open file '"+fname+"' for reading");
+}
 
+bool Search16S::get(Entry* entry, uint64_t* offset)
+{
   char line[16384];
-  int mode=0;
-  Entry16S e16s;
-  unsigned int lineno=0, hashes=0;
-  while(gzgets(fp, line, sizeof(line))) {
-    if(!((lineno++)%1000)) {
-      fprintf(stderr, "\r%d", lineno);
-    }
-    if((!mode && line[0]!='>') || 
-       (mode && line[0]!='C' && line[0]!='A' && line[0]!='G' && line[0]!='T' && line[0]!='K' && line[0]!='N' && line[0]!='M' && line[0]!='B'))  // K??
-      throw runtime_error("Unable to parse line '"+string(line)+"' as green genes 16s line");
+ 
+  if(offset)
+    *offset=ftell(d_fp);
 
-    if(!mode) {
-      e16s.id = atoi(line+1);
-      mode=1;
-    }
-    else {
-      mode=0;
-      e16s.hits=0;
-      chomp(line);
-      unsigned int linelen=strlen(line);
-      if(linelen < INDEXSIZE) {
-	cerr<<"Unable to index short line of length "<<linelen<<endl;
-	continue;
-      }
-      
-      for(string::size_type i = 0; i < linelen - INDEXSIZE; i+=80) {
-	hashes++;
-	uint32_t thehash=hash(line+i, INDEXSIZE, 0);
-	d_hashes[thehash].push_back(d_entries.size());
-      }
-      //      cout<<e16s.id<<" inserted at offset "<<d_entries.size()<<endl;
-      d_entries.push_back(e16s);
-    }
-  }
-  cerr<<endl<<"Indexed "<<d_entries.size()<<" 16S entries, resulted in "<<d_hashes.size()<<" different hashes, average fill: "<<hashes/d_hashes.size()<<endl;
+  if(!fgets(line, sizeof(line),d_fp))
+    return false;
+
+  if(line[0]!='>') 
+    throw runtime_error("Unable to parse line '"+string(line)+"' as green genes 16s line");
+
+  entry->id = atoi(line+1);
+  
+  if(!fgets(line, sizeof(line), d_fp))
+    return false;
+  
+  if(line[0]!='C' && line[0]!='A' && line[0]!='G' && line[0]!='T' && line[0]!='K' && line[0]!='N' && line[0]!='M' && line[0]!='B')  // K??
+    throw runtime_error("Unable to parse line '"+string(line)+"' as green genes 16s line");
+
+  chomp(line);
+  entry->nucs = line;
+  return true;
 }
 
-void Search16S::score(const std::string& nucleotides)
+void Search16S::seek(uint64_t pos)
 {
-  typedef map<uint32_t, uint32_t> hits_t;
-  hits_t hits;
-  for(string::size_type i = 0; i < nucleotides.size()-INDEXSIZE; ++i) {
-    uint32_t hashval = hash(nucleotides.c_str()+i, INDEXSIZE, 0);
-    hashes_t::const_iterator iter = d_hashes.find(hashval);
-    if(iter == d_hashes.end())
+  fseek(d_fp, pos, SEEK_SET);
+}
+
+map<int, string> GreenGenesToGenbank(const std::string& fname)
+{
+  FILE* fp = fopen(fname.c_str(), "r");
+  if(!fp)
+    throw runtime_error("Unable to open "+fname+" for reading: "+string(strerror(errno)));
+  
+  map<int, string> ret;
+  char line[1024];
+  int id;
+  char* p;
+  while(fgets(line, sizeof(line), fp)) {
+    if(*line=='#')
       continue;
-    BOOST_FOREACH(unsigned int i, iter->second) {
-      hits[i]++;
+    id=atoi(line);
+    p=strchr(line, '\n');
+    if(p) *p =0;
+    
+    p=strchr(line, '\t');
+    if(p) {
+      ret[id]=p+1;
     }
-    BOOST_FOREACH(const hits_t::value_type & val, hits) {
-      if(val.second == 2) {
-	d_entries[val.first].hits++;
-	//	cout<<val.second<<" matches on "<<d_entries[val.first].id<<" ["<<val.first<<"], hits now: "<<d_entries[val.first].hits<<endl;
-      }
-    }
   }
-}
-
-vector<Entry16S> Search16S::topScores()
-{
-  typedef multimap<uint32_t, const Entry16S*> scores_t;
-  scores_t scores;
-  BOOST_FOREACH(const Entry16S& e16s, d_entries) {
-    scores.insert(make_pair(e16s.hits, &e16s));
-  }
-  vector<Entry16S> ret;
-  for(scores_t::reverse_iterator iter = scores.rbegin(); iter != scores.rend(); ++iter) {
-    ret.push_back(*iter->second);
-  }
+  fclose(fp);
   return ret;
-}
+};
 
-void Search16S::printTop(unsigned int limit) 
-{
-  vector<Entry16S> top = topScores();
+/* idea - go through 16S database, score for each entry how many hits we find in the FASTQ index
+   for the first n index-length chunks. Order the entries on score, and start stitching them & report 
+   all >99% matches */
 
-  BOOST_FOREACH(const Entry16S& e16s, top) {
-    cout<<e16s.id<<": "<<e16s.hits<<endl;
-    if(!limit--)
-      break;
-  }
-  cout<<"---"<<endl;
-
-}
-
+// 16ssearcher gg_13_5.fasta 1.fastq 2.fastq etc 
 int main(int argc, char** argv)
 {
-  Search16S s16("./gg_13_5.fasta.gz", 150);
-  cout<<"Done reading"<<endl;
-  FASTQReader fq("tot.fastq", 33);
-  FastQRead fqfrag;
-  unsigned int num=0;
-  while(fq.getRead(&fqfrag)) {
-    s16.score(fqfrag.d_nucleotides);
-    fqfrag.reverse();
-    s16.score(fqfrag.d_nucleotides);
-    if(!((num++) % 5000)) {
-      s16.printTop(20);
-    }
+  auto idmap = GreenGenesToGenbank("./gg_13_5_accessions.txt");
+  map<FASTQReader*, unique_ptr<vector<HashedPos> > > fhpos;
+
+  FASTQReader* fqreader;
+
+  for(int f = 2; f < argc; ++f) {
+    fqreader = new FASTQReader(argv[f], 33, 0);
+    fhpos[fqreader]=indexFASTQ(fqreader, argv[f], 35);
   }
 
+  Search16S s16(argv[1]);
 
+  Search16S::Entry entry;
+  uint64_t offset;
+  string part;
+  int matchcount=0;
+  vector<pair<int,uint64_t> > scores;
+  int scount=0;
+  int maxscore=0;
+  while(s16.get(&entry, &offset)) {
+    matchcount=0;
+    for(unsigned int n=0; n < entry.nucs.size()-35; ++n) {
+      part= entry.nucs.substr(n, 35);
+      for(auto match : getConsensusMatches(part, fhpos, 35)) {
+	if(!dnaDiff(match.d_nucleotides,entry.nucs.substr(n)))
+	  matchcount++;
+      }
+      if(n==20 && !matchcount)
+	break;
+      if(n==100 && matchcount < 5)
+	break;
+    }
+    if(matchcount) {
+      //      cout << entry.id << ' ' << matchcount << endl;
+      scores.push_back({matchcount, offset});
+      if(matchcount >= maxscore) {
+	maxscore = matchcount;
+	cerr<<" -> Best current guess: "<<entry.id<<" ("<<maxscore<<") -> "<<idmap[entry.id]<<endl;
+      }
+    }
+    if(!((++scount)%1000) || matchcount)
+      cerr<<'\r'<<scores.size()<< " potentials out of "<<scount<<" candidates";
+  }
+
+  cerr<<"\rHave "<<scores.size()<<" potentials out of "<<scount<<" candidates"<<endl;
+  sort(scores.begin(), scores.end());
+
+
+  for(auto iter = scores.rbegin(); iter != scores.rend(); ++iter) {
+
+    cout << iter->second <<": "<<iter->first<<endl;
+    s16.seek(iter->second);
+    s16.get(&entry);
+    cout<<"ID: "<<entry.id<< " -> "<<idmap[entry.id]<<endl;
+    cerr<<"ID: "<<entry.id<< " -> "<<idmap[entry.id]<<endl;
+    string found = doStitch(fhpos, entry.nucs.substr(0, 100), entry.nucs.substr(entry.nucs.length()-100), 10000, 35);
+    cout <<"Diff: "<<dnaDiff(found, entry.nucs)<<endl;
+  }
 }

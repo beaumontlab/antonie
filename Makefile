@@ -23,7 +23,7 @@ strdiff: strdiff.o $(MBA_OBJECTS)
 antonie: $(ANTONIE_OBJECTS)
 	$(CXX) $(ANTONIE_OBJECTS) $(LDFLAGS) $(STATICFLAGS) -lz -o $@
 
-SEARCHER_OBJECTS=16ssearcher.o hash.o misc.o fastq.o zstuff.o githash.o
+SEARCHER_OBJECTS=16ssearcher.o hash.o misc.o fastq.o zstuff.o githash.o fastqindex.o stitchalg.o
 
 16ssearcher: $(SEARCHER_OBJECTS)
 	$(CXX) $(LDFLAGS) $(SEARCHER_OBJECTS) -lz -o $@
@@ -31,7 +31,7 @@ SEARCHER_OBJECTS=16ssearcher.o hash.o misc.o fastq.o zstuff.o githash.o
 digisplice: digisplice.o refgenome.o misc.o fastq.o hash.o zstuff.o dnamisc.o geneannotated.o
 	$(CXX) $(LDFLAGS) $^ -lz -o $@
 
-stitcher: stitcher.o refgenome.o misc.o fastq.o hash.o zstuff.o dnamisc.o geneannotated.o
+stitcher: stitcher.o refgenome.o misc.o fastq.o hash.o zstuff.o dnamisc.o geneannotated.o fastqindex.o stitchalg.o
 	$(CXX) $(LDFLAGS) $^ -lz -pthread -o $@
 
 invert: invert.o misc.o

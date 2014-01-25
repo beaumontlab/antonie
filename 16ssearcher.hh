@@ -3,23 +3,24 @@
 #include <stdint.h>
 #include <vector>
 #include <map>
+#include <stdio.h>
 
-struct Entry16S
-{
-  uint32_t id;
-  int hits;
-};
 
 //! A class to match reads to a 16S database
 class Search16S
 {
 public:
-  Search16S(const std::string& src, int indexLength);
-  void score(const std::string& nucleotides);
-  std::vector<Entry16S> topScores();
-  void printTop(unsigned int top);
+  struct Entry
+  {
+    uint32_t id;
+    std::string nucs;
+  };
+
+  Search16S(const std::string& src);
+  bool get(Entry* entry, uint64_t* offset=0);
+  void seek(uint64_t offset);
+
+
 private:
-  typedef std::map<uint32_t, std::vector<unsigned int> > hashes_t;
-  hashes_t d_hashes;
-  std::vector<Entry16S> d_entries;
+  FILE* d_fp;
 };

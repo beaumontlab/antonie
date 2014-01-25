@@ -8,24 +8,18 @@ map<int,int> g_overlaps;
 
 bool tryMerge(const FastQRead& one, const FastQRead& two, FastQRead* together)
 {
-  FastQRead inv;
-  const FastQRead* a = &one, *b = &two;
-
-  a = &two;
-  b = &one;
-
-  inv.d_nucleotides = b->d_nucleotides;
+  FastQRead inv(two);
   inv.reverse();
   
-  if(inv.d_nucleotides.find(a->d_nucleotides.substr(0, 19)) != string::npos) {
-    for(int overlap = a->d_nucleotides.length() ; overlap > 19; --overlap) {
-      if(a->d_nucleotides.substr(0, overlap) == inv.d_nucleotides.substr(inv.d_nucleotides.length()-overlap)) {
+  if(inv.d_nucleotides.find(one.d_nucleotides.substr(0, 19)) != string::npos) {
+    for(int overlap = one.d_nucleotides.length() ; overlap > 19; --overlap) {
+      if(one.d_nucleotides.substr(0, overlap) == inv.d_nucleotides.substr(inv.d_nucleotides.length()-overlap)) {
 	g_overlaps[overlap]++;
 	//      cerr<<"Got overlap of "<<overlap<<endl;
-	//      cerr<<a->d_nucleotides<<endl;
-	//      cerr<<string(a->d_nucleotides.length()-overlap,' ')<<inv.d_nucleotides<<endl;
+	//      cerr<<one.d_nucleotides<<endl;
+	//      cerr<<string(one.d_nucleotides.length()-overlap,' ')<<inv.d_nucleotides<<endl;
 	together->d_nucleotides = inv.d_nucleotides;
-	together->d_nucleotides = b->d_nucleotides.substr(overlap);
+	together->d_nucleotides = two.d_nucleotides.substr(overlap);
 
 	//      cerr<<together->d_nucleotides<<endl;
 	return true;
@@ -33,17 +27,17 @@ bool tryMerge(const FastQRead& one, const FastQRead& two, FastQRead* together)
     }
   }
 
-  if(inv.d_nucleotides.find(a->d_nucleotides.substr(a->d_nucleotides.length()-19)) == string::npos)
+  if(inv.d_nucleotides.find(one.d_nucleotides.substr(one.d_nucleotides.length()-19)) == string::npos)
     return false;
 
-  for(int overlap = a->d_nucleotides.length() ; overlap > 19; --overlap) {
-    if(a->d_nucleotides.substr(a->d_nucleotides.length()-overlap) == inv.d_nucleotides.substr(0, overlap)) {
+  for(int overlap = one.d_nucleotides.length() ; overlap > 19; --overlap) {
+    if(one.d_nucleotides.substr(one.d_nucleotides.length()-overlap) == inv.d_nucleotides.substr(0, overlap)) {
 
       g_overlaps[overlap]++;
       //      cerr<<"Got overlap of "<<overlap<<endl;
-      //      cerr<<a->d_nucleotides<<endl;
-      //      cerr<<string(a->d_nucleotides.length()-overlap,' ')<<inv.d_nucleotides<<endl;
-      together->d_nucleotides = a->d_nucleotides;
+      //      cerr<<one.d_nucleotides<<endl;
+      //      cerr<<string(one.d_nucleotides.length()-overlap,' ')<<inv.d_nucleotides<<endl;
+      together->d_nucleotides = one.d_nucleotides;
       together->d_nucleotides += inv.d_nucleotides.substr(overlap);
       //      cerr<<together->d_nucleotides<<endl;
       return true;
