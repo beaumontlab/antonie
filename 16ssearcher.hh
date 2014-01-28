@@ -4,7 +4,7 @@
 #include <vector>
 #include <map>
 #include <stdio.h>
-
+#include "zstuff.hh"
 
 //! A class to match reads to a 16S database
 class Search16S
@@ -14,6 +14,10 @@ public:
   {
     uint32_t id;
     std::string nucs;
+    bool operator<(const Entry& rhs) const 
+    {
+      return id < rhs.id;
+    }
   };
 
   Search16S(const std::string& src);
@@ -22,5 +26,5 @@ public:
 
 
 private:
-  FILE* d_fp;
+  std::unique_ptr<LineReader> d_linereader;
 };

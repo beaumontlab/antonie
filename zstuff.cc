@@ -50,7 +50,7 @@ ZLineReader::ZLineReader(const std::string& fname)
 {
   d_fp=fopen(fname.c_str(), "r");
   if(!d_fp)
-    throw runtime_error("Unable to open '"+fname+"' for reading on ZLineReader"+ string(strerror(errno)));
+    throw runtime_error("Unable to open '"+fname+"' for reading on ZLineReader: "+ string(strerror(errno)));
   
   int ret = fread(d_inbuffer, 1, sizeof(d_inbuffer), d_fp);
   d_zs.s.avail_in=ret;
