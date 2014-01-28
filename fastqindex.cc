@@ -57,7 +57,7 @@ vector<FastQRead> getConsensusMatches(const std::string& consensus, const map<FA
   if(consensus.find('N') != string::npos)
     return ret;
 
-  uint32_t h = hash(consensus.c_str(), consensus.length(), 0);
+  uint32_t h = hash(consensus.c_str(), chunklen, 0);
   if(g_skip.count(h))
     return ret;
 
@@ -78,16 +78,18 @@ vector<FastQRead> getConsensusMatches(const std::string& consensus, const map<FA
       else {
 	hpos.first->seek(range.first->position);
 	hpos.first->getRead(&fqr);
-	g_cache[make_pair(hpos.first, (uint64_t)range.first->position)] = fqr;
+
       }
-      if(fqr.d_nucleotides.substr(0,chunklen) != consensus) {
+      if(fqr.d_nucleotides.compare(0,chunklen, consensus, 0, chunklen) != 0) {
 	fqr.reverse();
-	
-	if(fqr.d_nucleotides.substr(0,chunklen) != consensus) {
-	  //	  cout<<"\thash lied\n";
+
+	if(fqr.d_nucleotides.compare(0,chunklen, consensus, 0, chunklen) != 0) {
 	  continue;
 	}
+	g_cache[make_pair(hpos.first, (uint64_t)range.first->position)] = fqr;
       }
+      else
+	g_cache[make_pair(hpos.first, (uint64_t)range.first->position)] = fqr;
       ret.push_back(fqr);
     }
   }

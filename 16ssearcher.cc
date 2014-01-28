@@ -127,18 +127,19 @@ int main(int argc, char** argv)
   Search16S s16(argv[1]);
 
   Search16S::Entry entry;
-  string part;
 
   vector<pair<int,Search16S::Entry> > scores;
   int scount=0;
   int maxscore=0;
 
+
   while(s16.get(&entry)) {
     vector<int> qscores(entry.nucs.size());
-    for(unsigned int n=0; n < entry.nucs.size()-35; ++n) {
-      part= entry.nucs.substr(n, 35);
+    unsigned int n;
+    for( n=0; n < entry.nucs.size()-35; ++n) {
+      string part=entry.nucs.substr(n);
       for(const auto& match : getConsensusMatches(part, fhpos, 35)) {
-	if(dnaDiff(match.d_nucleotides, entry.nucs.substr(n)) < 2 ) {
+	if(dnaDiff(match.d_nucleotides, part) < 2 ) {
 	  for(string::size_type pos = 0 ; pos < match.d_nucleotides.length() && n+pos < qscores.size(); ++pos) {
 	    if(match.d_nucleotides[pos] == entry.nucs[n+pos])
 	      qscores[n+pos]+=match.d_quality[pos];
@@ -149,6 +150,7 @@ int main(int argc, char** argv)
       if(n > 20 && !accumulate(qscores.begin()+n-20, qscores.begin()+n, 0))
 	break;
     }
+
     auto sum=accumulate(qscores.begin(), qscores.end(), 0);
     unsigned int qpos;
     for(qpos = 0; qpos < qscores.size(); ++qpos) {
@@ -156,14 +158,12 @@ int main(int argc, char** argv)
 	break;
     }
     if(qpos == qscores.size()) {
-
       ofstream cov(boost::lexical_cast<string>(scores.size())+".cov");
       for(qpos = 0; qpos < qscores.size(); ++qpos) {
 	cov<<qpos<<'\t'<< qscores[qpos]<<'\n';
       }
       
-
-      cerr<<"\nMay be a winner, full coverage ("<<sum/entry.nucs.size()<<") on " <<entry.id<<" -> "<<idmap[entry.id]<< ": "<< nameFromAccessionNumber(idmap[entry.id])<<endl;
+      cerr<<"\nFull coverage ("<<sum/entry.nucs.size()<<") on " <<entry.id<<" -> "<<idmap[entry.id]<< ": "<< nameFromAccessionNumber(idmap[entry.id])<<endl;
       scores.push_back({sum/entry.nucs.size(), entry});
       if(sum >= maxscore) {
 	maxscore = sum;
