@@ -13,6 +13,7 @@
 #include "stitchalg.hh"
 #include <boost/lexical_cast.hpp>
 #include <fstream>
+#include <set>
 
 extern "C" {
 #include "hash.h"
@@ -126,22 +127,30 @@ int main(int argc, char** argv)
 
   Search16S s16(argv[1]);
 
-  Search16S::Entry entry;
 
-  vector<pair<int,Search16S::Entry> > scores;
   int scount=0;
   int maxscore=0;
 
-
-  while(s16.get(&entry)) {
-    vector<int> qscores(entry.nucs.size());
+  struct Candidate
+  {
+    int score;
+    Search16S::Entry entry;
+    vector<FastQRead> reads;
+  };
+  vector<Candidate> candidates;
+  Candidate candidate;
+  while(s16.get(&candidate.entry)) {
+    candidate.reads.clear();
+    vector<int> qscores(candidate.entry.nucs.size());
     unsigned int n;
-    for( n=0; n < entry.nucs.size()-35; ++n) {
-      string part=entry.nucs.substr(n);
+
+    for( n=0; n < candidate.entry.nucs.size()-35; ++n) {
+      string part=candidate.entry.nucs.substr(n);
       for(const auto& match : getConsensusMatches(part, fhpos, 35)) {
 	if(dnaDiff(match.d_nucleotides, part) < 2 ) {
+	  candidate.reads.push_back(match);
 	  for(string::size_type pos = 0 ; pos < match.d_nucleotides.length() && n+pos < qscores.size(); ++pos) {
-	    if(match.d_nucleotides[pos] == entry.nucs[n+pos])
+	    if(match.d_nucleotides[pos] == candidate.entry.nucs[n+pos])
 	      qscores[n+pos]+=match.d_quality[pos];
 	  }
 	  break;
@@ -158,29 +167,42 @@ int main(int argc, char** argv)
 	break;
     }
     if(qpos == qscores.size()) {
-      ofstream cov(boost::lexical_cast<string>(scores.size())+".cov");
+      ofstream cov(boost::lexical_cast<string>(candidates.size())+".cov");
       for(qpos = 0; qpos < qscores.size(); ++qpos) {
 	cov<<qpos<<'\t'<< qscores[qpos]<<'\n';
       }
       
-      cerr<<"\nFull coverage ("<<sum/entry.nucs.size()<<") on " <<entry.id<<" -> "<<idmap[entry.id]<< ": "<< nameFromAccessionNumber(idmap[entry.id])<<endl;
-      scores.push_back({sum/entry.nucs.size(), entry});
+      cerr<<"\nFull coverage ("<<sum/candidate.entry.nucs.size()<<") on " <<
+	candidate.entry.id<<" -> "<<idmap[candidate.entry.id]<< ": "<< nameFromAccessionNumber(idmap[candidate.entry.id])<<endl;
+      candidate.score=sum/candidate.entry.nucs.size();
+
+      candidates.push_back(candidate);
+	  
       if(sum >= maxscore) {
 	maxscore = sum;
-	cerr<<" -> Best current guess: "<<entry.id<<" ("<<sum/entry.nucs.size()<<") -> "<<idmap[entry.id]<<endl;
+	cerr<<" -> Best current guess: "<<candidate.entry.id<<" ("<<sum/candidate.entry.nucs.size()<<") -> "<<idmap[candidate.entry.id]<<endl;
       }
     }
     if(!((++scount)%1000) || sum)
-      cerr<<'\r'<<scores.size()<< " potentials out of "<<scount<<" candidates";
+      cerr<<'\r'<<candidates.size()<< " potentials out of "<<scount<<" 16S entries";
   }
 
-  cerr<<"\rHave "<<scores.size()<<" potentials out of "<<scount<<" candidates"<<endl;
+  cerr<<"\rHave "<<candidates.size()<<" potentials out of "<<scount<<" 16S entries"<<endl;
 
-  sort(scores.begin(), scores.end());
-
-  for(auto iter = scores.rbegin(); iter != scores.rend(); ++iter) {
-    cout<<"Score: "<<iter->first<<", Green Genes ID: "<<iter->second.id<< " -> "<<idmap[iter->second.id]<<": "<< nameFromAccessionNumber(idmap[iter->second.id])<<endl;;
-    string found = doStitch(fhpos, iter->second.nucs.substr(0, 100), iter->second.nucs.substr(entry.nucs.length()-100), 1.2*iter->second.nucs.length(), 35, false);
-    cout <<"Diff: "<<dnaDiff(found, iter->second.nucs)<<endl;
+  sort(candidates.begin(), candidates.end(), 
+       [](const Candidate& a, const Candidate& b) { 
+	 return a.score < b.score;
+       });
+  
+  cerr<<"Done sorting"<<endl;
+  set<FastQRead> allReads;
+  for(const auto& c : candidates) {
+    allReads.insert(c.reads.begin(), c.reads.end());
+  }
+  cout<<"Total reads contributing to 16S matches: "<<allReads.size()<<endl;
+  for(auto iter = candidates.rbegin(); iter != candidates.rend(); ++iter) {
+    cout<<"Score: "<<iter->score<<" ("<<iter->reads.size()*100.0/allReads.size()<<"% of reads), Green Genes ID: "<<iter->entry.id<< " -> "<<idmap[iter->entry.id]<<": "<< nameFromAccessionNumber(idmap[iter->entry.id])<<endl;;
+    //string found = doStitch(fhpos, iter->second.nucs.substr(0, 100), iter->second.nucs.substr(iter->second.nucs.length()-100), 1.2*iter->second.nucs.length(), 35, false);
+    //cout <<"Diff: "<<dnaDiff(found, iter->second.nucs)<<endl;
   }
 }

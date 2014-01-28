@@ -18,6 +18,13 @@ struct FastQRead
   void reverse();
   bool reversed;
   uint64_t position; //!< Position in the source file. The 64 bits may encode the file too, it is not a number for the end user to use. Feed it to a FastQReader.
+
+  bool operator<(const FastQRead& rhs) const
+  {
+    return std::tie(d_nucleotides, d_quality, reversed, position) < 
+      std::tie(rhs.d_nucleotides, rhs.d_quality, rhs.reversed, rhs.position);
+  }
+
 };
 
 //! Reads a single FASTQ file, and can seek in it. Does adapation of quality scores (Sanger by default) and and can also snip off first n or last n bases.
