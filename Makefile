@@ -1,7 +1,7 @@
 -include sysdeps/$(shell uname).inc
 
 VERSION=0.1
-CXXFLAGS=-Wall -O3 -I. -Iext/libmba -pthread -MMD -MP  $(CXX2011FLAGS) # -Wno-unused-local-typedefs 
+CXXFLAGS?=-Wall -O3 -ggdb -I. -Iext/libmba -pthread -MMD -MP  $(CXX2011FLAGS) # -Wno-unused-local-typedefs 
 CFLAGS=-Wall -I. -Iext/libmba -O3 -MMD -MP
 LDFLAGS=$(CXX2011FLAGS)  
 CHEAT_ARG := $(shell ./update-git-hash-if-necessary)
@@ -71,6 +71,12 @@ antonie.exe:
 	make clean
 	STATICFLAGS="-static -static-libgcc -static-libstdc++" CXX=i686-w64-mingw32-g++ CC=i686-w64-mingw32-gcc make antonie
 	mv antonie antonie.exe
+
+16ssearcher.exe: 
+	make clean
+	CXXFLAGS="-Wall -O3 -I. -Iext/libmba -MMD -MP  $(CXX2011FLAGS)" STATICFLAGS="-static -static-libgcc -static-libstdc++" CXX=i686-w64-mingw32-g++ CC=i686-w64-mingw32-gcc make 16ssearcher
+	mv 16ssearcher 16ssearcher.exe
+
 
 check: testrunner
 	./testrunner

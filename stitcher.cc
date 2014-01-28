@@ -51,6 +51,6 @@ int main(int argc, char**argv)
 
   string endseed = argv[3];
 
-  doStitch(fhpos, startseed, endseed, 10000, chunklen);
+  doStitch(fhpos, startseed, endseed, 10000, chunklen, true);
 }
 

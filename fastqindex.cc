@@ -2,6 +2,8 @@
 #include "misc.hh"
 #include <boost/lexical_cast.hpp>
 #include <iostream>
+#include <set>
+#include <unordered_set>
 #include <algorithm>
 using namespace std;
 
@@ -46,7 +48,9 @@ unique_ptr<vector<HashedPos> > indexFASTQ(FASTQReader* fqreader, const std::stri
 
   return hpos;
 }
+std::map<pair<FASTQReader*, uint64_t>, FastQRead> g_cache;
 
+std::unordered_set<uint32_t> g_skip;
 vector<FastQRead> getConsensusMatches(const std::string& consensus, const map<FASTQReader*, unique_ptr<vector<HashedPos> > >& fhpos, int chunklen)
 {
   vector<FastQRead> ret;
@@ -54,18 +58,28 @@ vector<FastQRead> getConsensusMatches(const std::string& consensus, const map<FA
     return ret;
 
   uint32_t h = hash(consensus.c_str(), consensus.length(), 0);
+  if(g_skip.count(h))
+    return ret;
+
   //  cout<<"Looking for "<<consensus<<endl;
   HashedPos fnd({h, 0});
   
   vector<FastQRead> options;
-  
+  bool hadSomething=false;
   for(auto& hpos : fhpos) {
     auto range = equal_range(hpos.second->begin(), hpos.second->end(), fnd);
     for(;range.first != range.second; ++range.first) {
+      hadSomething=true;
       FastQRead fqr;
       //      cout<<"\tFound potential hit at offset "<<range.first->position<<"!"<<endl;
-      hpos.first->seek(range.first->position);
-      hpos.first->getRead(&fqr);
+      if(g_cache.count(make_pair(hpos.first, (uint64_t)range.first->position))) {
+	fqr = g_cache[make_pair(hpos.first, (uint64_t)range.first->position)];
+      }
+      else {
+	hpos.first->seek(range.first->position);
+	hpos.first->getRead(&fqr);
+	g_cache[make_pair(hpos.first, (uint64_t)range.first->position)] = fqr;
+      }
       if(fqr.d_nucleotides.substr(0,chunklen) != consensus) {
 	fqr.reverse();
 	
@@ -77,5 +91,7 @@ vector<FastQRead> getConsensusMatches(const std::string& consensus, const map<FA
       ret.push_back(fqr);
     }
   }
+  if(!hadSomething)
+    g_skip.insert(h);
   return ret;
 }

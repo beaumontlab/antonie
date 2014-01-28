@@ -69,14 +69,17 @@ struct Base
 
 
 string doStitch(const map<FASTQReader*, unique_ptr<vector<HashedPos> > >& fhpos, const std::string& startseed_,
-		const std::string& endseed, unsigned int maxlen, int chunklen)
+		const std::string& endseed, unsigned int maxlen, int chunklen, bool verbose)
 {
   string startseed(startseed_);
-  cout << "Startseed: "<<startseed<< " (" <<startseed.size()<<")\n";
-  cout << "Endseed: "<<endseed<<endl;
+  if(verbose) {
+    cout << "Startseed: "<<startseed<< " (" <<startseed.size()<<")\n";
+    cout << "Endseed: "<<endseed<<endl;
+    cout << startseed<<endl;
+  }
   //  cout << "Reference: \n"<<rg.snippet(startpos, endpos+100) << endl;
   
-  cout << startseed<<endl;
+  
   int offset=0;
   string totconsensus;
   // cons:
@@ -99,7 +102,8 @@ string doStitch(const map<FASTQReader*, unique_ptr<vector<HashedPos> > >& fhpos,
       for(auto& match : matches) {
 	int diff = dnaDiff(startseed.substr(n), match.d_nucleotides);
 	if(diff < 5) {
-	  //	  cout << string(offset,'-')<<string(n, ' ') << match.d_nucleotides<<endl;
+	  if(verbose)
+	    cout << string(offset,'-')<<string(n, ' ') << match.d_nucleotides<<endl;
 	  story.push_back({string(n, ' ')+match.d_nucleotides,
 		string(n, ' ')+match.d_quality});
 	}
@@ -114,24 +118,30 @@ string doStitch(const map<FASTQReader*, unique_ptr<vector<HashedPos> > >& fhpos,
       }
     }
     string newconsensus;
-    cout<<totconsensus;
+    if(verbose)
+      cout<<totconsensus;
     for(unsigned int n = 0 ; n < consensus.size();++n) {
-      cout<<consensus[n].getBest();
+      if(verbose)
+	cout<<consensus[n].getBest();
       newconsensus.append(1, consensus[n].getBest());
     }
-    cout<<endl;
+    if(verbose)
+      cout<<endl;
     startseed=newconsensus.substr(startseed.length()/2, startseed.length());
     totconsensus+=newconsensus.substr(0, startseed.length()/2);
     offset+=startseed.length()/2;
-    cout<<"--"<<endl;
+    if(verbose)
+      cout<<"--"<<endl;
     string::size_type endpos = totconsensus.find(endseed);
     if(endpos != string::npos) {
       totconsensus.resize(endpos+endseed.size());
       cout<<"Done: \n"<<totconsensus<<endl;
       break;
     }
-    if(totconsensus.size() > maxlen)
+    if(totconsensus.size() > maxlen) {
+      cout<<"Terminated: \n"<<totconsensus<<endl;
       break;
+    }
   }
   return totconsensus;
 }
