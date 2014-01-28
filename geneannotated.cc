@@ -76,7 +76,6 @@ GeneAnnotationReader::GeneAnnotationReader(const std::string& fname)
 	goto no;
     }
 
-
     if(ga.type =="gene" || ga.type=="CDS")
       ga.gene=true;
     if(!ga.tag.empty()) {
@@ -87,7 +86,6 @@ GeneAnnotationReader::GeneAnnotationReader(const std::string& fname)
       
   no:;
   }
-
 }
 
 vector<GeneAnnotation> GeneAnnotationReader::lookup(uint64_t pos)
