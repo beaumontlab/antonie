@@ -110,6 +110,21 @@ const typename T::value_type& pickRandom(const T& t)
   return t[rand() % t.size()];
 }
 
+inline std::string jsonVectorPair(const std::vector<std::pair<double, double> >& in) 
+{
+  std::ostringstream str;
+  str<<"[";
+  bool first=true;
+  for(const auto& ent : in) {
+    if(!first)
+      str<<",";
+    first=false;
+    str<<"["<<ent.first<<","<<ent.second<<"]";
+  }
+  str<<"]";
+  return str.str();
+}
+
 /** returns v as a string in JSON format, where v is a vector of values, and we return it as an array of [offset,value] pairs. v can be transformed inline  ysing yAdjust and xAdjust
     \param v Vector of values
     \param name name of JSON object

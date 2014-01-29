@@ -1,12 +1,13 @@
 -include sysdeps/$(shell uname).inc
 
 VERSION=0.1
-CXXFLAGS=-Wall -O3 -I. -Iext/libmba -pthread -MMD -MP  $(CXX2011FLAGS) # -Wno-unused-local-typedefs 
+CXXFLAGS?=-Wall -O3 -ggdb -I. -Iext/libmba -pthread -MMD -MP  $(CXX2011FLAGS) # -Wno-unused-local-typedefs 
 CFLAGS=-Wall -I. -Iext/libmba -O3 -MMD -MP
-LDFLAGS=$(CXX2011FLAGS)  
+LDFLAGS=$(CXX2011FLAGS)   # -Wl,-Bstatic -lstdc++ -lgcc -lz -Wl,-Bdynamic -static-libgcc -lm -lc
 CHEAT_ARG := $(shell ./update-git-hash-if-necessary)
 
-PROGRAMS=antonie 16ssearcher digisplice stitcher fqgrep pfqgrep
+SHIPPROGRAMS=antonie 16ssearcher stitcher fqgrep pfqgrep
+PROGRAMS=$(SHIPPROGRAMS) digisplice gffedit
 
 all: $(PROGRAMS)
 
@@ -23,32 +24,36 @@ strdiff: strdiff.o $(MBA_OBJECTS)
 antonie: $(ANTONIE_OBJECTS)
 	$(CXX) $(ANTONIE_OBJECTS) $(LDFLAGS) $(STATICFLAGS) -lz -o $@
 
-SEARCHER_OBJECTS=16ssearcher.o hash.o misc.o fastq.o zstuff.o githash.o
+SEARCHER_OBJECTS=16ssearcher.o hash.o misc.o fastq.o zstuff.o githash.o fastqindex.o stitchalg.o
 
 16ssearcher: $(SEARCHER_OBJECTS)
-	$(CXX) $(LDFLAGS) $(SEARCHER_OBJECTS) -lz -o $@
+	$(CXX)  $(SEARCHER_OBJECTS) -lz  $(LDFLAGS) $(STATICFLAGS) -o $@
 
 digisplice: digisplice.o refgenome.o misc.o fastq.o hash.o zstuff.o dnamisc.o geneannotated.o
-	$(CXX) $(LDFLAGS) $^ -lz -o $@
+	$(CXX) $(LDFLAGS) $^ -lz $(STATICFLAGS) -o $@
 
-stitcher: stitcher.o refgenome.o misc.o fastq.o hash.o zstuff.o dnamisc.o geneannotated.o
-	$(CXX) $(LDFLAGS) $^ -lz -pthread -o $@
+stitcher: stitcher.o refgenome.o misc.o fastq.o hash.o zstuff.o dnamisc.o geneannotated.o fastqindex.o stitchalg.o
+	$(CXX) $(LDFLAGS) $^ -lz -pthread $(STATICFLAGS) -o $@
 
 invert: invert.o misc.o
-	$(CXX) $(LDFLAGS) $^ -o $@
+	$(CXX) $(LDFLAGS) $(STATICFLAGS) $^ -o $@
 
-fqgrep: fqgrep.o misc.o fastq.o dnamisc.o zstuff.o
-	$(CXX) $(LDFLAGS) $^ -lz -o $@
+fqgrep: fqgrep.o misc.o fastq.o dnamisc.o zstuff.o 
+	$(CXX) $(LDFLAGS) $^ -lz $(STATICFLAGS) -o $@
 
 pfqgrep: pfqgrep.o misc.o fastq.o dnamisc.o zstuff.o
-	$(CXX) $(LDFLAGS) $^ -lz -o $@
+	$(CXX) $(LDFLAGS) $^ -lz $(STATICFLAGS) -o $@
+
+
+gffedit: gffedit.o refgenome.o fastq.o dnamisc.o zstuff.o misc.o hash.o
+	$(CXX) $(LDFLAGS) $^ -lz $(STATICFLAGS) -o $@
 
 
 install: antonie
 	mkdir -p $(DESTDIR)/usr/bin/
 	mkdir -p $(DESTDIR)/usr/share/doc/antonie/
 	mkdir -p $(DESTDIR)/usr/share/doc/antonie/ext
-	cp $(PROGRAMS) $(DESTDIR)/usr/bin/
+	install -s $(SHIPPROGRAMS) $(DESTDIR)/usr/bin/
 	cp report.html $(DESTDIR)/usr/share/doc/antonie
 	cp -r ext/html $(DESTDIR)/usr/share/doc/antonie/ext
 
@@ -58,8 +63,8 @@ clean:
 package: all
 	rm -rf dist
 	DESTDIR=dist make install
-	fpm -s dir -f -t rpm -n antonie -v g$(shell cat githash) -C dist .
-	fpm -s dir -f -t deb -n antonie -v g$(shell cat githash) -C dist .	
+	fpm -s dir -f -t rpm -n antonie -v 1.g$(shell cat githash) -C dist .
+	fpm -s dir -f -t deb -n antonie -v 1.g$(shell cat githash) -C dist .	
 	rm -rf dist
 
 codedocs: codedocs/html/index.html
@@ -71,6 +76,12 @@ antonie.exe:
 	make clean
 	STATICFLAGS="-static -static-libgcc -static-libstdc++" CXX=i686-w64-mingw32-g++ CC=i686-w64-mingw32-gcc make antonie
 	mv antonie antonie.exe
+
+16ssearcher.exe: 
+	make clean
+	CXXFLAGS="-Wall -O3 -I. -Iext/libmba -MMD -MP  $(CXX2011FLAGS)" STATICFLAGS="-static -static-libgcc -static-libstdc++" CXX=i686-w64-mingw32-g++ CC=i686-w64-mingw32-gcc make 16ssearcher
+	mv 16ssearcher 16ssearcher.exe
+
 
 check: testrunner
 	./testrunner

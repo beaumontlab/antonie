@@ -118,11 +118,28 @@ void ReferenceGenome::printCoverage(FILE* jsfp, const std::string& histoName)
   covhisto.resize(1000);
   VarMeanEstimator vmeDepth;
   d_unmRegions.clear();
+  ofstream covfile("coverage");
+  int prevcov = d_mapping[0].coverage;
+
+  map<double, VarMeanEstimator> gcCoverage;
+
   for(string::size_type pos = 0; pos < d_mapping.size(); ++pos) {
     cov = d_mapping[pos].coverage;
+    string gcsnip=snippet((pos > 20) ? (pos - 20) : 1, pos+20);
+    double gc=getGCContent(gcsnip); // 1 based!
+    
+    if(gcsnip.length()==40) {// we get strange results otherwise
+      gcCoverage[gc](cov);
+    }
+    else
+      cout <<gcsnip.length()<<endl;
+
+    covfile << pos << '\t' << cov << '\t' << ((int)cov)-prevcov << '\t' << gc  <<'\t' << getGCContent(snippet(pos > 7 ? pos-7 : 1, pos+8)) << '\n';
+    prevcov=cov;
+
     vmeDepth(cov);
 
-    bool noCov = cov < 2;
+    bool noCov = cov < 5;
     if(cov >= covhisto.size()) {
       covhisto.resize(2*cov+1);
     }
@@ -152,6 +169,16 @@ void ReferenceGenome::printCoverage(FILE* jsfp, const std::string& histoName)
     }
   }
 
+  ofstream gcv("gccoverage");
+  vector<pair<double, double> > gc, gclo, gchi;
+  for(const auto& ent : gcCoverage) {
+    gc.push_back({ent.first, mean(ent.second)});
+    gclo.push_back({ent.first, mean(ent.second) - sqrt(variance(ent.second))});
+    gchi.push_back({ent.first, mean(ent.second) + sqrt(variance(ent.second))});
+    gcv << ent.first << '\t' << mean(ent.second) << '\t' << sqrt(variance(ent.second))<<endl;
+  }
+  fprintf(jsfp, "var gccov=%s;\nvar gccovlo=%s;\nvar gccovhi=%s;\n", jsonVectorPair(gc).c_str(), jsonVectorPair(gclo).c_str(), jsonVectorPair(gchi).c_str());
+  
   Clusterer<Unmatched> cl(100);
   
   for(auto unm : d_unmRegions) {
@@ -434,7 +461,7 @@ void emitRegion(FILE*fp, ReferenceGenome& rg, StereoFASTQReader& fastq, GeneAnno
 	  jsonVectorX(tProb, [start](int i){return i+start;}).c_str());
 
   string picture=rg.getMatchingFastQs(start, stop, fastq);
-  string snippet=rg.snippet(start, stop);
+  string snippet=rg.snippet(start, dnapos) + " | " +rg.snippet(dnapos, stop);
   replace_all(picture, "\n", "\\n");
   string report = replace_all_copy(report_, "\n", "\\n");
 
