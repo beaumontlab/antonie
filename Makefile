@@ -7,7 +7,7 @@ LDFLAGS=$(CXX2011FLAGS)   # -Wl,-Bstatic -lstdc++ -lgcc -lz -Wl,-Bdynamic -stati
 CHEAT_ARG := $(shell ./update-git-hash-if-necessary)
 
 SHIPPROGRAMS=antonie 16ssearcher stitcher fqgrep pfqgrep
-PROGRAMS=$(SHIPPROGRAMS) digisplice gffedit
+PROGRAMS=$(SHIPPROGRAMS) digisplice gffedit nw
 
 all: $(PROGRAMS)
 
