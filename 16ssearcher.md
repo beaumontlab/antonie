@@ -10,7 +10,7 @@ a list of bacteria (or archea or fungi) present in your reads.
 For [Green Genes](http://greengenes.secondgenome.com/downloads), 
 download gg_xx_y.fasta.gz and gg_xx_y_accessions.txt.gz.
 
-For the [Ribosomal Datbase Project](http://rdp.cme.msu.edu/) download the
+For the [Ribosomal Datbase Project](http://rdp.cme.msu.edu/), download the
 unaligned FASTA.gz.
 
 There is no need to decompress the files, leave them as is.
