@@ -13,7 +13,9 @@ void stringalign(const std::string& ain, const std::string& bin, double mispen, 
   aout.resize(ia+ib);
   bout.resize(ia+ib);
   summary.resize(ia+ib);
-  double cost[ia+1][ib+1];
+  double *cost[ia+1];
+  for(unsigned int n=0; n < ia+1; ++n)
+    cost[n]=new double[ib+1];
   cost[0][0] = 0.;
   for (i=1;i<=ia;i++) cost[i][0] = cost[i-1][0] + skwpen;
   for (i=1;i<=ib;i++) cost[0][i] = cost[0][i-1] + skwpen;
@@ -55,6 +57,8 @@ void stringalign(const std::string& ain, const std::string& bin, double mispen, 
     swap(summary[i],summary[k-1-i]);
   }
   aout.resize(k); bout.resize(k); summary.resize(k);
+  for(unsigned int n=0; n < ia+1; ++n)
+    delete[] cost[n];
 }
 
 int main(int argc, char**argv)
