@@ -156,19 +156,21 @@ int main(int argc, char** argv)
 	  break;
         }
       }
+      //if(candidate.entry.id==128433 || candidate.entry.id==2503772)
+      //  continue;
       if(n > 20 && !accumulate(qscores.begin()+n-20, qscores.begin()+n, 0))
 	break;
     }
 
     auto sum=accumulate(qscores.begin(), qscores.end(), 0);
-    unsigned int qpos;
-    for(qpos = 0; qpos < qscores.size(); ++qpos) {
+    unsigned int holes=0;
+    for(unsigned int qpos = 0; qpos < qscores.size(); ++qpos) {
       if(qpos > 20 && !qscores[qpos])
-	break;
+	holes++;
     }
-    if(qpos == qscores.size()) {
-      ofstream cov(boost::lexical_cast<string>(candidates.size())+".cov");
-      for(qpos = 0; qpos < qscores.size(); ++qpos) {
+    if(holes < 2) {
+      ofstream cov(boost::lexical_cast<string>(candidate.entry.id)+".cov");
+      for(unsigned int qpos = 0; qpos < qscores.size(); ++qpos) {
 	cov<<qpos<<'\t'<< qscores[qpos]<<'\n';
       }
       
