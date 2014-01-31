@@ -115,9 +115,20 @@ bool ZLineReader::getChar(char* c)
   return true;
 }
 
+void ZLineReader::unget(char* line)
+{
+  d_stash=line;
+}
+
+
 char* ZLineReader::fgets(char* line, int num)
 {
-   if(!d_haveSeeked && (d_restarts.empty() || d_uncPos - d_restarts.rbegin()->first > 400000)) {
+  if(!d_stash.empty()) {
+    strncpy(line, d_stash.c_str(), num);
+    d_stash.clear();
+    return line;
+  }
+  if(!d_haveSeeked && (d_restarts.empty() || d_uncPos - d_restarts.rbegin()->first > 400000)) {
     d_zs.fpos = ftell(d_fp) - d_zs.s.avail_in;
     d_restarts[d_uncPos + d_have]=d_zs;
   }
@@ -194,8 +205,19 @@ PlainLineReader::PlainLineReader(const std::string& fname)
   
 }
 
+void PlainLineReader::unget(char* line)
+{
+  d_stash=line;
+}
+
 char* PlainLineReader::fgets(char* line, int num)
 {
+  if(!d_stash.empty()) {
+    strncpy(line, d_stash.c_str(), num);
+    d_stash.clear();
+    return line;
+  }
+
   return ::fgets(line, num, d_fp);
 }
 

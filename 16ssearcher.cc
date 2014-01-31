@@ -11,6 +11,9 @@
 #include "fastq.hh"
 #include "fastqindex.hh"
 #include "stitchalg.hh"
+#include "githash.h"
+#include "dnamisc.hh"
+#include <tclap/CmdLine.h>
 #include <boost/lexical_cast.hpp>
 #include <fstream>
 #include <set>
@@ -22,48 +25,13 @@ extern "C" {
 #include "misc.hh"
 using namespace std;
 
-Search16S::Search16S(const std::string& fname)
-{
-  d_linereader = LineReader::make(fname);
-}
 
-bool Search16S::get(Entry* entry, uint64_t* offset)
-{
-  char line[16384];
- 
-  if(offset)
-    *offset = d_linereader->getUncPos();
-
-  if(!d_linereader->fgets(line, sizeof(line)))
-    return false;
-
-  if(line[0]!='>') 
-    throw runtime_error("Unable to parse line '"+string(line)+"' as green genes 16s line");
-
-  entry->id = atoi(line+1);
-  
-  if(!d_linereader->fgets(line, sizeof(line)))
-    return false;
-  
-  if(line[0]!='C' && line[0]!='A' && line[0]!='G' && line[0]!='T' && line[0]!='K' && line[0]!='N' && line[0]!='M' && line[0]!='B')  // K??
-    throw runtime_error("Unable to parse line '"+string(line)+"' as green genes 16s line");
-
-  chomp(line);
-  entry->nucs = line;
-  return true;
-}
-
-void Search16S::seek(uint64_t pos)
-{
-  d_linereader->seek(pos);
-}
-
+static map<string, string> g_namescache;
 
 string nameFromAccessionNumber(const std::string& number)
 {
-  static map<string, string> s_names;
-  if(s_names.count(number))
-    return s_names[number];
+  if(g_namescache.count(number))
+    return g_namescache[number];
   
   FILE* fp = popen((string("wget -q -O- 'http://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&rettype=docsum&tool=antonie&id=")+number+"' | grep Title | cut -f2 -d'>' | cut -f1 -d'<'").c_str(), "r");
   
@@ -73,10 +41,61 @@ string nameFromAccessionNumber(const std::string& number)
   string line;
   if(stringfgets(fp, &line)) {
     boost::trim_right(line);
-    s_names[number]=line;
+    g_namescache[number]=line;
   }
   pclose(fp);
   return line;
+}
+
+
+Search16S::Search16S(const std::string& fname)
+{
+  d_linereader = LineReader::make(fname);
+}
+
+bool Search16S::get(Entry* entry)
+{
+  entry->nucs.clear();
+  char line[16384];
+ 
+  if(!d_linereader->fgets(line, sizeof(line)))
+    return false;
+
+  if(line[0]!='>') 
+    throw runtime_error("Unable to parse line '"+string(line)+"' as green genes 16s line, should have >");
+
+  if(line[1]=='S') {
+    entry->id = atoi(line+2);
+    auto begin = strchr(line, ' '), end = strchr(line, '\t');
+    if(begin && end) {
+      *begin=0;
+      entry->name.assign(begin+1, end);
+    }
+  }
+  else
+    entry->id = atoi(line+1);
+
+  for(;;) {
+    if(!d_linereader->fgets(line, sizeof(line)))
+      return false;
+    if(line[0]=='>') {
+      d_linereader->unget(line);
+      break;
+    }
+
+    auto len=strlen(line);
+    line[len-1]=0;
+    for(unsigned int n=0; n< len-1;++n)
+      line[n]=toupper(line[n]);
+
+    char c=line[0];
+    if(c<'A' || c>'Z')  // K??
+      throw runtime_error("Unable to parse line '"+string(line)+"' as green genes 16s line");
+
+    entry->nucs.append(line);
+  }
+
+  return true;
 }
 
 map<int, string> GreenGenesToGenbank(const std::string& fname)
@@ -111,22 +130,34 @@ map<int, string> GreenGenesToGenbank(const std::string& fname)
 // 16ssearcher gg_13_5.fasta 1.fastq 2.fastq etc 
 int main(int argc, char** argv)
 {
-  if(argc < 3) {
-    cerr<<"Syntax: 16ssearcher gg_13_5.fasta gg_13_5_accessions.txt fastq1 [fastq2..]"<<endl;
-    return EXIT_FAILURE;
-  }
-  auto idmap = GreenGenesToGenbank(argv[2]);
+  TCLAP::CmdLine cmd("Command description message", ' ', "g" + string(g_gitHash));
+
+  TCLAP::ValueArg<std::string> mode("m","mode","Database mode, gg for Green Genes, rdp for Ribosome Database Project",true,"","mode", cmd);
+  TCLAP::ValueArg<int> qualityOffsetArg("q","quality-offset","Quality offset in fastq. 33 for Sanger.",false, 33,"offset", cmd);
+  //  TCLAP::ValueArg<int> beginSnipArg("b","begin-snip","Number of nucleotides to snip from begin of reads",false, 0,"nucleotides", cmd);
+  //  TCLAP::ValueArg<int> endSnipArg("e","end-snip","Number of nucleotides to snip from end of reads",false, 0,"nucleotides", cmd);
+  TCLAP::ValueArg<int> gaps("g","gaps","Number of unmatched bases in 16S fragment allowed",false, 0,"nucleotides", cmd);
+
+  TCLAP::UnlabeledMultiArg<string> multi("filenames", "FASTQ filenames", true, "files",  cmd);
+  cmd.parse(argc, argv);
+  map<int, string> ggmap;
   map<FASTQReader*, unique_ptr<vector<HashedPos> > > fhpos;
 
   FASTQReader* fqreader;
 
-  for(int f = 3; f < argc; ++f) {
-    fqreader = new FASTQReader(argv[f], 33, 0);
-    fhpos[fqreader]=indexFASTQ(fqreader, argv[f], 35);
+  vector<string> files = multi.getValue();
+  auto iter = files.begin();
+  Search16S s16(*iter++);
+  if(mode.getValue()=="gg")
+    ggmap=GreenGenesToGenbank(*iter++);
+  else if(mode.getValue()!="rdp") {
+    cerr<<"Mode needs to be 'gg' or 'rdp'!"<<endl;
+    return EXIT_FAILURE;
   }
-
-  Search16S s16(argv[1]);
-
+  for(;iter != files.end(); ++iter) {
+    fqreader = new FASTQReader(*iter, qualityOffsetArg.getValue(), 0);
+    fhpos[fqreader]=indexFASTQ(fqreader, *iter, 35);
+  }
 
   int scount=0;
   int maxscore=0;
@@ -163,26 +194,26 @@ int main(int argc, char** argv)
     }
 
     auto sum=accumulate(qscores.begin(), qscores.end(), 0);
-    unsigned int holes=0;
+    int holes=0;
     for(unsigned int qpos = 0; qpos < qscores.size(); ++qpos) {
       if(qpos > 20 && !qscores[qpos])
 	holes++;
     }
-    if(holes < 2) {
+    if(holes <= gaps.getValue()) {
       ofstream cov(boost::lexical_cast<string>(candidate.entry.id)+".cov");
       for(unsigned int qpos = 0; qpos < qscores.size(); ++qpos) {
 	cov<<qpos<<'\t'<< qscores[qpos]<<'\n';
       }
       
-      cerr<<"\nFull coverage ("<<sum/candidate.entry.nucs.size()<<") on " <<
-	candidate.entry.id<<" -> "<<idmap[candidate.entry.id]<< ": "<< nameFromAccessionNumber(idmap[candidate.entry.id])<<endl;
+      cerr<<"\nGood overage ("<<sum/candidate.entry.nucs.size()<<", holes="<<holes<<") on " <<
+	candidate.entry.id<<" -> "<<ggmap[candidate.entry.id]<< ": "<< (candidate.entry.name.empty() ? nameFromAccessionNumber(ggmap[candidate.entry.id]) : candidate.entry.name) <<endl;
       candidate.score=sum/candidate.entry.nucs.size();
 
       candidates.push_back(candidate);
 	  
       if(sum >= maxscore) {
 	maxscore = sum;
-	cerr<<" -> Best current guess: "<<candidate.entry.id<<" ("<<sum/candidate.entry.nucs.size()<<") -> "<<idmap[candidate.entry.id]<<endl;
+	cerr<<" -> Best current guess: "<<candidate.entry.id<<" ("<<sum/candidate.entry.nucs.size()<<") -> "<<ggmap[candidate.entry.id]<<endl;
       }
     }
     if(!((++scount)%1000) || sum)
@@ -203,7 +234,7 @@ int main(int argc, char** argv)
   }
   cout<<"Total reads contributing to 16S matches: "<<allReads.size()<<endl;
   for(auto iter = candidates.rbegin(); iter != candidates.rend(); ++iter) {
-    cout<<"Score: "<<iter->score<<" ("<<iter->reads.size()*100.0/allReads.size()<<"% of reads), Green Genes ID: "<<iter->entry.id<< " -> "<<idmap[iter->entry.id]<<": "<< nameFromAccessionNumber(idmap[iter->entry.id])<<endl;;
+    cout<<"Score: "<<iter->score<<" ("<<iter->reads.size()*100.0/allReads.size()<<"% of reads), db ID: "<<iter->entry.id<< " -> "<<ggmap[iter->entry.id]<<": "<< (iter->entry.name.empty() ? nameFromAccessionNumber(ggmap[iter->entry.id]) : iter->entry.name)<<endl;
     //string found = doStitch(fhpos, iter->second.nucs.substr(0, 100), iter->second.nucs.substr(iter->second.nucs.length()-100), 1.2*iter->second.nucs.length(), 35, false);
     //cout <<"Diff: "<<dnaDiff(found, iter->second.nucs)<<endl;
   }

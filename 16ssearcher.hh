@@ -14,6 +14,7 @@ public:
   {
     uint32_t id;
     std::string nucs;
+    std::string name;
     bool operator<(const Entry& rhs) const 
     {
       return id < rhs.id;
@@ -21,9 +22,7 @@ public:
   };
 
   Search16S(const std::string& src);
-  bool get(Entry* entry, uint64_t* offset=0);
-  void seek(uint64_t offset);
-
+  bool get(Entry* entry);
 
 private:
   std::unique_ptr<LineReader> d_linereader;

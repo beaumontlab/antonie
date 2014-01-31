@@ -18,6 +18,7 @@ public:
   virtual char* fgets(char* line, int num) = 0;
   virtual void seek(uint64_t pos) = 0;
   virtual uint64_t getUncPos()=0;
+  virtual void unget(char *line) = 0;
   static std::unique_ptr<LineReader> make(const std::string& fname);
 };
 
@@ -31,8 +32,10 @@ public:
   char* fgets(char* line, int num);
   void seek(uint64_t pos);
   uint64_t getUncPos();
+  void unget(char *line);
 private:
   FILE* d_fp;
+  std::string d_stash;
 };
 
 
@@ -44,7 +47,7 @@ public:
   ~ZLineReader();
   //  bool getLine(std::string* str);
   char* fgets(char* line, int num);
-  
+  void unget(char *line);
   uint64_t getUncPos()
   {
     return d_uncPos;
@@ -70,6 +73,7 @@ private:
   std::map<uint64_t, ZState> d_restarts;
   uint64_t d_uncPos;
   bool d_haveSeeked;
+  std::string d_stash;
 };
 
 class BGZFWriter
