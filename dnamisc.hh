@@ -202,3 +202,6 @@ std::string jsonVectorX(const std::vector<T>& v,
 
 //! maps 'len' nucleotides from 'str' at offset offset to a 32 bit string. At most 16 nuclotides therefore!
 uint32_t kmerMapper(const std::string& str, int offset, int unsigned len);
+
+char DNAToAminoAcid(char* s);
+

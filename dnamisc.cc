@@ -58,3 +58,86 @@ uint32_t kmerMapper(const std::string& str, int offset, int unsigned len)
   }
   return ret;
 }
+
+char DNAToAminoAcid(char* s)
+{
+  char a=*s++;
+  char b=*s++;
+  char c=*s;
+  if(a=='T') {
+    if(b=='T')  {
+      if(c=='T' || c=='C')
+        return 'F';
+      else 
+        return 'L';
+    }
+    if(b=='C')
+      return 'S';
+    if(b=='A') {
+      if(c=='T' || c=='C')
+        return 'Y';
+      else
+        return 's';
+    }
+    if(b=='G') {
+      if(c=='T' || c=='C')
+        return 'C';
+      else if(c=='A')
+        return 's';
+      else if(c=='G')
+        return 'W';
+    }
+  }
+  else if(a=='C') {
+    if(b=='T')
+      return 'L';
+    if(b=='C')
+      return 'P';
+    if(b=='A') {
+      if (c=='T' || c=='C')
+        return 'H';
+      else  
+        return 'Q';
+    }
+    if(b=='G')
+      return 'R';
+  }
+  else if(a=='A') {
+    if(b=='T') {
+      if(c=='G')
+        return 'M';
+      else
+        return 'I';
+    }
+    if(b=='C')
+      return 'T';
+    else if(b=='A') {
+      if(c=='T' || c=='C')
+        return 'N';
+      else
+        return 'K';
+    }
+    else if(b=='G') {
+      if(c=='T' || c=='C')
+        return 'S';
+      else
+        return 'R';
+    }
+  }
+  else if(a=='G') {
+    if(b=='T')
+      return 'V';
+    else if(b=='C')
+      return 'A';
+    else if(b=='A') {
+      if(c=='T' || c=='C')
+        return 'D';
+      else
+        return 'E';
+    }
+    else if(b=='G')
+      return 'G';
+  }
+  return '?';
+}
+
