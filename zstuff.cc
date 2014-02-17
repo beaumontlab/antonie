@@ -6,6 +6,10 @@
 #include <stdexcept>
 #include <iostream>
 #include <arpa/inet.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
 
@@ -156,6 +160,11 @@ void ZLineReader::skip(uint64_t bytes)
   }
 }
 
+uint64_t ZLineReader::uncompressedSize()
+{
+  throw runtime_error("Can't yet estimate size of compressed files, sorry");
+}
+
 void ZLineReader::seek(uint64_t pos)
 {
   d_haveSeeked=1;
@@ -225,6 +234,16 @@ void PlainLineReader::seek(uint64_t pos)
 {
   fseek(d_fp, pos, SEEK_SET);
 }
+
+uint64_t PlainLineReader::uncompressedSize()
+{
+  struct stat buf;
+  if(fstat(fileno(d_fp), &buf) < 0) 
+    throw runtime_error("Unable to determine size of file in PlainLineReader");
+  
+  return buf.st_size;
+}
+
 
 uint64_t PlainLineReader::getUncPos()
 {

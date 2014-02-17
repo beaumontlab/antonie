@@ -19,6 +19,7 @@ public:
   virtual void seek(uint64_t pos) = 0;
   virtual uint64_t getUncPos()=0;
   virtual void unget(char *line) = 0;
+  virtual uint64_t uncompressedSize() = 0;
   static std::unique_ptr<LineReader> make(const std::string& fname);
 };
 
@@ -33,6 +34,7 @@ public:
   void seek(uint64_t pos);
   uint64_t getUncPos();
   void unget(char *line);
+  uint64_t uncompressedSize();
 private:
   FILE* d_fp;
   std::string d_stash;
@@ -52,6 +54,7 @@ public:
   {
     return d_uncPos;
   }
+  uint64_t uncompressedSize();
   void seek(uint64_t pos);
 private:
   bool getChar(char* c);

@@ -10,6 +10,7 @@
 #include <fstream>
 #include <map>
 #include <unordered_map>
+#include <boost/math/distributions/poisson.hpp>
 #include <vector>
 #include <string>
 #include <string.h>
@@ -626,16 +627,17 @@ int main(int argc, char** argv)
   TCLAP::ValueArg<int> beginSnipArg("b","begin-snip","Number of nucleotides to snip from begin of reads",false, 0,"nucleotides", cmd);
   TCLAP::ValueArg<int> endSnipArg("e","end-snip","Number of nucleotides to snip from end of reads",false, 0,"nucleotides", cmd);
   TCLAP::ValueArg<int> qlimitArg("l","qlimit","Disregard nucleotide reads with less quality than this in calls",false, 30,"q", cmd);
-  TCLAP::ValueArg<int> duplimitArg("d","duplimit","Ignore reads that occur more than d times. 0 for no filter.",false, 0,"times", cmd);
+  TCLAP::ValueArg<int> duplimitArg("d","duplimit","Ignore reads that occur more than d times. 0 for no filter.",false, -1,"times", cmd);
   TCLAP::SwitchArg unmatchedDumpSwitch("u","unmatched-dump","Create a dump of unmatched reads (unfound.fastq)", cmd, false);
   TCLAP::SwitchArg skipUndermatchedSwitch("","skip-undermatched","Do not emit undermatched regions", cmd, false);
   TCLAP::SwitchArg skipVariableSwitch("","skip-variable","Do not emit variable regions", cmd, false);
   TCLAP::SwitchArg skipInsertsSwitch("","skip-inserts","Do not emit inserts", cmd, false);
-  TCLAP::SwitchArg excludePhiXSwitch("x","exclude-phix","Exclude PhiX automatically",cmd, false);
+  TCLAP::SwitchArg excludePhiXSwitch("p","exclude-phix","Exclude PhiX automatically",cmd, false);
+  TCLAP::ValueArg<string> excludeArg("x","exclude","Exclude the genome in this FASTA",false,"", "filename", cmd );
+
   cmd.parse( argc, argv );
 
   unsigned int qlimit = qlimitArg.getValue();
-  unsigned int duplimit = duplimitArg.getValue();
 
   ostringstream jsonlog;  
   TeeDevice td(cerr, jsonlog);
@@ -648,11 +650,14 @@ int main(int argc, char** argv)
   
   StereoFASTQReader fastq(fastq1Arg.getValue(), fastq2Arg.getValue(), qualityOffsetArg.getValue(), beginSnipArg.getValue(), endSnipArg.getValue());
 
+  (*g_log)<<"FASTQ Input from '"<<fastq1Arg.getValue()<<"' and '"<<fastq2Arg.getValue()<<"'"<<endl;
+
   (*g_log)<<"Snipping "<<beginSnipArg.getValue()<<" from beginning of reads, "<<endSnipArg.getValue()<<" from end of reads"<<endl;
 
   unsigned int bytes=0;
   FastQRead fqfrag1, fqfrag2;
   bytes=fastq.getReadPair(&fqfrag1, &fqfrag2); // get a read to index based on its size
+
   
   ReferenceGenome rg(referenceArg.getValue());
   (*g_log)<<"Read FASTA reference genome of '"<<rg.d_fullname<<"', "<<rg.size()<<" nucleotides"<<endl;
@@ -667,21 +672,46 @@ int main(int argc, char** argv)
 
   fprintf(jsfp.get(), "var genomeGCRatio=%f;\n", genomeGCRatio);
 
-  unique_ptr<ReferenceGenome> phix;
+  int duplimit = duplimitArg.getValue();
+  if(duplimit < 0) {
+    auto lambda = 1.0*fastq.estimateReads()/rg.size();
+    boost::math::poisson_distribution<double> pd(lambda);
+    duplimit=boost::math::quantile(pd, 0.999);
+    (*g_log)<<"Auto-set duplicate filter to "<<duplimit<<" based on 0.999 cumulative Poisson. Expect "<<lambda<<" dups on average over estimated "<< fastq.estimateReads()<<" reads"<<endl;
+    
+  }
+  else if(duplimit > 0)
+    (*g_log)<<"Duplicate reads filtered beyond "<<duplimit<<" copies"<<endl;
+
+
+  unique_ptr<ReferenceGenome> exclude;
 
   if(excludePhiXSwitch.getValue()) {
-    phix = ReferenceGenome::makeFromString(phiXFastA);
+    exclude = ReferenceGenome::makeFromString(phiXFastA);
     
-    (*g_log)<<"Loading positive control filter genome(s)"<<endl;
+    (*g_log)<<"Loaded positive control filter genome PhiX, "<<exclude->size()<<" nucleotides"<<endl;
     
-    phix->index(fqfrag1.d_nucleotides.size());
-    phix->index(keylen);
+    exclude->index(fqfrag1.d_nucleotides.size());
+    exclude->index(keylen);
+
+  }
+  if(!excludeArg.getValue().empty()) {
+    if(exclude) {
+      cerr<<"Specifying both excluded genome and internal phix filter is not supported"<<endl;
+      exit(1);
+    }
+    exclude = unique_ptr<ReferenceGenome>(new ReferenceGenome(excludeArg.getValue()));
+    
+    (*g_log)<<"Loaded positive control filter genome from '"<<excludeArg.getValue()<<"', "<<exclude->size()<<" nucleotides"<<endl;
+    
+    exclude->index(fqfrag1.d_nucleotides.size());
+    exclude->index(keylen);
   }
   g_log->flush();
   dnapos_t pos;
 
   uint64_t withAny=0, found=0, total=0, qualityExcluded=0, 
-    phixFound=0, differentLength=0, tooFrequent=0, goodPairMatches=0, badPairMatches=0;
+    excludeFound=0, differentLength=0, tooFrequent=0, goodPairMatches=0, badPairMatches=0;
 
   BAMWriter sbw(samFileArg.getValue(), rg.d_name, rg.size());
 
@@ -722,7 +752,7 @@ int main(int argc, char** argv)
       dc.feedString(fqfrag.d_nucleotides);
       if(duplimit) {
 	theHash=hash(fqfrag.d_nucleotides.c_str(), fqfrag.d_nucleotides.size(), 0);
-	if(++seenAlready[theHash] > duplimit) {
+	if(++seenAlready[theHash] > (unsigned int)duplimit) {
 	  if(paircount)
 	    dup2=true;
 	  else
@@ -764,13 +794,13 @@ int main(int argc, char** argv)
       }
     }
     
-    if(pairpositions[0].empty() && pairpositions[1].empty() && phix) {
-      auto before=phixFound;
-      if(!phix->getAllReadPosBoth(&fqfrag1).empty() || !fuzzyFind(&fqfrag1, *phix, keylen, qlimit).empty())
-	phixFound++;
-      if(!phix->getAllReadPosBoth(&fqfrag2).empty() || !fuzzyFind(&fqfrag2, *phix, keylen, qlimit).empty())
-	phixFound++;
-      if(before!=phixFound)
+    if(pairpositions[0].empty() && pairpositions[1].empty() && exclude) {
+      auto before=excludeFound;
+      if(!exclude->getAllReadPosBoth(&fqfrag1).empty() || !fuzzyFind(&fqfrag1, *exclude, keylen, qlimit).empty())
+	excludeFound++;
+      if(!exclude->getAllReadPosBoth(&fqfrag2).empty() || !fuzzyFind(&fqfrag2, *exclude, keylen, qlimit).empty())
+	excludeFound++;
+      if(before!=excludeFound)
 	continue;
     }
 
@@ -904,7 +934,7 @@ int main(int argc, char** argv)
   printGCMappings(jsfp.get(), rg, "gcRatios");
 
   (*g_log) << (boost::format("Total reads: %|40t| %10d (%.2f gigabps)") % total % (totNucleotides/1000000000.0)).str() <<endl;
-  (*g_log) << (boost::format("Excluded control reads: %|40t|-%10d") % phixFound).str() <<endl;
+  (*g_log) << (boost::format("Excluded control reads: %|40t|-%10d") % excludeFound).str() <<endl;
   (*g_log) << (boost::format("Quality excluded: %|40t|-%10d") % qualityExcluded).str() <<endl;
   (*g_log) << (boost::format("Ignored reads with N: %|40t|-%10d") % withAny).str()<<endl;
   if(duplimit)
@@ -926,9 +956,9 @@ int main(int argc, char** argv)
     i=found;
   }
 
-  if(phix) {
-    for(auto& i : phix->d_correctMappings) {
-      i=phixFound;
+  if(exclude) {
+    for(auto& i : exclude->d_correctMappings) {
+      i=excludeFound;
     }
   }
 
@@ -958,8 +988,8 @@ int main(int argc, char** argv)
   }
   
   printCorrectMappings(jsfp.get(), rg, "referenceQ");
-  if(phix)
-    printCorrectMappings(jsfp.get(), *phix, "controlQ");
+  if(exclude)
+    printCorrectMappings(jsfp.get(), *exclude, "controlQ");
   fprintf(jsfp.get(), "var qqdata=[");
   bool printedYet=false;
   for(auto coinco = qqcounts.begin() ; coinco != qqcounts.end(); ++coinco) {
@@ -1008,7 +1038,7 @@ int main(int argc, char** argv)
     slocimap.insert(p);
   }
   for(auto& p : slocimap) {
-    if(p.second.samples.size()==1)
+    if(p.second.samples.size()==1) // no variability if only 2
       continue;
 
     int aCount=0, cCount=0, gCount=0, tCount=0, xCount=0;
@@ -1047,7 +1077,7 @@ int main(int argc, char** argv)
   }
   ofs.flush();
 
-  cerr<<vcl.d_clusters.size()<<" clusters of real variability"<<endl;
+  cerr<<vcl.numClusters()<<" clusters of real variability, " << vcl.numEntries()<<" variable loci"<<endl;
 
   vector<ClusterLocus> clusters;
   for(auto& locus : rg.d_locimap) {
@@ -1068,7 +1098,7 @@ int main(int argc, char** argv)
       for(auto& locus : cluster.d_members) {
 	int varcount=variabilityCount(rg, locus.pos, locus.locistat, &fraction);
 	maxVarcount = max(varcount, maxVarcount);
-	if(varcount < 10) 
+	if(varcount < 5) 
 	  continue;
 	ostringstream report;
 

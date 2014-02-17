@@ -53,6 +53,22 @@ public:
     std::vector<T> d_members; //!< members of this cluster
   };
 
+  //! number of clusters
+  unsigned int numClusters()
+  {
+    return d_clusters.size();
+  }
+
+  //! number of entries
+  unsigned int numEntries() 
+  {
+    unsigned int ret=0;
+    for(const auto& c: d_clusters)
+      ret += c.d_members.size();
+    return ret;
+  }
+
+
   //! The clusters we made for you
   std::vector<cluster> d_clusters;
 private:

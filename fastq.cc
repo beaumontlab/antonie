@@ -91,6 +91,15 @@ unsigned int FASTQReader::getRead(FastQRead* fq)
   return d_reader->getUncPos() - pos;
 }
 
+uint64_t FASTQReader::estimateReads()
+{
+  uint64_t pos = d_reader->getUncPos();
+  FastQRead fqr;
+  auto size = getRead(&fqr);
+  seek(pos);
+  return d_reader->uncompressedSize() / size;
+}
+
 unsigned int StereoFASTQReader::getRead(uint64_t pos, FastQRead* fq)
 {
   unsigned int ret;
@@ -105,6 +114,11 @@ unsigned int StereoFASTQReader::getRead(uint64_t pos, FastQRead* fq)
 
   fq->position = pos;
   return ret;
+}
+
+uint64_t StereoFASTQReader::estimateReads()
+{
+  return d_fq1.estimateReads() + d_fq2.estimateReads();
 }
 
 unsigned int StereoFASTQReader::getReadPair(FastQRead* fq1, FastQRead* fq2)

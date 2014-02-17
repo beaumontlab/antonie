@@ -37,7 +37,7 @@ public:
   {
     d_reader->seek(pos);
   }
-
+  uint64_t estimateReads();
   unsigned int getRead(FastQRead* fq); //!< Get a FastQRead, return number of bytes read
 private:
   unsigned int d_qoffset;
@@ -54,7 +54,7 @@ public:
   {}
 
   void seek(uint64_t pos);
-
+  uint64_t estimateReads();
   unsigned int getRead(uint64_t pos, FastQRead* fq2);
   unsigned int getReadPair(FastQRead* fq1, FastQRead* fq2);
 private:
