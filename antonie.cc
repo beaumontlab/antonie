@@ -131,8 +131,10 @@ void ReferenceGenome::printCoverage(FILE* jsfp, const std::string& histoName)
     if(gcsnip.length()==40) {// we get strange results otherwise
       gcCoverage[gc](cov);
     }
-    else
-      cout <<gcsnip.length()<<endl;
+    else {
+      // cout <<"Odd gcsnip length: "<<gcsnip.length()<<", pos = "<<pos<<endl;
+      
+    }
 
     covfile << pos << '\t' << cov << '\t' << ((int)cov)-prevcov << '\t' << gc  <<'\t' << getGCContent(snippet(pos > 7 ? pos-7 : 1, pos+8)) << '\n';
     prevcov=cov;
