@@ -16,6 +16,7 @@
 #include <tclap/CmdLine.h>
 #include <boost/lexical_cast.hpp>
 #include <fstream>
+#include <numeric>
 #include <set>
 
 extern "C" {
@@ -24,7 +25,6 @@ extern "C" {
 }
 #include "misc.hh"
 using namespace std;
-
 
 static map<string, string> g_namescache;
 
