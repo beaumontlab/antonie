@@ -7,7 +7,7 @@ LDFLAGS=$(CXX2011FLAGS)   # -Wl,-Bstatic -lstdc++ -lgcc -lz -Wl,-Bdynamic -stati
 CHEAT_ARG := $(shell ./update-git-hash-if-necessary)
 
 SHIPPROGRAMS=antonie 16ssearcher stitcher fqgrep pfqgrep
-PROGRAMS=$(SHIPPROGRAMS) digisplice gffedit nw
+PROGRAMS=$(SHIPPROGRAMS) digisplice gffedit gfflookup nw
 
 all: $(PROGRAMS)
 
@@ -46,6 +46,9 @@ pfqgrep: pfqgrep.o misc.o fastq.o dnamisc.o zstuff.o
 
 
 gffedit: gffedit.o refgenome.o fastq.o dnamisc.o zstuff.o misc.o hash.o
+	$(CXX) $(LDFLAGS) $^ -lz $(STATICFLAGS) -o $@
+
+gfflookup: gfflookup.o geneannotated.o refgenome.o fastq.o dnamisc.o zstuff.o misc.o hash.o
 	$(CXX) $(LDFLAGS) $^ -lz $(STATICFLAGS) -o $@
 
 
