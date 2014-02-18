@@ -204,4 +204,6 @@ std::string jsonVectorX(const std::vector<T>& v,
 uint32_t kmerMapper(const std::string& str, int offset, int unsigned len);
 
 char DNAToAminoAcid(const char* s);
+const char* AminoAcidName(char c);
+
 

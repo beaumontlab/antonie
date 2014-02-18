@@ -59,6 +59,56 @@ uint32_t kmerMapper(const std::string& str, int offset, int unsigned len)
   return ret;
 }
 
+const char* AminoAcidName(char c)
+{
+  switch(c) {
+    case 'T':
+      return "Threonine";
+    case 'F':
+      return "Phenylanaline";
+    case 'L':
+      return "Leucine";
+    case 'I':
+      return "Isoleucine";
+    case 'M':
+      return "Methionine";
+    case 'V':
+      return "Valine";
+    case 'S':
+      return "Serine";
+    case 'P':
+      return "Proline";
+    case 'A':
+      return "Alanine";
+    case 'Y':
+      return "Tyrosine";
+    case 's':
+      return "Stop";
+    case 'H':
+      return "Histidine";
+    case 'Q':
+      return "Glutamine";
+    case 'N':
+      return "Asparagine";
+    case 'K':
+      return "Lysine";
+    case 'D':
+      return "Aspartic Acid";
+    case 'E':
+      return "Glutamic Acid";
+    case 'C':
+      return "Cysteine";
+    case 'W':
+      return "Tryptophan";
+    case 'R':
+      return "Arganine";
+    case 'G':
+      return "Glycine";
+  }
+  return "?";
+  
+}
+
 char DNAToAminoAcid(const char* s)
 {
   char a=*s++;

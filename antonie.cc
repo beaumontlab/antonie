@@ -1158,7 +1158,7 @@ int main(int argc, char** argv)
 	int tot=locus.locistat.samples.size() + rg.d_mapping[locus.pos].coverage;
 	report<<endl;
 	if(!gene.empty()) 
-	  report <<fmt2<<"Original codon: "<<origCodon<<", amino acid: "<<DNAToAminoAcid(origCodon.c_str())<<", "<<aminoNum<<", "<<nucOffset<<", "<<(orfSense ? '+' : '-')<<endl;
+	  report <<fmt2<<"Original codon: "<<origCodon<<", amino acid: "<<AminoAcidName(DNAToAminoAcid(origCodon.c_str()))<<", Residue "<<1+aminoNum<<", offset in codon "<<nucOffset<<", strand "<<(orfSense ? '+' : '-')<<endl;
 	if(!gas.empty()) {
 	  report << fmt2 << "Annotation: ";
 	  for(auto& ga : gas) {
@@ -1174,22 +1174,22 @@ int main(int argc, char** argv)
 	  if(aCount) {
 	    newCodon[nucOffset]=orfSense ? 'A' : 'T';
 	    if(origCodon != newCodon)
-	      report<<fmt2<<" A: "<<origCodon <<" -> "<<newCodon<<", "<<DNAToAminoAcid(origCodon.c_str()) <<" -> "<<DNAToAminoAcid(newCodon.c_str())<<endl;
+	      report<<fmt2<<" A: "<<origCodon <<" -> "<<newCodon<<", "<<AminoAcidName(DNAToAminoAcid(origCodon.c_str())) <<" -> "<< AminoAcidName(DNAToAminoAcid(newCodon.c_str()))<<endl;
 	  }
 	  if(cCount) {
 	    newCodon[nucOffset]=orfSense ? 'C' : 'G';
 	    if(origCodon != newCodon)
-	      report<<fmt2<<" C: "<<origCodon <<" -> "<<newCodon<<", "<<DNAToAminoAcid(origCodon.c_str()) <<" -> "<<DNAToAminoAcid(newCodon.c_str())<<endl;
+	      report<<fmt2<<" C: "<<origCodon <<" -> "<<newCodon<<", "<<AminoAcidName(DNAToAminoAcid(origCodon.c_str())) <<" -> "<< AminoAcidName(DNAToAminoAcid(newCodon.c_str()))<<endl;
 	  }
 	  if(gCount) {
 	    newCodon[nucOffset]=orfSense ? 'G' : 'C';
 	    if(origCodon != newCodon)
-	      report<<fmt2<<" G: "<<origCodon <<" -> "<<newCodon<<", "<<DNAToAminoAcid(origCodon.c_str()) <<" -> "<<DNAToAminoAcid(newCodon.c_str())<<endl;
+	      report<<fmt2<<" G: "<<origCodon <<" -> "<<newCodon<<", "<<AminoAcidName(DNAToAminoAcid(origCodon.c_str())) <<" -> "<< AminoAcidName(DNAToAminoAcid(newCodon.c_str()))<<endl;
 	  }
 	  if(tCount) {
 	    newCodon[nucOffset]=orfSense ? 'T' : 'A';
 	    if(origCodon != newCodon)
-	      report<<fmt2<<" T: "<<origCodon <<" -> "<<newCodon<<", "<<DNAToAminoAcid(origCodon.c_str()) <<" -> "<<DNAToAminoAcid(newCodon.c_str())<<endl;
+	      report<<fmt2<<" T: "<<origCodon <<" -> "<<newCodon<<", "<<AminoAcidName(DNAToAminoAcid(origCodon.c_str())) <<" -> "<<AminoAcidName(DNAToAminoAcid(newCodon.c_str()))<<endl;
 	  }
 	}
 
