@@ -1108,7 +1108,7 @@ int main(int argc, char** argv)
 	for(const auto& ga : gas) {
 	  if(ga.type == "gene") {
 	    
-	    gene = rg.snippet(ga.startPos, ga.stopPos);
+	    gene = rg.snippet(ga.startPos, ga.stopPos+1);
 	    orfSense = ga.strand;
 	    if(ga.strand) {
 	      aminoNum = (locus.pos - ga.startPos) / 3;
