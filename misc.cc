@@ -64,3 +64,14 @@ void reverseNucleotides(std::string* nucleotides)
       *iter = 'A';
   }
 }
+
+string compilerVersion()
+{
+#if defined(__clang__)
+  return string("clang "__clang_version__);
+#elif defined(__GNUC__)
+  return string("gcc "__VERSION__);
+#else  // add other compilers here 
+  return string("Unknown compiler");
+#endif
+}

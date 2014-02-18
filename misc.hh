@@ -41,3 +41,5 @@ inline double variance(const VarMeanEstimator& vme)
 {
   return (vme.x2Tot - vme.xTot*vme.xTot/vme.N)/vme.N;
 }
+
+std::string compilerVersion();

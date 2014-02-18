@@ -643,9 +643,15 @@ int main(int argc, char** argv)
   TeeDevice td(cerr, jsonlog);
   g_log = new TeeStream(td);
 
-  (*g_log)<<"Antonie was compiled from git hash g" << g_gitHash <<endl;
+  (*g_log)<<"Antonie was compiled from git hash g" << g_gitHash <<", using "<<compilerVersion() << " on " << __TIME__ << " " <<__DATE__ <<endl;
 
-  GeneAnnotationReader gar(annotationsArg.getValue());
+  GeneAnnotationReader gar(annotationsArg.getValue()); 
+  {
+    char buffer[1024];
+    (*g_log)<<"Current working directory is '"<<getcwd(buffer,sizeof(buffer))<<"' on host ";
+    *buffer=0;
+    (*g_log)<<(gethostname(buffer, sizeof(buffer)) < 0 ? "UNKNOWN" : buffer) <<endl;
+  }
   (*g_log)<<"Done reading "<<gar.size()<<" annotations from '"<<annotationsArg.getValue()<<"'"<<endl;
   
   StereoFASTQReader fastq(fastq1Arg.getValue(), fastq2Arg.getValue(), qualityOffsetArg.getValue(), beginSnipArg.getValue(), endSnipArg.getValue());
@@ -1077,28 +1083,16 @@ int main(int argc, char** argv)
   }
   ofs.flush();
 
-  cerr<<vcl.numClusters()<<" clusters of real variability, " << vcl.numEntries()<<" variable loci"<<endl;
+  (*g_log)<<vcl.numClusters()<<" clusters of real variability, " << vcl.numEntries()<<" variable loci"<<endl;
 
-  vector<ClusterLocus> clusters;
-  for(auto& locus : rg.d_locimap) {
-    clusters.push_back(ClusterLocus{locus.first, locus.second});
-  }
-
-  sort(clusters.begin(), clusters.end());
-
-  Clusterer<ClusterLocus> cll(100);
-  for(auto item : clusters) 
-    cll.feed(item);
-
-  (*g_log)<<"Found "<<rg.d_locimap.size()<<" varying loci ("<<cll.d_clusters.size()<<" ranges)"<<endl;  
   if(!skipVariableSwitch.getValue()) {
-    for(auto& cluster : cll.d_clusters) {
+    for(auto& cluster : vcl.d_clusters) {
       vector<pair<string, dnapos_t>> reports;
       int maxVarcount=0;
       for(auto& locus : cluster.d_members) {
 	int varcount=variabilityCount(rg, locus.pos, locus.locistat, &fraction);
 	maxVarcount = max(varcount, maxVarcount);
-	if(varcount < 5) 
+	if(varcount < 3) 
 	  continue;
 	significantlyVariable++;
 
@@ -1107,18 +1101,25 @@ int main(int argc, char** argv)
 	vector<GeneAnnotation> gas=gar.lookup(locus.pos);
 
 	string origCodon, newCodon;
-	int orfOffset=-1;
+	string gene;
+	int nucOffset;
+	bool orfSense=0;
+	int aminoNum=0;
 	for(const auto& ga : gas) {
 	  if(ga.type == "gene") {
+	    
+	    gene = rg.snippet(ga.startPos, ga.stopPos);
+	    orfSense = ga.strand;
 	    if(ga.strand) {
-	      orfOffset = (locus.pos - ga.startPos) % 3;
-	      origCodon = rg.snippet(locus.pos - orfOffset, locus.pos - orfOffset + 3);
+	      aminoNum = (locus.pos - ga.startPos) / 3;
+	      nucOffset = (locus.pos - ga.startPos) % 3;
 	    }
 	    else {
-	      orfOffset = (ga.stopPos - locus.pos) % 3;
-	      origCodon = rg.snippet(locus.pos + orfOffset - 3, locus.pos + orfOffset);
-	      reverseNucleotides(&origCodon);
+	      aminoNum = (ga.stopPos - locus.pos) / 3;
+	      nucOffset = (ga.stopPos - locus.pos) % 3;
+	      reverseNucleotides(&gene);
 	    }
+	    origCodon = gene.substr(aminoNum*3, 3);
 	  }
 	}
 	
@@ -1156,8 +1157,8 @@ int main(int argc, char** argv)
 
 	int tot=locus.locistat.samples.size() + rg.d_mapping[locus.pos].coverage;
 	report<<endl;
-	if(orfOffset >= 0) 
-	  report <<"Original codon: "<<origCodon<<", amino acid: "<<DNAToAminoAcid(origCodon.c_str())<<endl;
+	if(!gene.empty()) 
+	  report <<fmt2<<"Original codon: "<<origCodon<<", amino acid: "<<DNAToAminoAcid(origCodon.c_str())<<", "<<aminoNum<<", "<<nucOffset<<", "<<(orfSense ? '+' : '-')<<endl;
 	if(!gas.empty()) {
 	  report << fmt2 << "Annotation: ";
 	  for(auto& ga : gas) {
@@ -1168,6 +1169,33 @@ int main(int argc, char** argv)
 	report << fmt2<< "Fraction tail: "<<fraction<<", "<< locus.locistat.samples.size()<<endl;
 	report << fmt2<< "A: " << aCount*100/tot <<"%, C: "<<cCount*100/tot<<"%, G: "<<gCount*100/tot<<"%, T: "<<tCount*100/tot<<"%"<<endl;
 
+	if(!gene.empty()) {
+	  newCodon=origCodon;
+	  if(aCount) {
+	    newCodon[nucOffset]=orfSense ? 'A' : 'T';
+	    if(origCodon != newCodon)
+	      report<<fmt2<<" A: "<<origCodon <<" -> "<<newCodon<<", "<<DNAToAminoAcid(origCodon.c_str()) <<" -> "<<DNAToAminoAcid(newCodon.c_str())<<endl;
+	  }
+	  if(cCount) {
+	    newCodon[nucOffset]=orfSense ? 'C' : 'G';
+	    if(origCodon != newCodon)
+	      report<<fmt2<<" C: "<<origCodon <<" -> "<<newCodon<<", "<<DNAToAminoAcid(origCodon.c_str()) <<" -> "<<DNAToAminoAcid(newCodon.c_str())<<endl;
+	  }
+	  if(gCount) {
+	    newCodon[nucOffset]=orfSense ? 'G' : 'C';
+	    if(origCodon != newCodon)
+	      report<<fmt2<<" G: "<<origCodon <<" -> "<<newCodon<<", "<<DNAToAminoAcid(origCodon.c_str()) <<" -> "<<DNAToAminoAcid(newCodon.c_str())<<endl;
+	  }
+	  if(tCount) {
+	    newCodon[nucOffset]=orfSense ? 'T' : 'A';
+	    if(origCodon != newCodon)
+	      report<<fmt2<<" T: "<<origCodon <<" -> "<<newCodon<<", "<<DNAToAminoAcid(origCodon.c_str()) <<" -> "<<DNAToAminoAcid(newCodon.c_str())<<endl;
+	  }
+	}
+
+
+
+	
 	// cout<<rg.getMatchingFastQs(locus.pos, fastq);
 	reports.push_back({report.str(), locus.pos});  
       }
