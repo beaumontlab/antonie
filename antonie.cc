@@ -1,5 +1,5 @@
-/* (C) 2013 TU Delft
-   (C) 2013 Netherlabs Computer Consulting BV */
+/* (C) 2013-2014 TU Delft
+   (C) 2013-2014 Netherlabs Computer Consulting BV */
 
 #define __STDC_FORMAT_MACROS
 #include <tclap/CmdLine.h>
@@ -91,13 +91,13 @@ DuplicateCounter::counts_t DuplicateCounter::getCounts()
   uint64_t repeatCount=1;
   for(auto iter = next(d_hashes.begin()) ; iter != d_hashes.end(); ++iter) {
     if(*prev(iter) != *iter) {
-      ++ret[min(repeatCount, (decltype(repeatCount))20)];
+      ret[min(repeatCount, (decltype(repeatCount))20)]+=repeatCount; 
       repeatCount=1;
     }
     else
       repeatCount++;
   }
-  ++ret[repeatCount]; 
+  ret[repeatCount]+=repeatCount;
   return ret;
 }
 
@@ -1100,7 +1100,28 @@ int main(int argc, char** argv)
 	maxVarcount = max(varcount, maxVarcount);
 	if(varcount < 5) 
 	  continue;
+	significantlyVariable++;
+
 	ostringstream report;
+
+	vector<GeneAnnotation> gas=gar.lookup(locus.pos);
+
+	string origCodon, newCodon;
+	int orfOffset=-1;
+	for(const auto& ga : gas) {
+	  if(ga.type == "gene") {
+	    if(ga.strand) {
+	      orfOffset = (locus.pos - ga.startPos) % 3;
+	      origCodon = rg.snippet(locus.pos - orfOffset, locus.pos - orfOffset + 3);
+	    }
+	    else {
+	      orfOffset = (ga.stopPos - locus.pos) % 3;
+	      origCodon = rg.snippet(locus.pos + orfOffset - 3, locus.pos + orfOffset);
+	      reverseNucleotides(&origCodon);
+	    }
+	  }
+	}
+	
 
 	char c=rg.snippet(locus.pos, locus.pos+1)[0];
 	aCount = cCount = tCount = gCount = 0;
@@ -1114,7 +1135,7 @@ int main(int argc, char** argv)
 	report << (fmt1 % locus.pos % rg.d_mapping[locus.pos].coverage % rg.snippet(locus.pos, locus.pos+1) ).str();
 	sort(locus.locistat.samples.begin(), locus.locistat.samples.end());
 
-	significantlyVariable++;
+	
 	for(auto j = locus.locistat.samples.begin(); 
 	    j != locus.locistat.samples.end(); ++j) {
 	  c=j->nucleotide;
@@ -1135,7 +1156,8 @@ int main(int argc, char** argv)
 
 	int tot=locus.locistat.samples.size() + rg.d_mapping[locus.pos].coverage;
 	report<<endl;
-	vector<GeneAnnotation> gas=gar.lookup(locus.pos);
+	if(orfOffset >= 0) 
+	  report <<"Original codon: "<<origCodon<<", amino acid: "<<DNAToAminoAcid(origCodon.c_str())<<endl;
 	if(!gas.empty()) {
 	  report << fmt2 << "Annotation: ";
 	  for(auto& ga : gas) {

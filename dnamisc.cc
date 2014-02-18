@@ -59,7 +59,7 @@ uint32_t kmerMapper(const std::string& str, int offset, int unsigned len)
   return ret;
 }
 
-char DNAToAminoAcid(char* s)
+char DNAToAminoAcid(const char* s)
 {
   char a=*s++;
   char b=*s++;
