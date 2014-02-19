@@ -666,7 +666,7 @@ int main(int argc, char** argv)
 
   
   ReferenceGenome rg(referenceArg.getValue());
-  (*g_log)<<"Read FASTA reference genome of '"<<rg.d_fullname<<"', "<<rg.size()<<" nucleotides"<<endl;
+  (*g_log)<<"Read FASTA reference genome of '"<<rg.d_fullname<<"', "<<rg.size()<<" nucleotides from '"<<referenceArg.getValue()<<"'"<<endl;
   double genomeGCRatio = 1.0*(rg.d_cCount + rg.d_gCount)/(rg.d_cCount + rg.d_gCount + rg.d_aCount + rg.d_tCount);
   (*g_log)<<"GC Content of reference genome: "<<100.0*genomeGCRatio<<"%"<<endl;
   rg.index(fqfrag1.d_nucleotides.size());
@@ -1158,7 +1158,7 @@ int main(int argc, char** argv)
 	int tot=locus.locistat.samples.size() + rg.d_mapping[locus.pos].coverage;
 	report<<endl;
 	if(!gene.empty()) 
-	  report <<fmt2<<"Original codon: "<<origCodon<<", amino acid: "<<AminoAcidName(DNAToAminoAcid(origCodon.c_str()))<<", Residue "<<1+aminoNum<<", offset in codon "<<nucOffset<<", strand "<<(orfSense ? '+' : '-')<<endl;
+	  report <<fmt2<<"Original codon: "<<origCodon<<", amino acid: "<<AminoAcidName(DNAToAminoAcid(origCodon.c_str()))<<", Residue "<<1+aminoNum<<"/"<<(gene.size()/3)<<", offset in codon "<<nucOffset<<", strand "<<(orfSense ? '+' : '-')<<endl;
 	if(!gas.empty()) {
 	  report << fmt2 << "Annotation: ";
 	  for(auto& ga : gas) {
