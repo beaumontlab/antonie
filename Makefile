@@ -7,7 +7,7 @@ LDFLAGS=$(CXX2011FLAGS)   # -Wl,-Bstatic -lstdc++ -lgcc -lz -Wl,-Bdynamic -stati
 CHEAT_ARG := $(shell ./update-git-hash-if-necessary)
 
 SHIPPROGRAMS=antonie 16ssearcher stitcher fqgrep pfqgrep
-PROGRAMS=$(SHIPPROGRAMS) digisplice gffedit gfflookup nw
+PROGRAMS=$(SHIPPROGRAMS) digisplice gffedit gfflookup nwunsch
 
 all: $(PROGRAMS)
 
@@ -51,6 +51,8 @@ gffedit: gffedit.o refgenome.o fastq.o dnamisc.o zstuff.o misc.o hash.o
 gfflookup: gfflookup.o geneannotated.o refgenome.o fastq.o dnamisc.o zstuff.o misc.o hash.o
 	$(CXX) $(LDFLAGS) $^ -lz $(STATICFLAGS) -o $@
 
+nwunsch: nwunsch.o
+	$(CXX) $(LDFLAGS) $^ -lz $(STATICFLAGS) -o $@
 
 install: antonie
 	mkdir -p $(DESTDIR)/usr/bin/
@@ -84,7 +86,6 @@ antonie.exe:
 	make clean
 	CXXFLAGS="-Wall -O3 -I. -Iext/libmba -MMD -MP  $(CXX2011FLAGS)" STATICFLAGS="-static -static-libgcc -static-libstdc++" CXX=i686-w64-mingw32-g++ CC=i686-w64-mingw32-gcc make 16ssearcher
 	mv 16ssearcher 16ssearcher.exe
-
 
 check: testrunner
 	./testrunner

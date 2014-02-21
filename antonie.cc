@@ -1165,9 +1165,9 @@ int main(int argc, char** argv)
 	vector<GeneAnnotation> gas=gar.lookup(position);
 	if(!gas.empty()) {
 	  //	  cout<<fmt2<<"Annotation: ";
-	  for(auto& ga : gas) {
+	  //	  for(auto& ga : gas) {
 	    //	    cout<<ga.name<<" ["<<ga.tag<<"], ";
-	  }
+	  //}
 	  //	  cout<<endl;
 	}
 	emitRegion(jsfp.get(), rg, fastq, gar, "Insert", index++, position);

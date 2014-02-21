@@ -1,9 +1,13 @@
 #include <string.h>
 #include <string>
 #include <algorithm>
+#include <iostream>
 
 using std::min;
 using std::swap;
+using std::cout;
+using std::endl;
+using std::cerr;
 
 void stringalign(const std::string& ain, const std::string& bin, double mispen, double gappen,
 		 double skwpen, std::string& aout, std::string& bout, std::string& summary) {
@@ -63,6 +67,11 @@ void stringalign(const std::string& ain, const std::string& bin, double mispen, 
 
 int main(int argc, char**argv)
 {
+  if(argc!=3) {
+    cerr<<"Syntax: nwunsch stringA stringB"<<endl;
+    return EXIT_FAILURE;
+  }
+
   std::string aout, bout, summary;
   stringalign(argv[1], argv[2], 1, 1, 0, aout, bout, summary);
   printf("A: %s\nB: %s\na: %s\nb: %s\nd: %s\n",
