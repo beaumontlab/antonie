@@ -1033,7 +1033,7 @@ int main(int argc, char** argv)
 
 	string origCodon, newCodon;
 	string gene;
-	int nucOffset;
+	int nucOffset=0;
 	bool orfSense=0;
 	int aminoNum=0;
 	for(const auto& ga : gas) {
@@ -1161,14 +1161,14 @@ int main(int argc, char** argv)
       if(insert.first < 10)
 	break;
       for(const auto& position : insert.second) {
-	cout<<position<<"\t"<<insert.first<<" inserts"<<endl;
+	//	cout<<position<<"\t"<<insert.first<<" inserts"<<endl;
 	vector<GeneAnnotation> gas=gar.lookup(position);
 	if(!gas.empty()) {
-	  cout<<fmt2<<"Annotation: ";
+	  //	  cout<<fmt2<<"Annotation: ";
 	  for(auto& ga : gas) {
-	    cout<<ga.name<<" ["<<ga.tag<<"], ";
+	    //	    cout<<ga.name<<" ["<<ga.tag<<"], ";
 	  }
-	  cout<<endl;
+	  //	  cout<<endl;
 	}
 	emitRegion(jsfp.get(), rg, fastq, gar, "Insert", index++, position);
 	// cout<<rg.getMatchingFastQs(position, fastq);
