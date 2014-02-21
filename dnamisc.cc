@@ -3,6 +3,10 @@
 #include <vector>
 #include <stdexcept>
 #include <math.h>
+extern "C" {
+#include "hash.h"
+}
+#include <algorithm>
 #include <boost/lexical_cast.hpp>
 
 using std::vector;
@@ -191,3 +195,31 @@ char DNAToAminoAcid(const char* s)
   return '?';
 }
 
+void DuplicateCounter::feedString(const std::string& str)
+{
+  uint32_t hashval = hash(str.c_str(), str.length(), 0);
+  d_hashes.push_back(hashval);
+}
+
+DuplicateCounter::counts_t DuplicateCounter::getCounts()
+{
+  counts_t ret;
+  sort(d_hashes.begin(), d_hashes.end());
+  uint64_t repeatCount=1;
+  for(auto iter = next(d_hashes.begin()) ; iter != d_hashes.end(); ++iter) {
+    if(*prev(iter) != *iter) {
+      ret[std::min(repeatCount, (decltype(repeatCount))20)]+=repeatCount; 
+      repeatCount=1;
+    }
+    else
+      repeatCount++;
+  }
+  ret[repeatCount]+=repeatCount;
+  return ret;
+}
+
+void DuplicateCounter::clear()
+{
+  d_hashes.clear();
+  d_hashes.shrink_to_fit();
+}

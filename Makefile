@@ -38,10 +38,10 @@ stitcher: stitcher.o refgenome.o misc.o fastq.o hash.o zstuff.o dnamisc.o genean
 invert: invert.o misc.o
 	$(CXX) $(LDFLAGS) $(STATICFLAGS) $^ -o $@
 
-fqgrep: fqgrep.o misc.o fastq.o dnamisc.o zstuff.o 
+fqgrep: fqgrep.o misc.o fastq.o dnamisc.o zstuff.o hash.o
 	$(CXX) $(LDFLAGS) $^ -lz $(STATICFLAGS) -o $@
 
-pfqgrep: pfqgrep.o misc.o fastq.o dnamisc.o zstuff.o
+pfqgrep: pfqgrep.o misc.o fastq.o dnamisc.o zstuff.o hash.o
 	$(CXX) $(LDFLAGS) $^ -lz $(STATICFLAGS) -o $@
 
 

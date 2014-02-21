@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <sstream> 
 #include <iomanip>
+#include <map>
 #include "antonie.hh"
 
 extern const char* g_gitHash;
@@ -205,5 +206,23 @@ uint32_t kmerMapper(const std::string& str, int offset, int unsigned len);
 
 char DNAToAminoAcid(const char* s);
 const char* AminoAcidName(char c);
+
+
+//! Very simple duplicate count estimator using a 32 bit hash. Also provides statistics
+class DuplicateCounter
+{
+public:
+  DuplicateCounter(int estimate=1000000)
+  {
+    d_hashes.reserve(estimate);
+  }
+  void feedString(const std::string& str); //! do statistics on str
+  void clear(); //! clean ourselves up
+  typedef std::map<uint64_t,uint64_t> counts_t;
+
+  counts_t getCounts(); //! in position 0, everyone with no duplicates, in position 1 single duplicates etc
+private:
+  std::vector<uint32_t> d_hashes;
+};
 
 

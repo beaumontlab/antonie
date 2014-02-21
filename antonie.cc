@@ -61,52 +61,6 @@ typedef io::tee_device<std::ostream, std::ostringstream> TeeDevice;
 typedef io::stream< TeeDevice > TeeStream;
 TeeStream* g_log;
 
-//! Very simple duplicate count estimator using a simple hash. Also provides statistics
-class DuplicateCounter
-{
-public:
-  DuplicateCounter(int estimate=1000000)
-  {
-    d_hashes.reserve(estimate);
-  }
-  void feedString(const std::string& str); //! do statistics on str
-  void clear(); //! clean ourselves up
-  typedef map<uint64_t,uint64_t> counts_t;
-
-  counts_t getCounts(); //! in position 0, everyone with no duplicates, in position 1 single duplicates etc
-private:
-  vector<uint32_t> d_hashes;
-};
-
-void DuplicateCounter::feedString(const std::string& str)
-{
-  uint32_t hashval = hash(str.c_str(), str.length(), 0);
-  d_hashes.push_back(hashval);
-}
-
-DuplicateCounter::counts_t DuplicateCounter::getCounts()
-{
-  counts_t ret;
-  sort(d_hashes.begin(), d_hashes.end());
-  uint64_t repeatCount=1;
-  for(auto iter = next(d_hashes.begin()) ; iter != d_hashes.end(); ++iter) {
-    if(*prev(iter) != *iter) {
-      ret[min(repeatCount, (decltype(repeatCount))20)]+=repeatCount; 
-      repeatCount=1;
-    }
-    else
-      repeatCount++;
-  }
-  ret[repeatCount]+=repeatCount;
-  return ret;
-}
-
-void DuplicateCounter::clear()
-{
-  d_hashes.clear();
-  d_hashes.shrink_to_fit();
-}
-
 void ReferenceGenome::printCoverage(FILE* jsfp, const std::string& histoName)
 {
   uint64_t totCoverage=0, noCoverages=0;
