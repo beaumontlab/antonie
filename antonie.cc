@@ -742,8 +742,20 @@ int main(int argc, char** argv)
 	continue;
       }
       if((pairpositions[paircount]=rg.getAllReadPosBoth(&fqfrag)).empty()) {
+	if(exclude) {
+	  auto res = exclude->getAllReadPosBoth(&fqfrag);
+	  if(!res.empty()) {
+	    //	    cerr<<"No perfect match on reference, perfect on exclude!"<<endl;
+	    //cerr<<fqfrag.d_nucleotides<<endl;
+	    //	    for(auto& r: res) {
+	    //	      cerr<<r.pos<<", "<<r.reverse<<endl;
+	    //	    }
+	    excludeFound++;
+	    continue;
+	  }
+	}
 	pairpositions[paircount]=fuzzyFind(&fqfrag, rg, keylen, qlimit);
-      }
+      } 
     }
     
     if(pairpositions[0].empty() && pairpositions[1].empty() && exclude) {
