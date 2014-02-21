@@ -89,5 +89,5 @@ antonie.exe:
 check: testrunner
 	./testrunner
 
-testrunner: test-misc_hh.o test-dnamisc_cc.o test-saminfra_cc.o testrunner.o misc.o dnamisc.o saminfra.o zstuff.o fastq.o
+testrunner: test-misc_hh.o test-dnamisc_cc.o test-saminfra_cc.o testrunner.o misc.o dnamisc.o saminfra.o zstuff.o fastq.o hash.o
 	$(CXX) $^ -lboost_unit_test_framework -lz -o $@ 

@@ -697,8 +697,7 @@ int main(int argc, char** argv)
     show_progress += bytes;
     vector<ReferenceGenome::MatchDescriptor > pairpositions[2];
     bool dup1(false), dup2(false);
-    //    if(total > 100000)
-    //  break;
+
     for(unsigned int paircount=0; paircount < 2; ++paircount) {
       FastQRead& fqfrag(paircount ? fqfrag2 : fqfrag1);
       total++;
