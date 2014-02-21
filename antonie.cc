@@ -741,13 +741,6 @@ int main(int argc, char** argv)
 	withAny++;
 	continue;
       }
-      /*
-      if(fqfrag.d_nucleotides.length() != rg.d_indexlength) {
-	differentLength++;
-	unfoundReads.push_back(fqfrag.position);
-	continue;
-      }
-      */
       if((pairpositions[paircount]=rg.getAllReadPosBoth(&fqfrag)).empty()) {
 	pairpositions[paircount]=fuzzyFind(&fqfrag, rg, keylen, qlimit);
       }
@@ -773,18 +766,9 @@ int main(int argc, char** argv)
 	}
       }
     }
-    if(matchCount > 1) {
-      /*      cout<<"Sucks, have "<< matchCount <<" matches for our lovely pair"<<endl;
-      for(const auto& scores : potMatch) {
-	for(const auto& match : scores.second) {
-	  cout<<"\t"<<match.first.pos << " & " << match.second.pos<< " (" << abs((int64_t) match.first.pos - (int64_t)match.second.pos) << ")"<<": "<<match.first.score << " & "<<match.second.score<<endl;
-	}
-      }
-      */
-    }
+   
     if(!potMatch.empty()) {
       const auto& chosen = pickRandom(potMatch.begin()->second);
-      //	cout<<"Pairwise match!"<<endl;
       goodPairMatches++;
       int distance = chosen.second.reverse ? 
 	(fqfrag1.d_nucleotides.length() + (int64_t) chosen.second.pos - (int64_t) chosen.first.pos) :
@@ -873,8 +857,6 @@ int main(int argc, char** argv)
 		   [&fqfrag1](int i) { return 100.0*i/fqfrag1.d_nucleotides.size();}   ).c_str(), 
 	jsfp.get());
 
-
-
   fprintf(jsfp.get(), "var kmerstats=[");
   unsigned int readOffset=0;
   for(const auto& kmer :  rg.d_kmerMappings) {
@@ -909,12 +891,9 @@ int main(int argc, char** argv)
 
   seenAlready.clear();
 
-
-
   for(auto& i : rg.d_correctMappings) {
     i=found;
   }
-
   if(exclude) {
     for(auto& i : exclude->d_correctMappings) {
       i=excludeFound;
@@ -928,7 +907,6 @@ int main(int argc, char** argv)
     (*g_log) << "Writing sorted & indexed BAM file to '"<< samFileArg.getValue()<<"'"<<endl;
     sbw.runQueue(fastq);
   }
-
 
   if(unmatchedDumpSwitch.getValue())
     writeUnmatchedReads(unfoundReads, fastq);
@@ -1088,7 +1066,6 @@ int main(int argc, char** argv)
 	       );
 	report << (fmt1 % locus.pos % rg.d_mapping[locus.pos].coverage % rg.snippet(locus.pos, locus.pos+1) ).str();
 	sort(locus.locistat.samples.begin(), locus.locistat.samples.end());
-
 	
 	for(auto j = locus.locistat.samples.begin(); 
 	    j != locus.locistat.samples.end(); ++j) {
@@ -1145,10 +1122,6 @@ int main(int argc, char** argv)
 	      report<<fmt2<<" T: "<<origCodon <<" -> "<<newCodon<<", "<<AminoAcidName(DNAToAminoAcid(origCodon.c_str())) <<" -> "<<AminoAcidName(DNAToAminoAcid(newCodon.c_str()))<<endl;
 	  }
 	}
-
-
-
-	
 	// cout<<rg.getMatchingFastQs(locus.pos, fastq);
 	reports.push_back({report.str(), locus.pos});  
       }
@@ -1198,7 +1171,7 @@ int main(int argc, char** argv)
 	  cout<<endl;
 	}
 	emitRegion(jsfp.get(), rg, fastq, gar, "Insert", index++, position);
-	cout<<rg.getMatchingFastQs(position, fastq);
+	// cout<<rg.getMatchingFastQs(position, fastq);
       }
     }
   }  
@@ -1209,18 +1182,3 @@ int main(int argc, char** argv)
 
   return EXIT_SUCCESS;
 }
-
-#if 0
-  /*
-  rg.index(75);
-  auto chimericFound=halfFind(unfoundReads, fastq, rg, 75);
-  (*g_log)<<(boost::format("Probable chimeric reads:%|40t|-%10d (%.2f%%)\n") 
-         % chimericFound % (100.0*chimericFound/total)).str();
-  */
-
-  /*
-  rg.printFastQs(5718000, fastq);  
-  */
-  /*
-  */
-#endif
