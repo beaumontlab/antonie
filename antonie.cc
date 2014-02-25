@@ -618,17 +618,15 @@ int main(int argc, char** argv)
   FastQRead fqfrag1, fqfrag2;
   bytes=fastq.getReadPair(&fqfrag1, &fqfrag2); // get a read to index based on its size
 
-  vector<ReferenceGenome> rgs;
-  rgs.push_back({referenceArg.getValue()});
-  ReferenceGenome& rg = *rgs.begin();
+  
+  ReferenceGenome rg(referenceArg.getValue());
   (*g_log)<<"Read FASTA reference genome of '"<<rg.d_fullname<<"', "<<rg.size()<<" nucleotides from '"<<referenceArg.getValue()<<"'"<<endl;
   double genomeGCRatio = 1.0*(rg.d_cCount + rg.d_gCount)/(rg.d_cCount + rg.d_gCount + rg.d_aCount + rg.d_tCount);
   (*g_log)<<"GC Content of reference genome: "<<100.0*genomeGCRatio<<"%"<<endl;
-  rg.addIndex(fqfrag1.d_nucleotides.size());
-  vector<vector<uint32_t>> kmerMappings(fqfrag1.d_nucleotides.size());  
-
+  rg.index(fqfrag1.d_nucleotides.size());
+  
   int keylen=11;
-  rg.addIndex(keylen);
+  rg.index(keylen);
   
   unique_ptr<FILE, int(*)(FILE*)> jsfp(fopen("data.js","w"), fclose);
 
@@ -645,6 +643,7 @@ int main(int argc, char** argv)
   else if(duplimit > 0)
     (*g_log)<<"Duplicate reads filtered beyond "<<duplimit<<" copies"<<endl;
 
+
   unique_ptr<ReferenceGenome> exclude;
 
   if(excludePhiXSwitch.getValue()) {
@@ -652,8 +651,8 @@ int main(int argc, char** argv)
     
     (*g_log)<<"Loaded positive control filter genome PhiX, "<<exclude->size()<<" nucleotides"<<endl;
     
-    exclude->addIndex(fqfrag1.d_nucleotides.size());
-    exclude->addIndex(keylen);
+    exclude->index(fqfrag1.d_nucleotides.size());
+    exclude->index(keylen);
 
   }
   if(!excludeArg.getValue().empty()) {
@@ -665,8 +664,8 @@ int main(int argc, char** argv)
     
     (*g_log)<<"Loaded positive control filter genome from '"<<excludeArg.getValue()<<"', "<<exclude->size()<<" nucleotides"<<endl;
     
-    exclude->addIndex(fqfrag1.d_nucleotides.size());
-    exclude->addIndex(keylen);
+    exclude->index(fqfrag1.d_nucleotides.size());
+    exclude->index(keylen);
   }
   g_log->flush();
   dnapos_t pos;
@@ -679,7 +678,7 @@ int main(int argc, char** argv)
   (*g_log)<<"Performing matches of reads to reference genome"<<endl;
   boost::progress_display show_progress(filesize(fastq1Arg.getValue().c_str()), cerr);
  
-  for(auto& kmers : kmerMappings) 
+  for(auto& kmers : rg.d_kmerMappings) 
     kmers.resize(256); // 4^4, corresponds to the '4' below
 
   qstats_t qstats;
@@ -732,7 +731,7 @@ int main(int argc, char** argv)
 	  rg.d_taMappings[i]++;
 	
 	if(fqfrag.d_nucleotides.size() - i > 4)
-	  kmerMappings[i][kmerMapper(fqfrag.d_nucleotides, i, 4)]++;
+	  rg.d_kmerMappings[i][kmerMapper(fqfrag.d_nucleotides, i, 4)]++;
 	if(c=='N')
 	  hadN=true;
       }
@@ -872,7 +871,7 @@ int main(int argc, char** argv)
 
   fprintf(jsfp.get(), "var kmerstats=[");
   unsigned int readOffset=0;
-  for(const auto& kmer :  kmerMappings) {
+  for(const auto& kmer :  rg.d_kmerMappings) {
     if(readOffset >= fqfrag1.d_nucleotides.length() - 4)
       break;
 
