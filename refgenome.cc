@@ -191,14 +191,13 @@ vector<dnapos_t> ReferenceGenome::getGCHisto()
   return ret;
 }
 
-void ReferenceGenome::index(unsigned int length)
+void ReferenceGenome::addIndex(unsigned int length)
 {
   if(length > d_correctMappings.size()) {
     d_correctMappings.resize(length);
     d_wrongMappings.resize(length);
     d_taMappings.resize(length);
     d_gcMappings.resize(length);
-    d_kmerMappings.resize(length);
   }
 
   auto& index = d_indexes[length];

@@ -69,13 +69,13 @@ public:
   string snippet(dnapos_t start, dnapos_t stop) const;
 
   void printCoverage(FILE* jsfp, const std::string& fname);
-  void index(unsigned int length);
+  void addIndex(unsigned int length);
 
   string getMatchingFastQs(dnapos_t pos, StereoFASTQReader& fastq); 
   string getMatchingFastQs(dnapos_t start, dnapos_t stop,  StereoFASTQReader& fastq); 
   vector<GenomeLocusMapping> d_mapping;
   vector<unsigned int> d_correctMappings, d_wrongMappings, d_gcMappings, d_taMappings;
-  vector<vector<uint32_t>> d_kmerMappings;
+
   vector<Unmatched> d_unmRegions;
   //! statistics for a locus
   struct LociStats
