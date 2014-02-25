@@ -12,9 +12,12 @@
 
 using namespace std;
 
-// gffedit fasta gff newgff [insertpos insertlen]
 int main(int argc, char **argv)
 {
+  if(argc < 3) {
+    cerr<<"Syntax: gfflookup annotations.gff refgenome.fna offset1 [offset2]"<<endl;
+    return EXIT_FAILURE;
+  }
   GeneAnnotationReader gar(argv[1]);
   ReferenceGenome rg(argv[2]);
   for(int n = 3; n < argc; ++n) {

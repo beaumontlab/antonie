@@ -29,6 +29,10 @@ set<string> g_candidates;
 // stitcher fasta startpos fastq fastq
 int main(int argc, char**argv)
 {
+  if(argc < 4) {
+    cerr<<"Syntax: stitcher reference.fasta startoffset|startsnippet endsnippet"<<endl;
+    return EXIT_FAILURE;
+  }
   ReferenceGenome rg(argv[1]);
 
   int chunklen=35;
@@ -40,6 +44,8 @@ int main(int argc, char**argv)
     startseed = rg.snippet(startpos, startpos+100);
   }
 
+  string endseed = argv[3];
+
   map<FASTQReader*, unique_ptr<vector<HashedPos> > > fhpos;
 
   FASTQReader* fqreader;
@@ -49,7 +55,7 @@ int main(int argc, char**argv)
     fhpos[fqreader]=indexFASTQ(fqreader, argv[f], chunklen);
   }
 
-  string endseed = argv[3];
+
 
   doStitch(fhpos, startseed, endseed, 10000, chunklen, true);
 }
