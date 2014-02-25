@@ -45,6 +45,7 @@
 extern "C" {
 #include "hash.h"
 }
+using boost::lexical_cast;
 
 /*! \mainpage Antonie DNA Software
   The Antonie DNA software reads DNA reads as FastQRead objects, and matches them to a
@@ -147,7 +148,6 @@ void ReferenceGenome::printCoverage(FILE* jsfp, const std::string& histoName)
   double expected=size()*(1-erf(mean(vmeDepth)/(sqrt(variance(vmeDepth))*sqrt(2))));
   (*g_log) << (boost::format("Undercovered nucleotides: %|40t| %10d (%.2f%%), %d ranges, %.1f could be expected\n") % noCoverages % (noCoverages*100.0/d_mapping.size()) % cl.d_clusters.size() %expected).str();
   
-
   uint64_t total = std::accumulate(covhisto.begin(), covhisto.end(), 0), cumul=0;
 
   // snip off once we have 99.9%
@@ -270,7 +270,7 @@ vector<dnapos_t> getTriplets(const vector<pair<dnapos_t, char>>& together, unsig
 
 void printCorrectMappings(FILE* jsfp, const ReferenceGenome& rg, const std::string& name)
 {
-  fprintf(jsfp, "var %s=[", name.c_str());
+  fprintf(jsfp, "%s=[", name.c_str());
   for(unsigned int i=0; i < rg.d_correctMappings.size() ;++i) {
     if(!rg.d_correctMappings[i] || !rg.d_wrongMappings[i])
       continue;
@@ -285,7 +285,7 @@ void printCorrectMappings(FILE* jsfp, const ReferenceGenome& rg, const std::stri
 
 void printGCMappings(FILE* jsfp, const ReferenceGenome& rg, const std::string& name)
 {
-  fprintf(jsfp, "var %s=[", name.c_str());
+  fprintf(jsfp, "%s=[", name.c_str());
   for(unsigned int i=0; i < rg.d_correctMappings.size() ;++i) {
     double total=rg.d_gcMappings[i] + rg.d_taMappings[i];
     double ratio= rg.d_gcMappings[i]/total;
@@ -391,7 +391,7 @@ void emitRegion(FILE*fp, ReferenceGenome& rg, StereoFASTQReader& fastq, GeneAnno
 		dnapos_t stop, const std::string& report_="", int maxVarcount=-1)
 {
   dnapos_t dnapos = (start+stop)/2;
-  fprintf(fp, "region[%d]={name:'%s', pos: %d, depth: [", index, name.c_str(), dnapos);
+  fprintf(fp, "region[%d]={reference: '%s', name:'%s', pos: %d, depth: [",  index, rg.d_name.c_str(), name.c_str(), dnapos);
   for(dnapos_t pos = start; pos < stop; ++pos) {
     if(pos != start) 
       fprintf(fp, ",");
@@ -470,6 +470,7 @@ unsigned int variabilityCount(const ReferenceGenome& rg, dnapos_t position, cons
   return 100*nonDom/(nonDom+counts[255]);
 }
 
+
 vector<ReferenceGenome::MatchDescriptor> fuzzyFind(FastQRead* fqfrag, ReferenceGenome& rg, int keylen, int qlimit)
 {
   vector<ReferenceGenome::MatchDescriptor> ret;
@@ -515,7 +516,7 @@ vector<ReferenceGenome::MatchDescriptor> fuzzyFind(FastQRead* fqfrag, ReferenceG
 	
 	score = diffScore(rg, match, *fqfrag, qlimit);
         
-	ret.push_back({match, fqfrag->reversed, score});
+	ret.push_back({&rg, match, fqfrag->reversed, score});
 	if(score==0) // won't get any better than this
 	  return ret;
       }
@@ -523,6 +524,18 @@ vector<ReferenceGenome::MatchDescriptor> fuzzyFind(FastQRead* fqfrag, ReferenceG
   }
   return ret;
 }
+
+vector<ReferenceGenome::MatchDescriptor> fuzzyFind(FastQRead* fqfrag, vector<unique_ptr<ReferenceGenome> >& refs, int keylen, int qlimit)
+{
+  vector<ReferenceGenome::MatchDescriptor> ret;
+  for(auto& rg : refs) {
+    auto inter = fuzzyFind(fqfrag, *rg, keylen, qlimit);
+    for(auto& i : inter)
+      ret.push_back(i); // XXX must be a better way
+  }
+  return ret;
+}
+
 
 typedef vector<VarMeanEstimator> qstats_t;
 
@@ -561,6 +574,16 @@ void printQualities(FILE* jsfp, const qstats_t& qstats)
   fflush(jsfp);
 }
 
+vector<ReferenceGenome::MatchDescriptor> getAllReadPosBoth(vector<unique_ptr<ReferenceGenome> >& refs, FastQRead* fqfrag) 
+{
+  vector<ReferenceGenome::MatchDescriptor> ret;
+  for(auto& rg : refs) {
+    auto inter = rg->getAllReadPosBoth(fqfrag);
+    for(auto& i : inter) 
+      ret.push_back(i); // XXX must be better way, back_inserter?
+  }
+  return ret;
+}
 
 int main(int argc, char** argv)
 {
@@ -571,8 +594,7 @@ int main(int argc, char** argv)
   TCLAP::CmdLine cmd("Command description message", ' ', "g" + string(g_gitHash));
 
   TCLAP::ValueArg<std::string> annotationsArg("a","annotations","read annotations for reference genome from this file",false, "", "filename", cmd);
-  TCLAP::ValueArg<std::string> referenceArg("r","reference","read annotations for reference genome from this file",true,"","string", cmd);
-  //  TCLAP::ValueArg<std::string> fastqArg("f","fastq","read annotations for reference genome from this file",false,"","string", cmd);
+  TCLAP::MultiArg<std::string> referenceArg("r","reference","read annotations for reference genome from this file",true,"string", cmd);
   TCLAP::ValueArg<std::string> fastq1Arg("1","fastq1","read annotations for reference genome from this file",true,"","string", cmd);
   TCLAP::ValueArg<std::string> fastq2Arg("2","fastq2","read annotations for reference genome from this file",true,"","string", cmd);
 
@@ -587,7 +609,6 @@ int main(int argc, char** argv)
   TCLAP::SwitchArg skipVariableSwitch("","skip-variable","Do not emit variable regions", cmd, false);
   TCLAP::SwitchArg skipInsertsSwitch("","skip-inserts","Do not emit inserts", cmd, false);
   TCLAP::SwitchArg excludePhiXSwitch("p","exclude-phix","Exclude PhiX automatically",cmd, false);
-  TCLAP::ValueArg<string> excludeArg("x","exclude","Exclude the genome in this FASTA",false,"", "filename", cmd );
 
   cmd.parse( argc, argv );
 
@@ -617,69 +638,60 @@ int main(int argc, char** argv)
   unsigned int bytes=0;
   FastQRead fqfrag1, fqfrag2;
   bytes=fastq.getReadPair(&fqfrag1, &fqfrag2); // get a read to index based on its size
-
-  
-  ReferenceGenome rg(referenceArg.getValue());
-  (*g_log)<<"Read FASTA reference genome of '"<<rg.d_fullname<<"', "<<rg.size()<<" nucleotides from '"<<referenceArg.getValue()<<"'"<<endl;
-  double genomeGCRatio = 1.0*(rg.d_cCount + rg.d_gCount)/(rg.d_cCount + rg.d_gCount + rg.d_aCount + rg.d_tCount);
-  (*g_log)<<"GC Content of reference genome: "<<100.0*genomeGCRatio<<"%"<<endl;
-  rg.index(fqfrag1.d_nucleotides.size());
-  
   int keylen=11;
-  rg.index(keylen);
-  
   unique_ptr<FILE, int(*)(FILE*)> jsfp(fopen("data.js","w"), fclose);
 
-  fprintf(jsfp.get(), "var genomeGCRatio=%f;\n", genomeGCRatio);
+  fputs("var genomes=[];\n", jsfp.get());
+
+  vector<unique_ptr<ReferenceGenome> > refgens;
+  for(auto& fname: referenceArg.getValue()) {
+    unique_ptr<ReferenceGenome> rg(new ReferenceGenome(fname));
+    double genomeGCRatio = 1.0*(rg->d_cCount + rg->d_gCount)/(rg->d_cCount + rg->d_gCount + rg->d_aCount + rg->d_tCount);
+
+    (*g_log)<<"Read FASTA reference genome of '"<<rg->d_fullname<<"', "<<rg->size()<<" nucleotides from '"<<fname<<"' (GC = "<<genomeGCRatio<<")"<<endl;
+    rg->index(fqfrag1.d_nucleotides.size());
+    rg->index(keylen);
+    fprintf(jsfp.get(), "var genomeGCRatio=%f;\n", genomeGCRatio); // XXXmulti
+    refgens.emplace_back(move(rg));
+  }
+  
+  if(excludePhiXSwitch.getValue()) {
+    auto rg = ReferenceGenome::makeFromString(phiXFastA);
+    double genomeGCRatio = 1.0*(rg->d_cCount + rg->d_gCount)/(rg->d_cCount + rg->d_gCount + rg->d_aCount + rg->d_tCount);
+    (*g_log)<<"Read FASTA reference genome of '"<<rg->d_fullname<<"', "<<rg->size()<<" nucleotides from builtin (GC = "<<genomeGCRatio<<")"<<endl;
+    rg->index(fqfrag1.d_nucleotides.size());
+    rg->index(keylen);
+    refgens.emplace_back(move(rg));
+  }
 
   int duplimit = duplimitArg.getValue();
   if(duplimit < 0) {
-    auto lambda = 1.0*fastq.estimateReads()/rg.size();
+    dnapos_t totsize=0;
+    for(auto& rg : refgens) 
+      totsize += rg->size();
+    auto lambda = 1.0*fastq.estimateReads()/totsize;
     boost::math::poisson_distribution<double> pd(lambda);
     duplimit=boost::math::quantile(pd, 0.999);
     (*g_log)<<"Auto-set duplicate filter to "<<duplimit<<" based on 0.999 cumulative Poisson. Expect "<<lambda<<" dups on average over estimated "<< fastq.estimateReads()<<" reads"<<endl;
-    
   }
   else if(duplimit > 0)
     (*g_log)<<"Duplicate reads filtered beyond "<<duplimit<<" copies"<<endl;
 
-
-  unique_ptr<ReferenceGenome> exclude;
-
-  if(excludePhiXSwitch.getValue()) {
-    exclude = ReferenceGenome::makeFromString(phiXFastA);
-    
-    (*g_log)<<"Loaded positive control filter genome PhiX, "<<exclude->size()<<" nucleotides"<<endl;
-    
-    exclude->index(fqfrag1.d_nucleotides.size());
-    exclude->index(keylen);
-
-  }
-  if(!excludeArg.getValue().empty()) {
-    if(exclude) {
-      cerr<<"Specifying both excluded genome and internal phix filter is not supported"<<endl;
-      exit(1);
-    }
-    exclude = unique_ptr<ReferenceGenome>(new ReferenceGenome(excludeArg.getValue()));
-    
-    (*g_log)<<"Loaded positive control filter genome from '"<<excludeArg.getValue()<<"', "<<exclude->size()<<" nucleotides"<<endl;
-    
-    exclude->index(fqfrag1.d_nucleotides.size());
-    exclude->index(keylen);
-  }
   g_log->flush();
   dnapos_t pos;
 
-  uint64_t withAny=0, found=0, total=0, qualityExcluded=0, 
-    excludeFound=0, differentLength=0, tooFrequent=0, goodPairMatches=0, badPairMatches=0;
+  uint64_t withAny=0, found=0, total=0, differentLength=0, tooFrequent=0, goodPairMatches=0, badPairMatches=0,
+    qualityExcluded=0;
 
-  BAMWriter sbw(samFileArg.getValue(), rg.d_name, rg.size());
+  BAMWriter sbw(samFileArg.getValue(), (*refgens.begin())->d_name, (*refgens.begin())->size()); // XXXmulti
 
   (*g_log)<<"Performing matches of reads to reference genome"<<endl;
   boost::progress_display show_progress(filesize(fastq1Arg.getValue().c_str()), cerr);
  
-  for(auto& kmers : rg.d_kmerMappings) 
-    kmers.resize(256); // 4^4, corresponds to the '4' below
+  for(auto& rg : refgens) {
+    for(auto& kmers : rg->d_kmerMappings) 
+      kmers.resize(256); // 4^4, corresponds to the '4' below
+  }
 
   qstats_t qstats;
   qstats.resize(fqfrag1.d_nucleotides.size());
@@ -722,52 +734,17 @@ int main(int argc, char** argv)
       }
       
       gchisto[round(fqfrag.d_nucleotides.size()*getGCContent(fqfrag.d_nucleotides))]++;
-      bool hadN=false;
-      for(string::size_type i = 0 ; i < fqfrag.d_nucleotides.size(); ++i) {
-	char c = fqfrag.d_nucleotides[i];
-	if(c=='G' || c=='C')
-	  rg.d_gcMappings[i]++;
-	else
-	  rg.d_taMappings[i]++;
-	
-	if(fqfrag.d_nucleotides.size() - i > 4)
-	  rg.d_kmerMappings[i][kmerMapper(fqfrag.d_nucleotides, i, 4)]++;
-	if(c=='N')
-	  hadN=true;
-      }
       
-      if(hadN) {
+      if(fqfrag.d_nucleotides.find('N') != string::npos) {
 	// unfoundReads.push_back(fqfrag.position); // will fail elsewhere and get filed there
 	withAny++;
 	continue;
       }
-      if((pairpositions[paircount]=rg.getAllReadPosBoth(&fqfrag)).empty()) {
-	if(exclude) {
-	  auto res = exclude->getAllReadPosBoth(&fqfrag);
-	  if(!res.empty()) {
-	    //	    cerr<<"No perfect match on reference, perfect on exclude!"<<endl;
-	    //cerr<<fqfrag.d_nucleotides<<endl;
-	    //	    for(auto& r: res) {
-	    //	      cerr<<r.pos<<", "<<r.reverse<<endl;
-	    //	    }
-	    excludeFound++;
-	    continue;
-	  }
-	}
-	pairpositions[paircount]=fuzzyFind(&fqfrag, rg, keylen, qlimit);
+      if((pairpositions[paircount]=getAllReadPosBoth(refgens, &fqfrag)).empty()) {
+	pairpositions[paircount]=fuzzyFind(&fqfrag, refgens, keylen, qlimit);
       } 
     }
     
-    if(pairpositions[0].empty() && pairpositions[1].empty() && exclude) {
-      auto before=excludeFound;
-      if(!exclude->getAllReadPosBoth(&fqfrag1).empty() || !fuzzyFind(&fqfrag1, *exclude, keylen, qlimit).empty())
-	excludeFound++;
-      if(!exclude->getAllReadPosBoth(&fqfrag2).empty() || !fuzzyFind(&fqfrag2, *exclude, keylen, qlimit).empty())
-	excludeFound++;
-      if(before!=excludeFound)
-	continue;
-    }
-
     map<int, vector<pair<ReferenceGenome::MatchDescriptor,ReferenceGenome::MatchDescriptor> > > potMatch;
     unsigned int matchCount=0;
     for(auto& match1 : pairpositions[0]) {
@@ -794,15 +771,25 @@ int main(int argc, char** argv)
 	  otherDup = paircount? dup1 : dup2;
 	pos = paircount ? chosen.second.pos : chosen.first.pos;
 
+	for(string::size_type i = 0 ; i < fqfrag->d_nucleotides.size(); ++i) {
+	  char c = fqfrag->d_nucleotides[i];
+	  if(c=='G' || c=='C')
+	    chosen.second.rg->d_gcMappings[i]++;  
+	  else
+	    chosen.second.rg->d_taMappings[i]++;
+	  if(fqfrag->d_nucleotides.size() - i > 4)
+	    chosen.second.rg->d_kmerMappings[i][kmerMapper(fqfrag->d_nucleotides, i, 4)]++;
+	}
+
 	if((paircount ? chosen.second.reverse : chosen.first.reverse) != fqfrag->reversed)
 	  fqfrag->reverse();
 
 	if(otherDup && !dup) {
-	  MapToReference(rg, pos, *fqfrag, qlimit, &sbw, &qqcounts);
+	  MapToReference(*chosen.second.rg, pos, *fqfrag, qlimit, &sbw, &qqcounts);
 	}
 	else if(!otherDup && !dup) {
 	  int indel;
-	  if(MapToReference(rg, pos, *fqfrag, qlimit, 0, &qqcounts, &indel)) {
+	  if(MapToReference(*chosen.second.rg, pos, *fqfrag, qlimit, 0, &qqcounts, &indel)) {
 	    sbw.qwrite(pos, *fqfrag, indel, 3 + (paircount ? 0x80 : 0x40),
 		     "=", 
 		     paircount ? chosen.first.pos : chosen.second.pos, 
@@ -834,14 +821,14 @@ int main(int argc, char** argv)
 	if(fqfrag->reversed != pick.reverse)
 	  fqfrag->reverse();
 
-	MapToReference(rg, pick.pos, *fqfrag, qlimit, &sbw, &qqcounts);
+	MapToReference(*pick.rg, pick.pos, *fqfrag, qlimit, &sbw, &qqcounts);
 	found++;
       }
     } 
   } while((bytes=fastq.getReadPair(&fqfrag1, &fqfrag2)));
   
   pairdisthisto.resize(1500);
-  fputs(jsonVector(pairdisthisto, "pairdisthisto").c_str(), jsfp.get());
+  fputs(jsonVector(pairdisthisto, "var pairdisthisto").c_str(), jsfp.get());
 
   uint64_t totNucleotides=total*fqfrag1.d_nucleotides.length();
   fprintf(jsfp.get(), "qhisto=[");
@@ -859,35 +846,41 @@ int main(int argc, char** argv)
   dc.clear(); // might save some memory..
 
   dnapos_t totalhisto= accumulate(gchisto.begin(), gchisto.end(), 0);
-  fputs(jsonVector(gchisto, "gcreadhisto",  
+  fputs(jsonVector(gchisto, "var gcreadhisto",  
 		   [totalhisto](dnapos_t c){return 1.0*c/totalhisto;},
 		   [&fqfrag1](int i) { return 100.0*i/fqfrag1.d_nucleotides.size();}   ).c_str(), 
 	jsfp.get());
 
-  fputs(jsonVector(rg.getGCHisto(), "gcrefhisto",  
-		   [&fqfrag1,&rg](dnapos_t c){return 1.0*c/(rg.size()/fqfrag1.d_nucleotides.size());},
-		   [&fqfrag1](int i) { return 100.0*i/fqfrag1.d_nucleotides.size();}   ).c_str(), 
-	jsfp.get());
 
-  fprintf(jsfp.get(), "var kmerstats=[");
-  unsigned int readOffset=0;
-  for(const auto& kmer :  rg.d_kmerMappings) {
-    if(readOffset >= fqfrag1.d_nucleotides.length() - 4)
-      break;
+  unsigned int numRef=0;
+  for(auto& rg : refgens) {
+    fprintf(jsfp.get(), "genomes[%d]={};\n", numRef);
+    fputs(jsonVector(rg->getGCHisto(), ("genomes["+lexical_cast<string>(numRef)+"].gcrefhisto").c_str(),  
+		     [&fqfrag1,&rg](dnapos_t c){return 1.0*c/(rg->size()/fqfrag1.d_nucleotides.size());},
+		     [&fqfrag1](int i) { return 100.0*i/fqfrag1.d_nucleotides.size();}   ).c_str(), 
+	  jsfp.get());
 
-    VarMeanEstimator acc;
-    for(auto& count : kmer) {
-      acc(count);
+    fprintf(jsfp.get(), "genomes[%d].kmerstats=[", numRef);
+    unsigned int readOffset=0;
+    for(const auto& kmer :  rg->d_kmerMappings) {
+      if(readOffset >= fqfrag1.d_nucleotides.length() - 4)
+	break;
+
+      VarMeanEstimator acc;
+      for(auto& count : kmer) {
+	acc(count);
+      }
+      if(mean(acc)==0)
+	fprintf(jsfp.get(), "%s[%d, %f]", readOffset ? "," : "", readOffset, sqrt(variance(acc)) / mean(acc) );
+      readOffset++;
     }
-    fprintf(jsfp.get(), "%s[%d, %f]", readOffset ? "," : "", readOffset, sqrt(variance(acc)) / mean(acc) );
-    readOffset++;
-  }
-  fprintf(jsfp.get(), "];\n");
+    fprintf(jsfp.get(), "];\n");
 
-  printGCMappings(jsfp.get(), rg, "gcRatios");
+    printGCMappings(jsfp.get(), *rg, "genomes["+lexical_cast<string>(numRef)+"].gcRatios");
+    numRef++;
+  }
 
   (*g_log) << (boost::format("Total reads: %|40t| %10d (%.2f gigabps)") % total % (totNucleotides/1000000000.0)).str() <<endl;
-  (*g_log) << (boost::format("Excluded control reads: %|40t|-%10d") % excludeFound).str() <<endl;
   (*g_log) << (boost::format("Quality excluded: %|40t|-%10d") % qualityExcluded).str() <<endl;
   (*g_log) << (boost::format("Ignored reads with N: %|40t|-%10d") % withAny).str()<<endl;
   if(duplimit)
@@ -903,16 +896,11 @@ int main(int argc, char** argv)
 
   seenAlready.clear();
 
-  for(auto& i : rg.d_correctMappings) {
-    i=found;
-  }
-  if(exclude) {
-    for(auto& i : exclude->d_correctMappings) {
-      i=excludeFound;
+  for(auto& rg : refgens) {  // XXXmulti - the 'found' should be per GC, not global!
+    for(auto& i : rg->d_correctMappings) {
+      i=found;
     }
   }
-
-  rg.printCoverage(jsfp.get(), "fullHisto");
   printQualities(jsfp.get(), qstats);
 
   if(!samFileArg.getValue().empty()) {
@@ -924,25 +912,27 @@ int main(int argc, char** argv)
     writeUnmatchedReads(unfoundReads, fastq);
 
   int index=0;
+  numRef=0;
 
-  Clusterer<Unmatched> cl(100);
-  for(auto unm : rg.d_unmRegions) {
-    cl.feed(unm);
-  }
-
-  if(!skipUndermatchedSwitch.getValue()) {
-    for(auto unmCl : cl.d_clusters) {
-      emitRegion(jsfp.get(), rg, fastq, gar, "Undermatched", index++, unmCl.getBegin()-100, unmCl.getEnd()+100);
+  for(auto& rg : refgens) {
+    (*g_log)<<"Output for "<<rg->d_fullname<<endl;
+    rg->printCoverage(jsfp.get(), "genomes["+lexical_cast<string>(numRef)+"].fullHisto");
+    Clusterer<Unmatched> cl(100);
+    for(auto unm : rg->d_unmRegions) {
+      cl.feed(unm);
     }
-  }
-  
-  printCorrectMappings(jsfp.get(), rg, "referenceQ");
-  if(exclude)
-    printCorrectMappings(jsfp.get(), *exclude, "controlQ");
-  fprintf(jsfp.get(), "var qqdata=[");
-  bool printedYet=false;
-  for(auto coinco = qqcounts.begin() ; coinco != qqcounts.end(); ++coinco) {
-    if(coinco->incorrect || coinco->correct) {
+
+    if(!skipUndermatchedSwitch.getValue()) {
+      for(auto unmCl : cl.d_clusters) {
+	emitRegion(jsfp.get(), *rg, fastq, gar, "Undermatched", index++, unmCl.getBegin()-100, unmCl.getEnd()+100);
+      }
+    }
+    
+    printCorrectMappings(jsfp.get(), *rg, "genomes["+lexical_cast<string>(numRef)+"].referenceQ");
+    fprintf(jsfp.get(), "genomes[%d].qqdata=[", numRef);
+    bool printedYet=false;
+    for(auto coinco = qqcounts.begin() ; coinco != qqcounts.end(); ++coinco) {
+      if(coinco->incorrect || coinco->correct) {
       double qscore;
       if(coinco->incorrect && coinco->correct)
 	qscore = -10.0*log10(1.0*coinco->incorrect / (coinco->correct + coinco->incorrect));
@@ -950,243 +940,245 @@ int main(int argc, char** argv)
 	qscore=0;
       else
 	qscore=41; // "highest score possible"
-
+      
       fprintf(jsfp.get(), "%s[%u, %f, %" PRIu64 "]", 
 	      printedYet ?  "," : "", 
 	      (unsigned int)(coinco - qqcounts.begin()), qscore,
 	      coinco->incorrect + coinco->correct);
       printedYet=true;
+      }
     }
-  }
-  fprintf(jsfp.get(), "];\n");
+    fprintf(jsfp.get(), "];\n");
 
 
-  uint64_t significantlyVariable=0;
-  boost::format fmt1("%-10d: %3d*%c ");
-  string fmt2("                  ");
-  int aCount, cCount, tCount, gCount;
-  double fraction;
-  
-  struct ClusterLocus
-  {
-    unsigned int pos;
-    ReferenceGenome::LociStats locistat;
-    bool operator<(const ClusterLocus& rhs) const
+    uint64_t significantlyVariable=0;
+    boost::format fmt1("%-10d: %3d*%c ");
+    string fmt2("                  ");
+    int aCount, cCount, tCount, gCount;
+    double fraction;
+    
+    struct ClusterLocus
     {
-      return pos < rhs.pos;
+      unsigned int pos;
+      ReferenceGenome::LociStats locistat;
+      bool operator<(const ClusterLocus& rhs) const
+      {
+	return pos < rhs.pos;
+      }
+    };
+    
+    Clusterer<ClusterLocus> vcl(100);
+    
+    ofstream ofs("loci"+lexical_cast<string>(numRef));
+    ofs<<"locus\tnumdiff\tdepth\tA\tAq\tC\tCq\tG\tGq\tT\tTq\tdels\ttotQ\tfracHead"<<endl;
+    map<dnapos_t, ReferenceGenome::LociStats> slocimap;
+    
+    for(auto& p : rg->d_locimap) {
+      slocimap.insert(p);
     }
-  };
-
-  Clusterer<ClusterLocus> vcl(100);
-
-  ofstream ofs("loci");
-  ofs<<"locus\tnumdiff\tdepth\tA\tAq\tC\tCq\tG\tGq\tT\tTq\tdels\ttotQ\tfracHead"<<endl;
-  map<dnapos_t, ReferenceGenome::LociStats> slocimap;
-
-  for(auto& p : rg.d_locimap) {
-    slocimap.insert(p);
-  }
-  for(auto& p : slocimap) {
-    if(p.second.samples.size()==1) // no variability if only 2
-      continue;
-
-    int aCount=0, cCount=0, gCount=0, tCount=0, xCount=0;
-    int aQual=0, cQual=0, gQual=0, tQual=0;
-    int head=0;
-    for(auto& c: p.second.samples) {
-      acgtxDo(c.nucleotide, 
-	     [&](){ aCount++; aQual+=c.quality;}, 
-	     [&](){ cCount++; cQual+=c.quality;}, 
-	     [&](){ gCount++; gQual+=c.quality;}, 
-	     [&](){ tCount++; tQual+=c.quality;},
-	     [&](){ xCount++; });
-      if(c.headOrTail)
-	head++;
-    }
-
-    if(aQual < 90 && cQual < 90 && gQual < 90 && tQual < 90)
-      continue;
-
-    double fraction =(1.0*head/p.second.samples.size());
-    if(fraction < 0.1 || fraction > 0.9)
-      continue;
-
-    ofs<<p.first<<"\t"<<p.second.samples.size()<<"\t"<<rg.d_mapping[p.first].coverage<<"\t";
-    ofs<<aCount<<"\t"<<aQual<<"\t";
-    ofs<<cCount<<"\t"<<cQual<<"\t";
-    ofs<<gCount<<"\t"<<gQual<<"\t";
-    ofs<<tCount<<"\t"<<tQual<<"\t";
-    ofs<<xCount<<"\t";
-    ofs<<aQual+cQual+gQual+tQual<<"\t";
-    ofs<<fraction<<"\t#";
-    for(auto ga : gar.lookup(p.first))
-      ofs<<ga.name<<"\t["<<ga.tag<<"]"<<"\t";
-    ofs<<"\n";
-    vcl.feed(ClusterLocus{p.first, p.second});
-  }
-  ofs.flush();
-
-  (*g_log)<<vcl.numClusters()<<" clusters of real variability, " << vcl.numEntries()<<" variable loci"<<endl;
-
-  if(!skipVariableSwitch.getValue()) {
-    for(auto& cluster : vcl.d_clusters) {
-      vector<pair<string, dnapos_t>> reports;
-      int maxVarcount=0;
-      for(auto& locus : cluster.d_members) {
-	int varcount=variabilityCount(rg, locus.pos, locus.locistat, &fraction);
-	maxVarcount = max(varcount, maxVarcount);
-	if(varcount < 3) 
-	  continue;
-	significantlyVariable++;
-
-	ostringstream report;
-
-	vector<GeneAnnotation> gas=gar.lookup(locus.pos);
-
-	string origCodon, newCodon;
-	string gene;
-	int nucOffset=0;
-	bool orfSense=0;
-	int aminoNum=0;
-	for(const auto& ga : gas) {
-	  if(ga.type == "gene") {
-	    
-	    gene = rg.snippet(ga.startPos, ga.stopPos+1);
-	    orfSense = ga.strand;
-	    if(ga.strand) {
-	      aminoNum = (locus.pos - ga.startPos) / 3;
-	      nucOffset = (locus.pos - ga.startPos) % 3;
-	    }
-	    else {
-	      aminoNum = (ga.stopPos - locus.pos) / 3;
-	      nucOffset = (ga.stopPos - locus.pos) % 3;
-	      reverseNucleotides(&gene);
-	    }
-	    origCodon = gene.substr(aminoNum*3, 3);
-	  }
-	}
-	
-
-	char c=rg.snippet(locus.pos, locus.pos+1)[0];
-	aCount = cCount = tCount = gCount = 0;
-
-	acgtDo(c, 
-	       [&](){aCount += rg.d_mapping[locus.pos].coverage;},
-	       [&](){cCount += rg.d_mapping[locus.pos].coverage;},
-	       [&](){gCount += rg.d_mapping[locus.pos].coverage;},
-	       [&](){tCount += rg.d_mapping[locus.pos].coverage;}
-	       );
-	report << (fmt1 % locus.pos % rg.d_mapping[locus.pos].coverage % rg.snippet(locus.pos, locus.pos+1) ).str();
-	sort(locus.locistat.samples.begin(), locus.locistat.samples.end());
-	
-	for(auto j = locus.locistat.samples.begin(); 
-	    j != locus.locistat.samples.end(); ++j) {
-	  c=j->nucleotide;
-	  acgtDo(c, [&](){ aCount++; }, [&](){ cCount++; }, [&](){ gCount++; }, [&](){ tCount++; } );
+    for(auto& p : slocimap) {
+      if(p.second.samples.size()==1) // no variability if only 2
+	continue;
       
-	  report<<c;
-	}
-	report<<endl<<fmt2;
-	for(auto j = locus.locistat.samples.begin(); 
-	    j != locus.locistat.samples.end(); ++j) {
-	  report<<((char)(j->quality+33));
-	}
-	report << endl << fmt2;
-	for(auto j = locus.locistat.samples.begin(); 
-	    j != locus.locistat.samples.end(); ++j) {
-	  report << (j->headOrTail ? 'H' : '.');
-	}
-
-	int tot=locus.locistat.samples.size() + rg.d_mapping[locus.pos].coverage;
-	report<<endl;
-	if(!gene.empty()) 
-	  report <<fmt2<<"Original codon: "<<origCodon<<", amino acid: "<<AminoAcidName(DNAToAminoAcid(origCodon.c_str()))<<", Residue "<<1+aminoNum<<"/"<<(gene.size()/3)<<", offset in codon "<<nucOffset<<", strand "<<(orfSense ? '+' : '-')<<endl;
-	if(!gas.empty()) {
-	  report << fmt2 << "Annotation: ";
-	  for(auto& ga : gas) {
-	    report << ga.name<<" ["<<ga.tag<<"], ";
-	  }
-	  report << endl;
-	}
-	report << fmt2<< "Fraction tail: "<<fraction<<", "<< locus.locistat.samples.size()<<endl;
-	report << fmt2<< "A: " << aCount*100/tot <<"%, C: "<<cCount*100/tot<<"%, G: "<<gCount*100/tot<<"%, T: "<<tCount*100/tot<<"%"<<endl;
-
-	if(!gene.empty()) {
-	  newCodon=origCodon;
-	  if(aCount) {
-	    newCodon[nucOffset]=orfSense ? 'A' : 'T';
-	    if(origCodon != newCodon)
-	      report<<fmt2<<" A: "<<origCodon <<" -> "<<newCodon<<", "<<AminoAcidName(DNAToAminoAcid(origCodon.c_str())) <<" -> "<< AminoAcidName(DNAToAminoAcid(newCodon.c_str()))<<endl;
-	  }
-	  if(cCount) {
-	    newCodon[nucOffset]=orfSense ? 'C' : 'G';
-	    if(origCodon != newCodon)
-	      report<<fmt2<<" C: "<<origCodon <<" -> "<<newCodon<<", "<<AminoAcidName(DNAToAminoAcid(origCodon.c_str())) <<" -> "<< AminoAcidName(DNAToAminoAcid(newCodon.c_str()))<<endl;
-	  }
-	  if(gCount) {
-	    newCodon[nucOffset]=orfSense ? 'G' : 'C';
-	    if(origCodon != newCodon)
-	      report<<fmt2<<" G: "<<origCodon <<" -> "<<newCodon<<", "<<AminoAcidName(DNAToAminoAcid(origCodon.c_str())) <<" -> "<< AminoAcidName(DNAToAminoAcid(newCodon.c_str()))<<endl;
-	  }
-	  if(tCount) {
-	    newCodon[nucOffset]=orfSense ? 'T' : 'A';
-	    if(origCodon != newCodon)
-	      report<<fmt2<<" T: "<<origCodon <<" -> "<<newCodon<<", "<<AminoAcidName(DNAToAminoAcid(origCodon.c_str())) <<" -> "<<AminoAcidName(DNAToAminoAcid(newCodon.c_str()))<<endl;
-	  }
-	}
-	// cout<<rg.getMatchingFastQs(locus.pos, fastq);
-	reports.push_back({report.str(), locus.pos});  
+      int aCount=0, cCount=0, gCount=0, tCount=0, xCount=0;
+      int aQual=0, cQual=0, gQual=0, tQual=0;
+      int head=0;
+      for(auto& c: p.second.samples) {
+	acgtxDo(c.nucleotide, 
+		[&](){ aCount++; aQual+=c.quality;}, 
+		[&](){ cCount++; cQual+=c.quality;}, 
+		[&](){ gCount++; gQual+=c.quality;}, 
+		[&](){ tCount++; tQual+=c.quality;},
+		[&](){ xCount++; });
+	if(c.headOrTail)
+	  head++;
       }
-      if(!reports.empty()) {
-	string theReport;
-	dnapos_t minPos=reports.begin()->second;
-	dnapos_t maxPos=minPos;
-	for(auto r : reports) {
-	  theReport += r.first;
-	  minPos=min(r.second, minPos);
-	  maxPos=max(r.second, maxPos);
-	}
-
-	emitRegion(jsfp.get(), rg, fastq, gar, "Variable", index++, minPos-100, maxPos+100, theReport, maxVarcount);
-      }
+      
+      if(aQual < 90 && cQual < 90 && gQual < 90 && tQual < 90)
+	continue;
+      
+      double fraction =(1.0*head/p.second.samples.size());
+      if(fraction < 0.1 || fraction > 0.9)
+	continue;
+      
+      ofs<<p.first<<"\t"<<p.second.samples.size()<<"\t"<<rg->d_mapping[p.first].coverage<<"\t";
+      ofs<<aCount<<"\t"<<aQual<<"\t";
+      ofs<<cCount<<"\t"<<cQual<<"\t";
+      ofs<<gCount<<"\t"<<gQual<<"\t";
+      ofs<<tCount<<"\t"<<tQual<<"\t";
+      ofs<<xCount<<"\t";
+      ofs<<aQual+cQual+gQual+tQual<<"\t";
+      ofs<<fraction<<"\t#";
+      for(auto ga : gar.lookup(p.first))
+	ofs<<ga.name<<"\t["<<ga.tag<<"]"<<"\t";
+      ofs<<"\n";
+      vcl.feed(ClusterLocus{p.first, p.second});
     }
-    (*g_log)<<"Found "<<significantlyVariable<<" significantly variable loci"<<endl;
-  }
-  (*g_log)<<"Found "<<rg.d_insertCounts.size()<<" loci with at least one insert in a read"<<endl;
-  struct revsort
-  {
-    bool operator()(const unsigned int&a, const unsigned int&b) const
-    { return a > b;} 
-  };
-  map<unsigned int, vector<dnapos_t>, revsort> topInserts;
+    ofs.flush();
+    
+    (*g_log)<<vcl.numClusters()<<" clusters of real variability, " << vcl.numEntries()<<" variable loci"<<endl;
+    
+    if(!skipVariableSwitch.getValue()) {
+      for(auto& cluster : vcl.d_clusters) {
+	vector<pair<string, dnapos_t>> reports;
+	int maxVarcount=0;
+	for(auto& locus : cluster.d_members) {
+	  int varcount=variabilityCount(*rg, locus.pos, locus.locistat, &fraction);
+	  maxVarcount = max(varcount, maxVarcount);
+	  if(varcount < 3) 
+	    continue;
+	  significantlyVariable++;
+	  
+	  ostringstream report;
+	  
+	  vector<GeneAnnotation> gas=gar.lookup(locus.pos);
+	  
+	  string origCodon, newCodon;
+	  string gene;
+	  int nucOffset=0;
+	  bool orfSense=0;
+	  int aminoNum=0;
+	  for(const auto& ga : gas) {
+	    if(ga.type == "gene") {
+	      gene = rg->snippet(ga.startPos, ga.stopPos+1);
+	      orfSense = ga.strand;
+	      if(ga.strand) {
+		aminoNum = (locus.pos - ga.startPos) / 3;
+		nucOffset = (locus.pos - ga.startPos) % 3;
+	      }
+	      else {
+		aminoNum = (ga.stopPos - locus.pos) / 3;
+		nucOffset = (ga.stopPos - locus.pos) % 3;
+		reverseNucleotides(&gene);
+	      }
+	      if((unsigned int)(aminoNum*3 + 3) < gene.size())
+		origCodon = gene.substr(aminoNum*3, 3);
+	    }
+	  }
+	
+
+	  char c=rg->snippet(locus.pos, locus.pos+1)[0];
+	  aCount = cCount = tCount = gCount = 0;
+
+	  acgtDo(c, 
+		 [&](){aCount += rg->d_mapping[locus.pos].coverage;},
+		 [&](){cCount += rg->d_mapping[locus.pos].coverage;},
+		 [&](){gCount += rg->d_mapping[locus.pos].coverage;},
+		 [&](){tCount += rg->d_mapping[locus.pos].coverage;}
+		 );
+	  report << (fmt1 % locus.pos % rg->d_mapping[locus.pos].coverage % rg->snippet(locus.pos, locus.pos+1) ).str();
+	  sort(locus.locistat.samples.begin(), locus.locistat.samples.end());
+	
+	  for(auto j = locus.locistat.samples.begin(); 
+	      j != locus.locistat.samples.end(); ++j) {
+	    c=j->nucleotide;
+	    acgtDo(c, [&](){ aCount++; }, [&](){ cCount++; }, [&](){ gCount++; }, [&](){ tCount++; } );
+      
+	    report<<c;
+	  }
+	  report<<endl<<fmt2;
+	  for(auto j = locus.locistat.samples.begin(); 
+	      j != locus.locistat.samples.end(); ++j) {
+	    report<<((char)(j->quality+33));
+	  }
+	  report << endl << fmt2;
+	  for(auto j = locus.locistat.samples.begin(); 
+	      j != locus.locistat.samples.end(); ++j) {
+	    report << (j->headOrTail ? 'H' : '.');
+	  }
+
+	  int tot=locus.locistat.samples.size() + rg->d_mapping[locus.pos].coverage;
+	  report<<endl;
+	  if(!gene.empty()) 
+	    report <<fmt2<<"Original codon: "<<origCodon<<", amino acid: "<<AminoAcidName(DNAToAminoAcid(origCodon.c_str()))<<", Residue "<<1+aminoNum<<"/"<<(gene.size()/3)<<", offset in codon "<<nucOffset<<", strand "<<(orfSense ? '+' : '-')<<endl;
+	  if(!gas.empty()) {
+	    report << fmt2 << "Annotation: ";
+	    for(auto& ga : gas) {
+	      report << ga.name<<" ["<<ga.tag<<"], ";
+	    }
+	    report << endl;
+	  }
+	  report << fmt2<< "Fraction tail: "<<fraction<<", "<< locus.locistat.samples.size()<<endl;
+	  report << fmt2<< "A: " << aCount*100/tot <<"%, C: "<<cCount*100/tot<<"%, G: "<<gCount*100/tot<<"%, T: "<<tCount*100/tot<<"%"<<endl;
+
+	  if(!gene.empty()) {
+	    newCodon=origCodon;
+	    if(aCount) {
+	      newCodon[nucOffset]=orfSense ? 'A' : 'T';
+	      if(origCodon != newCodon)
+		report<<fmt2<<" A: "<<origCodon <<" -> "<<newCodon<<", "<<AminoAcidName(DNAToAminoAcid(origCodon.c_str())) <<" -> "<< AminoAcidName(DNAToAminoAcid(newCodon.c_str()))<<endl;
+	    }
+	    if(cCount) {
+	      newCodon[nucOffset]=orfSense ? 'C' : 'G';
+	      if(origCodon != newCodon)
+		report<<fmt2<<" C: "<<origCodon <<" -> "<<newCodon<<", "<<AminoAcidName(DNAToAminoAcid(origCodon.c_str())) <<" -> "<< AminoAcidName(DNAToAminoAcid(newCodon.c_str()))<<endl;
+	    }
+	    if(gCount) {
+	      newCodon[nucOffset]=orfSense ? 'G' : 'C';
+	      if(origCodon != newCodon)
+		report<<fmt2<<" G: "<<origCodon <<" -> "<<newCodon<<", "<<AminoAcidName(DNAToAminoAcid(origCodon.c_str())) <<" -> "<< AminoAcidName(DNAToAminoAcid(newCodon.c_str()))<<endl;
+	    }
+	    if(tCount) {
+	      newCodon[nucOffset]=orfSense ? 'T' : 'A';
+	      if(origCodon != newCodon)
+		report<<fmt2<<" T: "<<origCodon <<" -> "<<newCodon<<", "<<AminoAcidName(DNAToAminoAcid(origCodon.c_str())) <<" -> "<<AminoAcidName(DNAToAminoAcid(newCodon.c_str()))<<endl;
+	    }
+	  }
+	  // cout<<rg.getMatchingFastQs(locus.pos, fastq);
+	  reports.push_back({report.str(), locus.pos});  
+	}
+	if(!reports.empty()) {
+	  string theReport;
+	  dnapos_t minPos=reports.begin()->second;
+	  dnapos_t maxPos=minPos;
+	  for(auto r : reports) {
+	    theReport += r.first;
+	    minPos=min(r.second, minPos);
+	    maxPos=max(r.second, maxPos);
+	  }
+
+	  emitRegion(jsfp.get(), *rg, fastq, gar, "Variable", index++, minPos-100, maxPos+100, theReport, maxVarcount);
+	}
+      }
+      (*g_log)<<"Found "<<significantlyVariable<<" significantly variable loci"<<endl;
+    }
+    (*g_log)<<"Found "<<rg->d_insertCounts.size()<<" loci with at least one insert in a read"<<endl;
+    struct revsort
+    {
+      bool operator()(const unsigned int&a, const unsigned int&b) const
+      { return a > b;} 
+    };
+    map<unsigned int, vector<dnapos_t>, revsort> topInserts;
   
-  unsigned int significantInserts=0;
-  for(const auto& insloc : rg.d_insertCounts) {
-    topInserts[insloc.second].push_back(insloc.first);
-    if(insloc.second > 10)
-      significantInserts++;
-  }
-  (*g_log)<<"Found "<<significantInserts<<" significant inserts"<<endl;
+    unsigned int significantInserts=0;
+    for(const auto& insloc : rg->d_insertCounts) {
+      topInserts[insloc.second].push_back(insloc.first);
+      if(insloc.second > 10)
+	significantInserts++;
+    }
+    (*g_log)<<"Found "<<significantInserts<<" significant inserts"<<endl;
 
-  if(!skipInsertsSwitch.getValue()) {
-    for(const auto& insert : topInserts) {
-      if(insert.first < 10)
-	break;
-      for(const auto& position : insert.second) {
-	//	cout<<position<<"\t"<<insert.first<<" inserts"<<endl;
-	vector<GeneAnnotation> gas=gar.lookup(position);
-	if(!gas.empty()) {
-	  //	  cout<<fmt2<<"Annotation: ";
-	  //	  for(auto& ga : gas) {
+    if(!skipInsertsSwitch.getValue()) {
+      for(const auto& insert : topInserts) {
+	if(insert.first < 10)
+	  break;
+	for(const auto& position : insert.second) {
+	  //	cout<<position<<"\t"<<insert.first<<" inserts"<<endl;
+	  vector<GeneAnnotation> gas=gar.lookup(position);
+	  if(!gas.empty()) {
+	    //	  cout<<fmt2<<"Annotation: ";
+	    //	  for(auto& ga : gas) {
 	    //	    cout<<ga.name<<" ["<<ga.tag<<"], ";
-	  //}
-	  //	  cout<<endl;
+	    //}
+	    //	  cout<<endl;
+	  }
+	  emitRegion(jsfp.get(), *rg, fastq, gar, "Insert", index++, position);
+	  // cout<<rg.getMatchingFastQs(position, fastq);
 	}
-	emitRegion(jsfp.get(), rg, fastq, gar, "Insert", index++, position);
-	// cout<<rg.getMatchingFastQs(position, fastq);
       }
     }
-  }  
+    numRef++;
+  }
   g_log->flush();
   string log = jsonlog.str();
   replace_all(log, "\n", "\\n");

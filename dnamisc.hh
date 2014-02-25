@@ -154,7 +154,7 @@ std::string jsonVector(const std::vector<T>& v, const std::string& name,
 		  std::function<double(int)> xAdjust = [](int i){return 1.0*i;})
 {
   std::ostringstream ret;
-  ret << "var "<<name<<"=[";
+  ret <<name<<"=[";
   for(auto iter = v.begin(); iter != v.end(); ++iter) {
     if(iter != v.begin())
       ret<<',';

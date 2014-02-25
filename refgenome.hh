@@ -54,6 +54,7 @@ public:
   //! Describes how a FastQRead (not mentioned) matches to the reference (straight or in reverse), and what the matching score is
   struct MatchDescriptor
   {
+    ReferenceGenome* rg;
     dnapos_t pos;
     bool reverse;
     int score;

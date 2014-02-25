@@ -61,7 +61,7 @@ vector<ReferenceGenome::MatchDescriptor> ReferenceGenome::getAllReadPosBoth(Fast
   string nucleotides;
   for(int tries = 0; tries < 2; ++tries) {
     for(auto position : getReadPositions(fq->d_nucleotides)) 
-      ret.push_back({position, (bool)tries, 0});
+      ret.push_back({this, position, (bool)tries, 0});
     fq->reverse();
   }
   return ret;
@@ -140,7 +140,12 @@ unique_ptr<ReferenceGenome> ReferenceGenome::makeFromString(const std::string& g
   getline(istr, ret->d_name);
   if(ret->d_name.empty() || ret->d_name[0]!='>') 
     throw runtime_error("Input not FASTA");
-  ret->d_name=ret->d_name.substr(1); // skip >
+  ret->d_fullname=ret->d_name.substr(1); // skip >
+
+  ret->d_name = ret->d_fullname; // should stop after ' '
+  auto spacepos = ret->d_name.find(' ');
+  if(spacepos != string::npos)
+    ret->d_name=ret->d_name.substr(0, spacepos);
 
   string line;
   ret->d_genome="*"; // this gets all our offsets ""right""

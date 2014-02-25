@@ -34,13 +34,15 @@ svg {
 </style>
 <body>
 
+<table width="100%"><tr valign="top"><td>
 <h1>Antonie 0.0</h1>
+</td><td align="right"><img align="right"
+src="http://ds9a.nl/antonie/logo.png"/></td></tr></table>
 Antonie is <a href="https://github.com/beaumontlab/antonie">open source
 software</a>, developed at the <a
 href="http://bertusbeaumontlab.tudelft.nl/">Beaumont lab</a> at <a
 href="http://www.tudelft.nl">TU Delft</a>. If you've benefited from our
 work, please cite xyz.
-
 <div id="log"></div>
 
 <div class="chart" id="kmer" >
@@ -134,7 +136,7 @@ When performing paired-end reads, this graph will show the distribution of
 
 
 <table id="toctable" border="1" cellpadding="4">
-<tr><th>Type</th><th>Locus</th><th>Var count</th><th>Annotation(s)</th></tr>
+<tr><th>Type</th><th>Locus</th><th>Reference</th><th>Var count</th><th>Annotation(s)</th></tr>
 </table>
 
 <a href="#regions" onClick="regionStart+=10;printRegions(regionStart);return false;">Next 10 graphs</a>
@@ -261,7 +263,7 @@ nv.addGraph(function() {
     ;
 
   d3.select('#kmer svg')
-    .datum(getPoints(kmerstats, "K-mer diversity"))
+    .datum(getPoints(genomes[0].kmerstats, "K-mer diversity"))
     .call(chart);
 
   nv.utils.windowResize(chart.update);
@@ -290,12 +292,12 @@ nv.addGraph(function() {
     .tickFormat(d3.format(',.2f'))
     ;
 
-  for(i=0 ; i != gcRatios.length; ++i) {
+  for(i=0 ; i != genomes[0].gcRatios.length; ++i) {
   	gconst[i]=[i,genomeGCRatio];
   }
 
   d3.select('#gc svg')
-    .datum(getPoints(gcRatios, "GC Content", gconst, "Genome average"))
+    .datum(getPoints(genomes[0].gcRatios, "GC Content", gconst, "Genome average"))
     .call(chart);
 
   nv.utils.windowResize(chart.update);
@@ -325,7 +327,7 @@ nv.addGraph(function() {
     ;
 
   d3.select('#qreads svg')
-    .datum(getPoints(qualities, "reported", referenceQ, "empirical", qlo, "Low reported range", qhi, "High reported range"))
+    .datum(getPoints(qualities, "reported", genomes[0].referenceQ, "empirical", qlo, "Low reported range", qhi, "High reported range"))
     .call(chart);
 
   nv.utils.windowResize(chart.update);
@@ -386,9 +388,9 @@ function getqqdata()
 {
 	var data=[];
 	data.push({key: 'Quality', shape: 'circle', values:[], slope: 1, intercept: 0});
-	for(i=0; i < qqdata.length; ++i) {
-		data[0].values.push({x: qqdata[i][0], y: qqdata[i][1], size:
-		qqdata[i][2]});
+	for(i=0; i < genomes[0].qqdata.length; ++i) {
+		data[0].values.push({x: genomes[0].qqdata[i][0], y: genomes[0].qqdata[i][1], size:
+		genomes[0].qqdata[i][2]});
 	}
 	return data;
 }
@@ -449,7 +451,7 @@ nv.addGraph(function() {
     ;
 
   d3.select('#gchisto svg')
-    .datum(getPoints(gcrefhisto, "GC content of reference", gcreadhisto, "GC content of reads"))
+    .datum(getPoints(genomes[0].gcrefhisto, "GC content of reference", gcreadhisto, "GC content of reads"))
     .call(chart);
   nv.utils.windowResize(chart.update);
 
@@ -480,7 +482,7 @@ nv.addGraph(function() {
 
 
   d3.select('#depthhisto svg')
-    .datum(getPoints(fullHisto, "Depth"))
+    .datum(getPoints(genomes[0].fullHisto, "Depth"))
     .call(chart);
 
   nv.utils.windowResize(chart.update);
@@ -557,6 +559,7 @@ for(i = 0 ; i < region.length; ++i) {
 	  var toctable=d3.select('#toctable').append('tr');
 	  toctable.append('td').append('a').attr('href','#region'+i).attr('onClick','showRegion('+i+');return true;').text(region[i].name+' '+i);
 	  toctable.append('td').text(region[i].pos);
+	  toctable.append('td').text(region[i].reference);	  
 	  toctable.append('td').text(region[i].maxVarcount);
 	  toctable.append('td').text(decodeURIComponent(region[i].annotations));
 
@@ -594,7 +597,7 @@ function printRegions(start)
 	  chart.yAxis.axisLabel('Depth').tickFormat(d3.format(',d'));
 
 	  var ourdiv=d3.select('#regions').append('div').attr('class','chart').attr('id',"region"+item);
-	  ourdiv.append('h3').text('Region '+i+': '+region[item].name + ' @ ' +region[item].pos );
+	  ourdiv.append('h3').text('Region '+i+': '+region[item].name + ' @ ' +region[item].pos + ' of reference ' +region[item].reference);
 	  ourdiv.append('p').text(decodeURIComponent(region[item].annotations));
 	  ourdiv.append('pre').text(region[item].report);	  
 	  ourdiv.append('pre').text(region[item].snippet);	  	  
