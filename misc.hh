@@ -22,6 +22,10 @@ public:
     xTot += val;
     x2Tot += val*val;
   }
+  bool valid() const
+  {
+    return N>0;
+  }
   friend double mean(const VarMeanEstimator& vme);
   friend double variance(const VarMeanEstimator& vme);
 private:
