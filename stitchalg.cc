@@ -1,4 +1,5 @@
 #include "fastqindex.hh"
+#include <fstream>
 #include <iostream>
 #include <algorithm>
 #include "stitchalg.hh"
@@ -53,6 +54,13 @@ struct Base
     else 
       return 'T';
   }
+  int getDepth()
+  {
+    if(!aCount && !cCount && !gCount && !tCount)
+      return 0;
+    return max({aCount, cCount, gCount, tCount});
+  }
+  
   void feed(char c, int amount=1)
   {
     if(c=='A')
@@ -92,6 +100,9 @@ string doStitch(const map<FASTQReader*, unique_ptr<vector<HashedPos> > >& fhpos,
   // cons:  ABCDEFGHIJKLMNOPQRSTUVWXYZ // move 100% of original length of consensus so connsensus
   //
   // start: NOPQRSTUVWXYZ123456789012  // move ahead 50% of original lenght
+  ofstream coverage("stitch.cov");
+  uint64_t matchesConsidered=0, matchesUsed=0;
+  vector<unsigned int> totcoverage;
   for(;;) {
     vector<pair<string,string> > story;
     story.push_back(make_pair(startseed, string(startseed.size(), (char)40)));
@@ -101,11 +112,13 @@ string doStitch(const map<FASTQReader*, unique_ptr<vector<HashedPos> > >& fhpos,
       auto matches = getConsensusMatches(part, fhpos, chunklen);
       for(auto& match : matches) {
 	int diff = dnaDiff(startseed.substr(n), match.d_nucleotides);
+	matchesConsidered++;
 	if(diff < 5) {
 	  if(verbose)
 	    cout << string(offset,'-')<<string(n, ' ') << match.d_nucleotides<<endl;
 	  story.push_back({string(n, ' ')+match.d_nucleotides,
 		string(n, ' ')+match.d_quality});
+	  matchesUsed++;
 	}
       }
     }
@@ -120,10 +133,15 @@ string doStitch(const map<FASTQReader*, unique_ptr<vector<HashedPos> > >& fhpos,
     string newconsensus;
     if(verbose)
       cout<<totconsensus;
+    totcoverage.resize(totconsensus.length()+consensus.size());
     for(unsigned int n = 0 ; n < consensus.size();++n) {
       if(verbose)
 	cout<<consensus[n].getBest();
       newconsensus.append(1, consensus[n].getBest());
+      
+      if(n < startseed.length()/2) {
+	totcoverage[totconsensus.length()+n]+=consensus[n].getDepth();
+      }
     }
     if(verbose)
       cout<<endl;
@@ -135,13 +153,19 @@ string doStitch(const map<FASTQReader*, unique_ptr<vector<HashedPos> > >& fhpos,
     string::size_type endpos = totconsensus.find(endseed);
     if(endpos != string::npos) {
       totconsensus.resize(endpos+endseed.size());
-      cout<<"Done: \n"<<totconsensus<<endl;
+      cout<<totconsensus<<endl;
       break;
     }
     if(totconsensus.size() > maxlen) {
       cout<<"Terminated: \n"<<totconsensus<<endl;
       break;
     }
+    fprintf(stderr, "\r%zu, considered: %zu, used: %zu", totconsensus.size(), matchesConsidered, matchesUsed);
   }
+  for(auto iter = totcoverage.begin(); iter != totcoverage.end(); ++iter)
+    coverage << (iter-totcoverage.begin()) << '\t' << *iter <<endl;
+
+
+  fprintf(stderr, "\n");
   return totconsensus;
 }

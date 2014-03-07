@@ -30,7 +30,7 @@ set<string> g_candidates;
 int main(int argc, char**argv)
 {
   if(argc < 4) {
-    cerr<<"Syntax: stitcher reference.fasta startoffset|startsnippet endsnippet"<<endl;
+    cerr<<"Syntax: stitcher reference.fasta startoffset|startsnippet endsnippet fastq fastq"<<endl;
     return EXIT_FAILURE;
   }
   ReferenceGenome rg(argv[1]);
@@ -54,9 +54,7 @@ int main(int argc, char**argv)
     fqreader = new FASTQReader(argv[f], 33, 0);
     fhpos[fqreader]=indexFASTQ(fqreader, argv[f], chunklen);
   }
-
-
-
-  doStitch(fhpos, startseed, endseed, 10000, chunklen, true);
+  setbuf(stdout, 0);
+  doStitch(fhpos, startseed, endseed, 10000, chunklen, false);
 }
 
