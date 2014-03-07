@@ -25,7 +25,6 @@ GeneAnnotationReader::GeneAnnotationReader(const std::string& fname)
     GeneAnnotation ga;
     ga.gene=false;
     if(line[0]=='#') {
-      //      cerr<<"Annotations from: "<<line;
       continue;
     }
     const char* p=strtok((char*)line.c_str(), "\t\n");
@@ -76,7 +75,7 @@ GeneAnnotationReader::GeneAnnotationReader(const std::string& fname)
 	goto no;
     }
 
-    if(ga.type =="gene" || ga.type=="CDS")
+    if(ga.type =="gene" || ga.type=="CDS" || ga.type=="cds")
       ga.gene=true;
     if(!ga.tag.empty()) {
       ga.tag = ga.type+": "+ga.tag;
