@@ -9,8 +9,21 @@ using std::cout;
 using std::endl;
 using std::cerr;
 
-void stringalign(const std::string& ain, const std::string& bin, double mispen, double gappen,
-		 double skwpen, std::string& aout, std::string& bout, std::string& summary) {
+struct NWunschStats
+{
+  NWunschStats() : matches(0), mismatches(0), skews(0), inserts(0), deletes(0){}
+  int matches;
+  int mismatches;
+  int skews;
+  int inserts;
+  int deletes;
+};
+
+NWunschStats stringalign(const std::string& ain, const std::string& bin, double mispen, double gappen,
+		 double skwpen, std::string& aout, std::string& bout, std::string& summary) 
+{
+  NWunschStats ret;
+
   unsigned int i,j,k;
   double dn,rt,dg;
   std::string::size_type ia = ain.length(), ib = bin.length();
@@ -39,19 +52,33 @@ void stringalign(const std::string& ain, const std::string& bin, double mispen, 
     if (dg <= min(dn,rt)) {
       aout[k] = ain[i-1];
       bout[k] = bin[j-1];
-      summary[k++] = ((ain[i-1] == bin[j-1])? '=' : '!');
+      bool match=(ain[i-1] == bin[j-1]);
+      summary[k++] = (match ? '=' : '!');
+      if(match)
+	ret.matches++;
+      else 
+	ret.mismatches++;
+      
       i--; j--;
     }
     else if (dn < rt) {
       aout[k] = ain[i-1];
       bout[k] = ' ';
       summary[k++] = ' ';		
+      if(j==ib)
+	ret.skews++;
+      else
+	ret.deletes++;
       i--;
     }
     else {
       aout[k] = ' ';
       bout[k] = bin[j-1];
       summary[k++] = ' ';		
+      if(i==ia)
+	ret.skews++;
+      else
+	ret.inserts++;
       j--;
     }
   }
@@ -63,6 +90,7 @@ void stringalign(const std::string& ain, const std::string& bin, double mispen, 
   aout.resize(k); bout.resize(k); summary.resize(k);
   for(unsigned int n=0; n < ia+1; ++n)
     delete[] cost[n];
+  return ret;
 }
 
 int main(int argc, char**argv)
@@ -73,8 +101,14 @@ int main(int argc, char**argv)
   }
 
   std::string aout, bout, summary;
-  stringalign(argv[1], argv[2], 1, 1, 0, aout, bout, summary);
+  auto ret=stringalign(argv[1], argv[2], 1, 2, 0, aout, bout, summary);
   printf("A: %s\nB: %s\na: %s\nb: %s\nd: %s\n",
 	 argv[1], argv[2],
 	 aout.c_str(), bout.c_str(), summary.c_str());
+
+  cout<<"Mismatches: "<<ret.mismatches<<endl;
+  cout<<"Skews: "<<ret.skews<<endl;
+  cout<<"Inserts: "<<ret.inserts<<endl;
+  cout<<"Deletes: "<<ret.deletes<<endl;
+  cout<<"Matches: "<<ret.matches<<endl;
 }
