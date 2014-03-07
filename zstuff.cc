@@ -210,7 +210,7 @@ PlainLineReader::PlainLineReader(const std::string& fname)
 {
   d_fp=fopen(fname.c_str(), "r");
   if(!d_fp)
-    throw runtime_error("Unable to open '"+fname+"' for reading on ZLineReader"+ string(strerror(errno)));
+    throw runtime_error("Unable to open '"+fname+"' for reading on ZLineReader: "+ string(strerror(errno)));
   
 }
 
