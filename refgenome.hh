@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <forward_list>
 #include <map>
+#include "geneannotated.hh"
 #include "antonie.hh"
 #include "fastq.hh"
 
@@ -100,7 +101,11 @@ public:
   unordered_map<dnapos_t, unsigned int> d_insertCounts;
   string d_name;
   string d_fullname;
-
+  unique_ptr<GeneAnnotationReader> d_gar;
+  void addAnnotations(GeneAnnotationReader* gar) 
+  {
+    d_gar=unique_ptr<GeneAnnotationReader>(gar);
+  }
 private:
   ReferenceGenome() = default;
   void initGenome();
