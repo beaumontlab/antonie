@@ -66,7 +66,7 @@ unsigned int FASTQReader::getRead(FastQRead* fq)
   d_reader->fgets(line, sizeof(line));
   chomp(line);
   
-  if(d_snipLeft || d_snipRight)
+  if((d_snipLeft || d_snipRight) && (d_snipLeft + d_snipRight < strlen(line)))
     fq->d_nucleotides.assign(line + d_snipLeft, strlen(line) -d_snipLeft-d_snipRight);
   else
     fq->d_nucleotides.assign(line);
@@ -75,7 +75,7 @@ unsigned int FASTQReader::getRead(FastQRead* fq)
 
   chomp(line);
 
-  if(d_snipLeft || d_snipRight)
+  if((d_snipLeft || d_snipRight) && (d_snipLeft + d_snipRight < strlen(line)))
     fq->d_quality.assign(line + d_snipLeft, strlen(line)-d_snipLeft-d_snipRight);
   else
     fq->d_quality.assign(line);
@@ -127,9 +127,9 @@ unsigned int StereoFASTQReader::getReadPair(FastQRead* fq1, FastQRead* fq2)
   ret1=d_fq1.getRead(fq1);
   ret2=d_fq2.getRead(fq2);
 
-  if(ret1 != ret2) {
-    throw runtime_error("Difference between paired files in read: " + boost::lexical_cast<string>(ret1) +" != "+ boost::lexical_cast<string>(ret2));
-  }
+  //  if(ret1 != ret2) {
+  //  throw runtime_error("Difference between paired files in read: " + boost::lexical_cast<string>(ret1) +" != "+ boost::lexical_cast<string>(ret2));
+  // }
   fq2->position |= (1ULL<<63);
   return ret1;
 }
