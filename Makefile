@@ -18,6 +18,9 @@ all: $(PROGRAMS)
 MBA_OBJECTS = ext/libmba/allocator.o ext/libmba/diff.o ext/libmba/msgno.o ext/libmba/suba.o ext/libmba/varray.o 
 ANTONIE_OBJECTS = antonie.o refgenome.o hash.o geneannotated.o misc.o fastq.o saminfra.o dnamisc.o githash.o phi-x174.o zstuff.o $(MBA_OBJECTS)
 
+dino: dino.o 
+	$(CXX) $^ -o $@
+
 strdiff: strdiff.o $(MBA_OBJECTS)
 	$(CC) strdiff.o $(MBA_OBJECTS) -o $@
 
