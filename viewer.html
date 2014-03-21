@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+
+<link href="ext/html/nvd3/nv.d3.css" rel="stylesheet" type="text/css">
+<script src="ext/html/nvd3/lib/d3.v3.js"></script>
+<script src="ext/html/nvd3/nv.d3.min.js"></script>
+
+<style>
+body {
+  overflow-y:scroll;
+}
+
+body {
+   font-family: "HelveticaNeue-Light", "Helvetica Neue Light", "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif; 
+      font-weight: 300;
+}
+
+text {
+  font: 12px sans-serif;
+}
+
+svg {
+  display: block;
+}
+
+.chart svg {
+  height: 300px;
+
+}
+.chart {
+  min-width: 200px;
+  max-width: 600px;
+  margin-top: 10px;
+  margin-left: 20px;
+}
+</style>
+<body>
+
+<table width="100%"><tr valign="top"><td>
+<h1>Antonie 0.0 Big View</h1>
+</td><td align="right"><img align="right"
+src="http://ds9a.nl/antonie/logo.png"/></td></tr></table>
+<p>
+Antonie is <a href="https://github.com/beaumontlab/antonie">open source
+software</a>, developed at the <a
+href="http://bertusbeaumontlab.tudelft.nl/">Beaumont lab</a> at <a
+href="http://www.tudelft.nl">TU Delft</a>. If you've benefited from our
+work, please cite xyz.
+</p>
+<p>
+<form onSubmit="return UpdateTable();">
+NumDiff Filter: <input id="numDiff" value="0.3"></input><br/>
+Genes only: <input type="checkbox" value="1"></input>
+</form>
+</p>
+<div id="log"></div>
+<p></p>
+
+<table id="toctable" border="1" cellpadding="4">
+<thead></thead>
+<tbody></tbody>
+<!-- <tr><th>Type</th><th>Locus</th><th>Reference</th><th>Var
+count</th><th>Annotation(s)</th></tr> -->
+</table>
+
+<script src="big/loci.js"></script>
+<script>
+
+
+function transform(attrName) {
+	d3.select("#toctable tbody").selectAll("tr").remove();
+
+	// set headers
+	var th = d3.select("#toctable thead").selectAll("th")
+        	    .data(jsonToArray(loci["A12"][0]))
+	            .enter().append("th")
+	            .attr("onclick", function (d, i) { console.log("sort?"); return "transform('" + d[0] + "');";})
+	            .text(function(d) { return d[0]; })
+
+	// Make rows
+	    var tr = d3.select("#toctable tbody").selectAll("tr")
+        	        .data(loci["A12"])
+                	.enter().append("tr")
+	                .sort(function (a, b) { return a == null || b == null ? 0 : stringCompare(a[attrName], b[attrName]); })
+
+	// and tell the cells how to fill themselves
+	    var td = tr.selectAll("#toctable td")
+        	        .data(function(d) { return jsonToArray(d); })
+                	.enter().append("td")
+	                .attr("onclick", function (d, i) {
+	                	return "transform('" + d[0] + "');";})
+	                .text(function(d) { return d[1]; });
+}
+
+function jsonKeyValueToArray(k, v) {return [k, v];}
+ 
+function jsonToArray(json) {
+	var ret = new Array();
+        var key;
+        for (key in json) {
+	        if (json.hasOwnProperty(key)) {
+        		ret.push(jsonKeyValueToArray(key,
+			        json[key]));
+	        }
+        }
+        return ret;
+};
+
+function stringCompare(a, b) {
+    return a > b ? 1 : a == b ? 0 : -1;
+//    a = a.toLowerCase();
+//    b = b.toLowerCase();
+//    return a > b ? 1 : a == b ? 0 : -1;
+}
+            
+// transform('locus');
+
+
+function makeSNPStat()
+{
+	var ret={};
+	ret.counts=0;
+	ret.present=[];
+	return ret;
+}
+
+function UpdateTable()
+{
+  var numpools=0, numSNPs=0, filteredSNPs=0, nonGene=0;
+  var snps={};
+  var numDiffLimit = document.getElementById("numDiff").value;
+  console.log(numDiffLimit);
+  
+  for(pool in loci) {
+	numpools++;
+	numSNPs+= loci[pool].length;
+	for(snp in loci[pool]) {
+		if(loci[pool][snp].numDiff/(loci[pool][snp].depth + loci[pool][snp].numDiff) < numDiffLimit) {
+			filteredSNPs++;
+			continue;
+		}
+		if(!loci[pool][snp].gene) {
+			nonGene++;
+			continue;
+		}
+		if(snps[loci[pool][snp].locus] == undefined) {
+			snps[loci[pool][snp].locus]=makeSNPStat();
+			snps[loci[pool][snp].locus].description = decodeURIComponent(loci[pool][snp].annotation);
+			
+		}
+			
+		snps[loci[pool][snp].locus].count++;
+		snps[loci[pool][snp].locus].present.push(pool);
+	}
+}
+
+  var distinct=0;
+  var prescounts={};
+  for(snp in snps) {
+ 	distinct++;
+	if(prescounts[snps[snp].count] == undefined)
+		prescounts[snps[snp].count]=0;
+	prescounts[snps[snp].count]++;
+		
+  }
+  var resp = "There are "+numpools+ " pools, "+numSNPs+" candidate SNPs, " + filteredSNPs +" filtered out, ";
+  resp += nonGene + " non-genes, "+distinct+" distinct left";
+  d3.select("#log").text(resp);
+ 
+  var table="<table><tr><th>Locus</th><th>Description</th>";
+  for(pool in loci) {
+	table+=("<th>"+pool+"</th>");
+  }
+
+  for(snp in snps) {
+	table+="<tr><td>"+snp+"</td><td><small>"+snps[snp].description+"</small></td>";
+	
+	for(pool in loci) {
+		if(snps[snp].present.indexOf(pool) >= 0)
+			table+=("<td>"+pool+"</td>");
+		else
+			table+="<td></td>";
+	}
+	
+	table+="</tr>";
+  }
+
+  table+=("</table>");
+  d3.select("#toctable").html(table);
+  return false;
+}
+UpdateTable();
+</script>
