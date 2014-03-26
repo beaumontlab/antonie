@@ -155,7 +155,7 @@ int main(int argc, char** argv)
     return EXIT_FAILURE;
   }
   for(;iter != files.end(); ++iter) {
-    fqreader = new FASTQReader(*iter, qualityOffsetArg.getValue(), 0);
+    fqreader = new FASTQReader(*iter, qualityOffsetArg.getValue());
     fhpos[fqreader]=indexFASTQ(fqreader, *iter, 35);
   }
 

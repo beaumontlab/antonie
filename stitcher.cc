@@ -51,7 +51,7 @@ int main(int argc, char**argv)
   FASTQReader* fqreader;
 
   for(int f = 4; f < argc; ++f) {
-    fqreader = new FASTQReader(argv[f], 33, 0);
+    fqreader = new FASTQReader(argv[f], 33);
     fhpos[fqreader]=indexFASTQ(fqreader, argv[f], chunklen);
   }
   setbuf(stdout, 0);
