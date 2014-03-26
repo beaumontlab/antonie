@@ -989,7 +989,7 @@ void doInitialReadStatistics(FILE* jsfp, const string& fname, StereoFASTQReader&
 	*recommendBeginSnip=n+1;
 	for(auto& i: *recommendIndex)
 	  i-=*recommendBeginSnip;
-	*maxreadlen-=*recommendedBeginSnip;
+	*maxreadlen-=*recommendBeginSnip;
       }
       break;
     }
