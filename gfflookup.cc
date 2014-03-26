@@ -23,11 +23,16 @@ int main(int argc, char **argv)
   for(int n = 3; n < argc; ++n) {
     for(const auto& ga : gar.lookup(atoi(argv[n]))) {
       cout<<atoi(argv[n])<<'\t'<<ga.name<<'\t'<<ga.tag<< '\t'<<(ga.strand ? '+' : '-')<<endl;
+
+
+      continue;
+
+
       if(ga.type=="gene") {
       	string gene = rg.snippet(ga.startPos, ga.stopPos+1);
       	if(!ga.strand)
       		reverseNucleotides(&gene);
-      	cout<<gene<<endl;
+	cout<<gene<<endl;
       	for(int n=0; n < gene.size() ; n+=3) {
       		cout<<DNAToAminoAcid(gene.c_str()+n);
       	}
