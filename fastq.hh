@@ -31,8 +31,12 @@ struct FastQRead
 class FASTQReader
 {
 public:
-  FASTQReader(const std::string& str, unsigned int qoffset, unsigned int snipLeft=0, unsigned int snipRight=0);
-
+  FASTQReader(const std::string& str, unsigned int qoffset);
+  void setTrim(unsigned int trimLeft, unsigned int trimRight)
+  {
+    d_snipLeft = trimLeft;
+    d_snipRight = trimRight;
+  }
   void seek(uint64_t pos) 
   {
     d_reader->seek(pos);
@@ -50,9 +54,10 @@ class StereoFASTQReader
 {
 public:
   StereoFASTQReader(const std::string& name1, const std::string& name2, 
-		    unsigned int qoffset, unsigned int snipLeft=0, unsigned int snipRight=0) : d_fq1(name1, qoffset, snipLeft, snipRight), d_fq2(name2, qoffset, snipLeft, snipRight) 
+		    unsigned int qoffset) : d_fq1(name1, qoffset), d_fq2(name2, qoffset) 
   {}
 
+  void setTrim(unsigned int trimLeft, unsigned int trimRight);
   void seek(uint64_t pos);
   uint64_t estimateReads();
   unsigned int getRead(uint64_t pos, FastQRead* fq2);

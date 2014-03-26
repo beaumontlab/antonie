@@ -134,9 +134,17 @@ When performing paired-end reads, this graph will show the distribution of
   like Nextera) or far more discrete (TruSeq).
 </div>
 
+<div class="chart" id="lengthdist" >
+<h3>Read length histogram</h3>
+  <svg></svg>
+</div>
+
 
 <table id="toctable" border="1" cellpadding="4">
-<tr><th>Type</th><th>Locus</th><th>Reference</th><th>Var count</th><th>Annotation(s)</th></tr>
+<thead></thead>
+<tbody></tbody>
+<!-- <tr><th>Type</th><th>Locus</th><th>Reference</th><th>Var
+count</th><th>Annotation(s)</th></tr> -->
 </table>
 
 <a href="#regions" onClick="regionStart+=10;printRegions(regionStart);return false;">Next 10 graphs</a>
@@ -263,7 +271,7 @@ nv.addGraph(function() {
     ;
 
   d3.select('#kmer svg')
-    .datum(getPoints(genomes[0].kmerstats, "K-mer diversity"))
+    .datum(getPoints(kmerstats, "K-mer diversity"))
     .call(chart);
 
   nv.utils.windowResize(chart.update);
@@ -292,12 +300,14 @@ nv.addGraph(function() {
     .tickFormat(d3.format(',.2f'))
     ;
 
-  for(i=0 ; i != genomes[0].gcRatios.length; ++i) {
+//  if(genomeGCRatio == undefined)
+  	genomeGCRatio=0;
+  for(i=0 ; i != gcRatios.length; ++i) {
   	gconst[i]=[i,genomeGCRatio];
   }
 
   d3.select('#gc svg')
-    .datum(getPoints(genomes[0].gcRatios, "GC Content", gconst, "Genome average"))
+    .datum(getPoints(gcRatios, "GC Content", gconst, "Genome average"))
     .call(chart);
 
   nv.utils.windowResize(chart.update);
@@ -326,9 +336,9 @@ nv.addGraph(function() {
     .tickFormat(d3.format(',.2f'))
     ;
 
-  d3.select('#qreads svg')
-    .datum(getPoints(qualities, "reported", genomes[0].referenceQ, "empirical", qlo, "Low reported range", qhi, "High reported range"))
-    .call(chart);
+//  d3.select('#qreads svg')
+//    .datum(getPoints(qualities, "reported", genomes[0].referenceQ, "empirical", qlo, "Low reported range", qhi, "High reported range"))
+//    .call(chart);
 
   nv.utils.windowResize(chart.update);
   return chart;
@@ -512,7 +522,6 @@ nv.addGraph(function() {
     .tickFormat(d3.format(',d'))
     ;
 
-
   d3.select('#pairdist svg')
     .datum(getPoints(pairdisthisto, "Count"))
     .call(chart);
@@ -522,6 +531,37 @@ nv.addGraph(function() {
   return chart;
 });
 
+
+nv.addGraph(function() {
+  var chart = nv.models.lineChart()
+  .options({
+    margin: {left: 100, bottom: 75},
+    x: function(d,i) { return i},
+    showXAxis: true,
+    showYAxis: true,
+    transitionDuration: 250
+  })
+  .forceY([0])
+  ;
+
+  // chart sub-models (ie. xAxis, yAxis, etc) when accessed directly, return themselves, not the parent chart, so need to chain separately
+  chart.xAxis
+    .axisLabel("Length (p)")
+    .tickFormat(d3.format(',d'));
+
+  chart.yAxis
+    .axisLabel('Count')
+    .tickFormat(d3.format(',d'))
+    ;
+
+  d3.select('#lengthdist svg')
+    .datum(getPoints(readlengths, "Count"))
+    .call(chart);
+
+  nv.utils.windowResize(chart.update);
+
+  return chart;
+});
 
 nv.addGraph(function() {
   var chart = nv.models.discreteBarChart()
@@ -553,6 +593,7 @@ nv.addGraph(function() {
   return chart;
 });
 
+/*
 for(i = 0 ; i < region.length; ++i) {
 //	if(!region[i].gene)
 //		continue;
@@ -562,8 +603,55 @@ for(i = 0 ; i < region.length; ++i) {
 	  toctable.append('td').text(region[i].reference);	  
 	  toctable.append('td').text(region[i].maxVarcount);
 	  toctable.append('td').text(decodeURIComponent(region[i].annotations));
-
 }
+*/
+
+function transform(attrName) {
+	d3.select("#toctable tbody").selectAll("tr").remove();
+
+	// set headers
+	var th = d3.select("#toctable thead").selectAll("th")
+        	    .data(jsonToArray(genomes[0].loci[0]))
+	            .enter().append("th")
+	            .attr("onclick", function (d, i) { console.log("sort?"); return "transform('" + d[0] + "');";})
+	            .text(function(d) { return d[0]; })
+
+	// Make rows
+	    var tr = d3.select("#toctable tbody").selectAll("tr")
+        	        .data(genomes[0].loci)
+                	.enter().append("tr")
+	                .sort(function (a, b) { return a == null || b == null ? 0 : stringCompare(a[attrName], b[attrName]); })
+
+	// and tell the cells how to fill themselves
+	    var td = tr.selectAll("#toctable td")
+        	        .data(function(d) { return jsonToArray(d); })
+                	.enter().append("td")
+	                .attr("onclick", function (d, i) {
+	                	return "transform('" + d[0] + "');";})
+	                .text(function(d) { return d[1]; });
+}
+
+function jsonKeyValueToArray(k, v) {return [k, v];}
+ 
+function jsonToArray(json) {
+	var ret = new Array();
+        var key;
+        for (key in json) {
+	        if (json.hasOwnProperty(key)) {
+        		ret.push(jsonKeyValueToArray(key,
+			        json[key]));
+	        }
+        }
+        return ret;
+};
+
+function stringCompare(a, b) {
+    return a > b ? 1 : a == b ? 0 : -1;
+//    a = a.toLowerCase();
+//    b = b.toLowerCase();
+//    return a > b ? 1 : a == b ? 0 : -1;
+}
+            
 
 function showRegion(region)
 {
@@ -615,4 +703,5 @@ function printRegions(start)
 
 var regionStart=0;
 printRegions(regionStart);
+transform('locus');
 </script>

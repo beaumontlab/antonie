@@ -8,8 +8,8 @@ using namespace std;
 
 constexpr uint64_t StereoFASTQReader::s_mask;
 
-FASTQReader::FASTQReader(const std::string& str, unsigned int qoffset, unsigned int snipLeft, unsigned int snipRight) 
-  :  d_snipLeft{snipLeft}, d_snipRight{snipRight}, d_reader(LineReader::make(str)) 
+FASTQReader::FASTQReader(const std::string& str, unsigned int qoffset) 
+  :  d_reader(LineReader::make(str)) 
 {
   d_qoffset=qoffset;
 }
@@ -116,9 +116,21 @@ unsigned int StereoFASTQReader::getRead(uint64_t pos, FastQRead* fq)
   return ret;
 }
 
+void StereoFASTQReader::seek(uint64_t pos)
+{
+  d_fq1.seek(pos);
+  d_fq2.seek(pos);
+}
+
 uint64_t StereoFASTQReader::estimateReads()
 {
   return d_fq1.estimateReads() + d_fq2.estimateReads();
+}
+
+void StereoFASTQReader::setTrim(unsigned int trimLeft, unsigned int trimRight)
+{
+  d_fq1.setTrim(trimLeft, trimRight);
+  d_fq2.setTrim(trimLeft, trimRight);
 }
 
 unsigned int StereoFASTQReader::getReadPair(FastQRead* fq1, FastQRead* fq2)

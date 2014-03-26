@@ -203,7 +203,6 @@ void ReferenceGenome::index(unsigned int length)
     d_wrongMappings.resize(length);
     d_taMappings.resize(length);
     d_gcMappings.resize(length);
-    d_kmerMappings.resize(length);
   }
 
   auto& index = d_indexes[length];
@@ -227,13 +226,16 @@ void ReferenceGenome::index(unsigned int length)
 
 string ReferenceGenome::getMatchingFastQs(dnapos_t pos, StereoFASTQReader& fastq)
 {
-  return getMatchingFastQs(pos > 150 ? pos-150 : 0, pos+150, fastq);
+  return getMatchingFastQs(pos > 150 ? pos-150 : 1, pos+150, fastq);
 }
 
 string ReferenceGenome::getMatchingFastQs(dnapos_t start, dnapos_t stop, StereoFASTQReader& fastq) 
 {
   ostringstream os;
-
+  if(stop > size())
+    stop = size();
+  if(start > size())
+    start = 1;
   string reference=snippet(start, stop);
   unsigned int insertPos=0;
   for(unsigned int i = 0 ; i < stop - start; ++i) {
