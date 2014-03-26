@@ -72,7 +72,8 @@ vector<FastQRead> getConsensusMatches(const std::string& consensus, const map<FA
       hadSomething=true;
       FastQRead fqr;
       //      cout<<"\tFound potential hit at offset "<<range.first->position<<"!"<<endl;
-      if(g_cache.count(make_pair(hpos.first, (uint64_t)range.first->position))) {
+      // XXX THIS DISABLES THE CACHE, also other lines below
+      if(0 && g_cache.count(make_pair(hpos.first, (uint64_t)range.first->position))) {
 	fqr = g_cache[make_pair(hpos.first, (uint64_t)range.first->position)];
       }
       else {
@@ -86,10 +87,10 @@ vector<FastQRead> getConsensusMatches(const std::string& consensus, const map<FA
 	if(fqr.d_nucleotides.compare(0,chunklen, consensus, 0, chunklen) != 0) {
 	  continue;
 	}
-	g_cache[make_pair(hpos.first, (uint64_t)range.first->position)] = fqr;
+	// g_cache[make_pair(hpos.first, (uint64_t)range.first->position)] = fqr;
       }
       else
-	g_cache[make_pair(hpos.first, (uint64_t)range.first->position)] = fqr;
+	; // g_cache[make_pair(hpos.first, (uint64_t)range.first->position)] = fqr;
       ret.push_back(fqr);
     }
   }
