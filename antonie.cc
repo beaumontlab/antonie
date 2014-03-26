@@ -22,6 +22,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <math.h>
+#include <signal.h>
 #include <boost/progress.hpp>
 #include <boost/format.hpp>
 #include <boost/iostreams/tee.hpp>
@@ -74,8 +75,8 @@ void ReferenceGenome::printCoverage(FILE* jsfp, const std::string& histoName)
   covhisto.resize(1000);
   VarMeanEstimator vmeDepth;
   d_unmRegions.clear();
-  ofstream covfile("coverage");
-  int prevcov = d_mapping[0].coverage;
+  //  ofstream covfile("coverage");
+  //  int prevcov = d_mapping[0].coverage;
 
   map<double, VarMeanEstimator> gcCoverage;
 
@@ -92,8 +93,8 @@ void ReferenceGenome::printCoverage(FILE* jsfp, const std::string& histoName)
       
     }
 
-    covfile << pos << '\t' << cov << '\t' << ((int)cov)-prevcov << '\t' << gc  <<'\t' << getGCContent(snippet(pos > 7 ? pos-7 : 1, pos+8)) << '\n';
-    prevcov=cov;
+    //    covfile << pos << '\t' << cov << '\t' << ((int)cov)-prevcov << '\t' << gc  <<'\t' << getGCContent(snippet(pos > 7 ? pos-7 : 1, pos+8)) << '\n';
+    // prevcov=cov;
 
     vmeDepth(cov);
 
@@ -305,6 +306,8 @@ struct qtally
 
 int MapToReference(ReferenceGenome& rg, dnapos_t pos, FastQRead fqfrag, int qlimit, BAMWriter* sbw, vector<qtally>* qqcounts, int* outIndel=0)
 {
+  if(pos > rg.size()) // can happen because of inserts or circular genomes
+    return false;
   if(outIndel)
     *outIndel=0;
   string reference = rg.snippet(pos, pos + fqfrag.d_nucleotides.length());
@@ -479,6 +482,9 @@ vector<ReferenceGenome::MatchDescriptor> fuzzyFind(FastQRead* fqfrag, ReferenceG
   typedef pair<dnapos_t, char> tpos;
   vector<dnapos_t> lpositions, mpositions, rpositions;
 
+  if(fqfrag->d_nucleotides.length() < 3*keylen) // too short
+    return ret;
+
   unsigned int interval=(fqfrag->d_nucleotides.length() - 3*keylen)/3;
 
   for(unsigned int attempts=0; attempts < interval; attempts += 3) {
@@ -558,15 +564,19 @@ void printQualities(FILE* jsfp, const qstats_t& qstats)
   for(const auto& q : qstats) {
     if(i)
       fputs(",", jsfp);
-    fprintf(jsfp, "[%d, %f]", i, -10.0*log10(mean(q)));
-    ++i;
+    if(q.valid()) {
+      fprintf(jsfp, "[%d, %f]", i, -10.0*log10(mean(q)));
+      ++i;
+    }
   }
   fputs("];\n", jsfp);
 
   vector<double> qlo, qhi;
   for(const auto& q : qstats) {
-    qlo.push_back(-10.0*log10(mean(q)) - sqrt(-10.0*log10(variance(q))));
-    qhi.push_back(-10.0*log10(mean(q)) +sqrt(-10.0*log10(variance(q))));
+    if(q.valid()) {
+      qlo.push_back(-10.0*log10(mean(q)) - sqrt(-10.0*log10(variance(q))));
+      qhi.push_back(-10.0*log10(mean(q)) +sqrt(-10.0*log10(variance(q))));
+    }
   }
 
   fprintf(jsfp, "var qlo=%s;\nvar qhi=%s;\n", jsonVectorD(qlo).c_str(), jsonVectorD(qhi).c_str());

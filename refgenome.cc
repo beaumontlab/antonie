@@ -98,9 +98,9 @@ string ReferenceGenome::snippet(dnapos_t start, dnapos_t stop) const
 { 
   if(stop > d_genome.size()) {
       return d_genome.substr(start);
-    }
-    return d_genome.substr(start, stop-start);
   }
+  return d_genome.substr(start, stop-start);
+}
 
 ReferenceGenome::ReferenceGenome(const string& fname)
 {
