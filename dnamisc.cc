@@ -8,7 +8,7 @@ extern "C" {
 }
 #include <algorithm>
 #include <boost/lexical_cast.hpp>
-
+dnapos_t dnanpos = (dnapos_t) -1;
 using std::vector;
 using std::runtime_error;
 
