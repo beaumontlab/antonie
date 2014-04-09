@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <vector>
+#include <stdint.h>
 
 //! A Gene annotation
 struct GeneAnnotation
