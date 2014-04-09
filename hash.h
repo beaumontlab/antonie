@@ -51,7 +51,7 @@
  *		return 0;
  *	}
  */
-#define hash(p, num, base) hash_any((p), (num)*sizeof(*(p)), (base))
+#define qhash(p, num, base) hash_any((p), (num)*sizeof(*(p)), (base))
 
 /**
  * hash_stable - hash of an array for external use
@@ -309,7 +309,7 @@ static inline uint32_t hash_pointer(const void *p, uint32_t base)
 		u.p2 = p;
 		return hash_u32(u.a, sizeof(p) / sizeof(uint32_t), base);
 	} else
-		return hash(&p, 1, base);
+		return qhash(&p, 1, base);
 }
 
 #endif /* HASH_H */

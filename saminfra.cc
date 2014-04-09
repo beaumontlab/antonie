@@ -15,6 +15,8 @@ using std::endl;
 using std::vector;
 using std::pair;
 using boost::lexical_cast;
+#undef max
+#undef min
 
 SAMWriter::~SAMWriter()
 {
