@@ -104,7 +104,7 @@ string ReferenceGenome::snippet(dnapos_t start, dnapos_t stop) const
 
 ReferenceGenome::ReferenceGenome(const string& fname)
 {
-  FILE* fp = fopen(fname.c_str(), "r");
+  FILE* fp = fopen(fname.c_str(), "rb");
   if(!fp)
     throw runtime_error("Unable to open reference genome file '"+fname+"'");
   d_genome.reserve(filesize(fname.c_str()));  // slight overestimate which is great

@@ -14,7 +14,7 @@ extern "C" {
 unique_ptr<vector<HashedPos> > indexFASTQ(FASTQReader* fqreader, const std::string& fname, int chunklen)
 {
   unique_ptr<vector<HashedPos> > hpos(new vector<HashedPos>());
-  FILE* fp=fopen((fname+".index").c_str(), "r");
+  FILE* fp=fopen((fname+".index").c_str(), "rb");
   
   if(fp) {
     auto size=filesize((fname+".index").c_str());

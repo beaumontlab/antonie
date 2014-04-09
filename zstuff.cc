@@ -52,7 +52,7 @@ ZLineReader::ZState& ZLineReader::ZState::operator=(const ZLineReader::ZState& o
 
 ZLineReader::ZLineReader(const std::string& fname)
 {
-  d_fp=fopen(fname.c_str(), "r");
+  d_fp=fopen(fname.c_str(), "rb");
   if(!d_fp)
     throw runtime_error("Unable to open '"+fname+"' for reading on ZLineReader: "+ string(strerror(errno)));
   
@@ -208,7 +208,7 @@ ZLineReader::~ZLineReader()
 
 PlainLineReader::PlainLineReader(const std::string& fname)
 {
-  d_fp=fopen(fname.c_str(), "r");
+  d_fp=fopen(fname.c_str(), "rb");
   if(!d_fp)
     throw runtime_error("Unable to open '"+fname+"' for reading on ZLineReader: "+ string(strerror(errno)));
   

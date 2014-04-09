@@ -33,7 +33,7 @@ string nameFromAccessionNumber(const std::string& number)
   if(g_namescache.count(number))
     return g_namescache[number];
   
-  FILE* fp = popen((string("wget -q -O- 'http://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&rettype=docsum&tool=antonie&id=")+number+"' | grep Title | cut -f2 -d'>' | cut -f1 -d'<'").c_str(), "r");
+  FILE* fp = popen((string("wget -q -O- 'http://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&rettype=docsum&tool=antonie&id=")+number+"' | grep Title | cut -f2 -d'>' | cut -f1 -d'<'").c_str(), "rb");
   
   if(!fp) 
     throw runtime_error("Unable to open wget pipe: "+string(strerror(errno)));

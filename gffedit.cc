@@ -15,7 +15,7 @@ using namespace std;
 int main(int argc, char **argv)
 {
   ReferenceGenome rg(argv[1]);
-  FILE* fp =fopen(argv[2], "r");
+  FILE* fp =fopen(argv[2], "rb");
   if(!fp)
     throw runtime_error("Unable to open '"+string(argv[2])+"' for reading GFF3: "+string(strerror(errno)));
   
