@@ -8,7 +8,7 @@ extern "C" {
 }
 #include <algorithm>
 #include <boost/lexical_cast.hpp>
-
+dnapos_t dnanpos = (dnapos_t) -1;
 using std::vector;
 using std::runtime_error;
 
@@ -197,7 +197,7 @@ char DNAToAminoAcid(const char* s)
 
 void DuplicateCounter::feedString(const std::string& str)
 {
-  uint32_t hashval = hash(str.c_str(), str.length(), 0);
+  uint32_t hashval = qhash(str.c_str(), str.length(), 0);
   d_hashes.push_back(hashval);
 }
 

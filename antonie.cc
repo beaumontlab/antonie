@@ -1163,7 +1163,7 @@ int main(int argc, char** argv)
       }
       dc.feedString(fqfrag.d_nucleotides);
       if(duplimit) {
-	theHash=hash(fqfrag.d_nucleotides.c_str(), fqfrag.d_nucleotides.size(), 0);
+	theHash=qhash(fqfrag.d_nucleotides.c_str(), fqfrag.d_nucleotides.size(), 0);
 	if(++seenAlready[theHash] > (unsigned int)duplimit) {
 	  if(paircount)
 	    dup2=true;
@@ -1226,7 +1226,7 @@ int main(int argc, char** argv)
 	    sbw.qwrite(pos, *fqfrag, indel, 3 + (paircount ? 0x80 : 0x40),
 		     "=", 
 		     paircount ? chosen.first.pos : chosen.second.pos, 
-		     (chosen.first.reverse ^ paircount) ? -distance : distance);
+		       (chosen.first.reverse ^ (bool)paircount) ? -distance : distance);
 	  }
 	}
 	found++;

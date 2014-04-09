@@ -1,5 +1,6 @@
 #pragma once
+#include <stdint.h>
 
 typedef uint32_t dnapos_t;
-constexpr unsigned int dnanpos = (dnapos_t) -1;
+extern unsigned int dnanpos;
 extern const char* phiXFastA;

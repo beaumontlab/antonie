@@ -31,10 +31,10 @@ unique_ptr<vector<HashedPos> > indexFASTQ(FASTQReader* fqreader, const std::stri
   cerr<<"Indexing "<<fname<<endl;
   FastQRead fqr;
   while(fqreader->getRead(&fqr)) {
-    uint32_t h = hash(fqr.d_nucleotides.c_str(), chunklen, 0);
+    uint32_t h = qhash(fqr.d_nucleotides.c_str(), chunklen, 0);
     hpos->push_back({h, fqr.position});
     fqr.reverse();
-    h = hash(fqr.d_nucleotides.c_str(), chunklen, 0);
+    h = qhash(fqr.d_nucleotides.c_str(), chunklen, 0);
     hpos->push_back({h, fqr.position});
   }
   std::sort(hpos->begin(), hpos->end());
@@ -57,7 +57,7 @@ vector<FastQRead> getConsensusMatches(const std::string& consensus, const map<FA
   if(consensus.find('N') != string::npos)
     return ret;
 
-  uint32_t h = hash(consensus.c_str(), chunklen, 0);
+  uint32_t h = qhash(consensus.c_str(), chunklen, 0);
   if(g_skip.count(h))
     return ret;
 

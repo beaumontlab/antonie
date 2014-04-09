@@ -22,7 +22,7 @@ vector<dnapos_t> ReferenceGenome::getReadPositions(const std::string& nucleotide
   
   auto& index = d_indexes[nucleotides.length()];
   
-  uint32_t hashval = hash(nucleotides.c_str(), nucleotides.length(), 0);
+  uint32_t hashval = qhash(nucleotides.c_str(), nucleotides.length(), 0);
   HashPos hp(hashval, 0);
   pair<index_t::const_iterator, index_t::const_iterator> range = equal_range(index.begin(), index.end(), hp);
   if(range.first == range.second)
@@ -209,7 +209,7 @@ void ReferenceGenome::index(unsigned int length)
   index.reserve(d_genome.length());
   
   for(string::size_type pos = 0 ; pos < d_genome.length() - length; ++pos) {
-    uint32_t hashval = hash(d_genome.c_str() + pos, length, 0);
+    uint32_t hashval = qhash(d_genome.c_str() + pos, length, 0);
     index.push_back(HashPos(hashval, pos));
   }
 

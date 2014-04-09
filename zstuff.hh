@@ -5,9 +5,9 @@
 #include <map>
 #include <stdexcept>
 #include <boost/utility.hpp>
-#include <arpa/inet.h>
 #include <memory>
 #include <boost/crc.hpp>
+#include <stdint.h>
 
 //! Virtual base for seekable line readers
 class LineReader
