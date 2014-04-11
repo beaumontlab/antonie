@@ -7,6 +7,10 @@
 #include <stdlib.h>
 #include <ccan/build_assert/build_assert.h>
 
+#ifndef _WIN32
+#define _inline inline
+#endif
+
 /* Stolen mostly from: lookup3.c, by Bob Jenkins, May 2006, Public Domain.
  * 
  * http://burtleburtle.net/bob/c/lookup3.c
@@ -128,7 +132,7 @@ uint32_t hash_u32(const uint32_t *key, size_t num, uint32_t base);
  * network or saved to disk).  The results will be different from the
  * other hash functions in this module, too.
  */
-static inline uint32_t hash_string(const char *string)
+static _inline uint32_t hash_string(const char *string)
 {
 	/* This is Karl Nelson <kenelson@ece.ucdavis.edu>'s X31 hash.
 	 * It's a little faster than the (much better) lookup3 hash(): 56ns vs
@@ -298,7 +302,7 @@ uint64_t hash64_stable_8(const void *key, size_t n, uint64_t base);
  *		return NULL;
  *	}
  */
-static inline uint32_t hash_pointer(const void *p, uint32_t base)
+static _inline uint32_t hash_pointer(const void *p, uint32_t base)
 {
 	if (sizeof(p) % sizeof(uint32_t) == 0) {
 		/* This convoluted union is the right way of aliasing. */
