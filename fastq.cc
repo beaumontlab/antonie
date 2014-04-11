@@ -58,7 +58,7 @@ unsigned int FASTQReader::getRead(FastQRead* fq)
   if(!d_reader->fgets(line, sizeof(line)))
     return 0;
   if(line[0] != '@')
-    throw runtime_error("Input not FASTQ");
+    throw runtime_error("Input not FASTQ, line: '"+string(line)+"'");
 
   chomp(line);
   fq->d_header.assign(line+1);
