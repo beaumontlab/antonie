@@ -3,6 +3,7 @@
 #define getcwd(x,y) GetCurrentDirectory((y),(x))
 #else
 #include <unistd.h>
+#include <arpa/inet.h>
 #endif 
 
 
