@@ -966,25 +966,26 @@ void doInitialReadStatistics(FILE* jsfp, const string& fname, StereoFASTQReader&
     fprintf(jsfp, "%s[%d,%.2f]", i ? "," : "", i, ratio);
     
     ratios.push_back(ratio);
-    if(i > 10 && i < 90)
+    if(i > 0.1 * *maxreadlen && i < 0.9 * *maxreadlen)
       ratest(ratio);
   }
   fprintf(jsfp,"];\n");
 
   fflush(jsfp);
 
-  cout<<"Variance: "<<sqrt(variance(ratest))<<endl;
+  //  cout<<"Variance: "<<sqrt(variance(ratest))<<endl;
   // so where do we put the cut..
   for(unsigned int n=0; n < ratios.size(); ++n) {
-    cout<<n<<" "<< (ratios[n]-mean(ratest))/sqrt(variance(ratest))<<endl;
-    int j=5;
+    //    cout<<n<<" "<< (ratios[n]-mean(ratest))/sqrt(variance(ratest))<<endl;
+    int j=10;
     for(; j  && n+j < ratios.size(); --j) {
       double sigma=fabs((ratios[n+j]-mean(ratest))/sqrt(variance(ratest)));
-      if(sigma > 6.0)
+      if(sigma > 5.0)
 	break;
+      //      cout<<" "<<n+j<<" "<< (ratios[n+j]-mean(ratest))/sqrt(variance(ratest))<<endl;
     }
     if(!j) {
-      cout<<"Put the cut at: "<<n+1<<endl;
+      (*g_log)<<"Put the begin trim at: "<<n+1<<endl;
       if(recommendBeginSnip) {
 	*recommendBeginSnip=n+1;
 	for(auto& i: *recommendIndex)
