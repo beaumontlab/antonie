@@ -6,7 +6,7 @@
 #include <boost/lexical_cast.hpp>
 using namespace std;
 
-constexpr uint64_t StereoFASTQReader::s_mask;
+uint64_t StereoFASTQReader::s_mask= ~(1ULL<<63);
 
 FASTQReader::FASTQReader(const std::string& str, unsigned int qoffset) 
   :  d_reader(LineReader::make(str)) 
