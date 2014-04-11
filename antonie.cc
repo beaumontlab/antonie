@@ -1316,7 +1316,6 @@ try
   (*g_log) << (boost::format("Ignored reads with N: %|40t|-%10d") % withAny).str()<<endl;
   if(duplimit)
     (*g_log) << (boost::format("Too frequent reads: %|40t| %10d (%.02f%%)") % tooFrequent % (100.0*tooFrequent/total)).str() <<endl;
-  (*g_log) << (boost::format("Different length reads: %|40t|-%10d") % differentLength).str() <<endl;
   (*g_log) << (boost::format("Full matches: %|40t|-%10d (%.02f%%)\n") % found % (100.0*found/total)).str();
   (*g_log) << (boost::format(" Reads matched in a good pair: %|40t| %10d\n") % (goodPairMatches*2)).str();
   (*g_log) << (boost::format(" Reads not matched, bad pair: %|40t| %10d\n") % (badPairMatches*2)).str();
