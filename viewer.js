@@ -12,13 +12,14 @@ function UpdateTable()
     var numpools=0, numSNPs=0, filteredSNPs=0, nonGene=0;
     var snps={};
     var numDiffLimit = document.getElementById("numDiff").value;
+    var percDiffLimit = document.getElementById("percDiff").value;
     var geneFilter = document.getElementById("geneFilter").checked;
     var nonsynFilter = document.getElementById("nonsynFilter").checked;
     var nonuniversalFilter = document.getElementById("nonuniversalFilter").checked;
     var deletesOnly = document.getElementById("deletesOnly").checked;
     var insertsOnly = document.getElementById("insertsOnly").checked;
     // console.log("The gene filter "+geneFilter);
-    console.log(loci);
+
     $.each(loci, function(pool, poollocus) {
 	numpools++;
 	numSNPs+= poollocus.length;
@@ -88,10 +89,11 @@ function UpdateTable()
 			continue;
 		    if(insertsOnly && snp.present[pos][1].insertReport=='')
 			continue;
-		    totCount+=snp.present[pos][1].numDiff;				
-		    if(snp.present[pos][1].numDiff < numDiffLimit) 
+		    totCount+=snp.present[pos][1].numDiff;	
+		    var percentage = 100.0* snp.present[pos][1].numDiff / snp.present[pos][1].depth;
+		    if(snp.present[pos][1].numDiff < numDiffLimit || percentage < percDiffLimit) 
 			row+='<td '+mouseOver+'><font	color="#bbbbbb">'+pool+'</font></td>';
-		    else if(snp.present[pos][1].numDiff > 10) {
+		    else if(snp.present[pos][1].numDiff > 10 && percentage >= percDiffLimit) {
 			row+='<td '+mouseOver+'><b>'+pool+'</b></td>';	
 			real=1;
 		    }				
@@ -110,7 +112,7 @@ function UpdateTable()
 	}
 	
 	row+="</tr>";
-	if((real || totCount > 3*numDiffLimit) && (!nonuniversalFilter || !universal)) {
+	if((real || (totCount > 3*numDiffLimit && totCount > 20)) && (!nonuniversalFilter || !universal)) {
 	    table+=row;
 	    realCount++;
 	}

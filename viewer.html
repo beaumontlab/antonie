@@ -67,8 +67,7 @@ work, please cite xyz.
 <form onSubmit="return UpdateTable();">
 <table border="0" cellpadding="4">
 <tr><td>NumDiff Filter</td><td><input id="numDiff" value="4" onChange="return UpdateTable();"></input></td></tr>
-<!-- <tr><td>Percentage Filter</td><td><input id="percLimit" value="0" onChange="return UpdateTable();"></input></td></tr>
--->
+<tr><td>Percentage Filter</td><td><input id="percDiff" value="0" onChange="return UpdateTable();"></input></td></tr>
 <tr><td>Genes only</td><td><input id="geneFilter" type="checkbox" value="1" onChange="return UpdateTable();"></input></td></tr>
 <tr><td>Non-synonymous only</td><td><input id="nonsynFilter" type="checkbox" value="1" onChange="return UpdateTable();"></input></td></tr>
 <tr><td>Inserts only</td><td><input id="insertsOnly" type="checkbox" value="0" onChange="return UpdateTable();"></input></td></tr>
@@ -89,7 +88,6 @@ count</th><th>Annotation(s)</th></tr> -->
 
 <script language="javascript">
 var loci={};
-console.log("hallo?");
 </script>
 <script src="bigfelix/loci.js"></script>
 <script src="viewer.js"></script>
