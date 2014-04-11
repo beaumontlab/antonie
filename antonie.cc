@@ -998,6 +998,7 @@ void doInitialReadStatistics(FILE* jsfp, const string& fname, StereoFASTQReader&
 
 
 int main(int argc, char** argv)
+try
 {
 #ifdef __linux__
   feenableexcept(FE_DIVBYZERO | FE_INVALID); 
@@ -1453,4 +1454,8 @@ int main(int argc, char** argv)
   fprintf(jsfp.get(), "var antonieLog=\"%s\";\n", log.c_str());
 
   return EXIT_SUCCESS;
+}
+catch(exception& e)
+{
+  cerr<<"Had error: "<<e.what()<<endl;
 }
