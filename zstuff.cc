@@ -5,11 +5,9 @@
 #include "zstuff.hh"
 #include <stdexcept>
 #include <iostream>
-#include <arpa/inet.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <unistd.h>
-
+#include "compat.hh"
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
 
@@ -232,7 +230,8 @@ char* PlainLineReader::fgets(char* line, int num)
 
 void PlainLineReader::seek(uint64_t pos)
 {
-  fseek(d_fp, pos, SEEK_SET);
+  if(fseek(d_fp, pos, SEEK_SET) < 0)
+    throw runtime_error("Seeking in plain line reader: "+string(strerror(errno)));
 }
 
 uint64_t PlainLineReader::uncompressedSize()
@@ -311,7 +310,7 @@ uint64_t BGZFWriter::write(const char*c, unsigned int len)
   d_s.next_in = (Bytef*) c;
   d_s.avail_in = len;
 
-  char buffer[1024+len*2];
+  char *buffer = new char[1024+len*2]; // XXX windows
   do {
     d_s.next_out = (Bytef*) buffer;
     d_s.avail_out=sizeof(buffer);
@@ -325,6 +324,7 @@ uint64_t BGZFWriter::write(const char*c, unsigned int len)
     //cerr<<"Got "<<(d_s.next_out - (Bytef*)buffer)<<" bytes (end="<<(res==Z_STREAM_END)<<")"<<endl;
     d_block.append(buffer, d_s.next_out - (Bytef*)buffer);
   } while(d_s.avail_in);
+  delete[] buffer;
   d_written+=len;
   if(d_written > 65000)
     emitBlock();
@@ -358,7 +358,7 @@ void BGZFWriter::emitBlock(bool force)
 
 void BGZFWriter::write32(uint32_t val)
 {
-  uint32_t nval = htonl(val);
+  uint32_t nval = htonl(val); 
   write((char*)&nval, 4);
 }
 
