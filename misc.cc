@@ -5,6 +5,7 @@
 using namespace std;
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <boost/lexical_cast.hpp>
 
 //! read a line of text from a FILE* to a std::string, returns false on 'no data'
 bool stringfgets(FILE* fp, std::string* line)
@@ -71,6 +72,8 @@ string compilerVersion()
   return string("clang " __clang_version__);
 #elif defined(__GNUC__)
   return string("gcc " __VERSION__);
+#elif defined(_MSC_FULL_VER)
+  return string("Microsoft Visual Studio " + boost::lexical_cast<string>(_MSC_FULL_VER));
 #else  // add other compilers here 
   return string("Unknown compiler");
 #endif

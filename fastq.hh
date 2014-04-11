@@ -64,5 +64,5 @@ public:
   unsigned int getReadPair(FastQRead* fq1, FastQRead* fq2);
 private:
   FASTQReader d_fq1, d_fq2;
-  constexpr static uint64_t s_mask = ~(1ULL<<63);
+  static uint64_t s_mask;
 };

@@ -19,7 +19,7 @@
 #include <inttypes.h>
 #include <algorithm>
 #include <numeric>
-#include <unistd.h>
+
 #include <errno.h>
 #include <math.h>
 #include <signal.h>
@@ -37,12 +37,13 @@
 #include "geneannotated.hh"
 #include "misc.hh"
 #include "fastq.hh"
-
 #include <mba/diff.h>
 #include <mba/msgno.h>
 #include "antonie.hh"
 #include "saminfra.hh"
 #include "refgenome.hh"
+#include "compat.hh"
+
 extern "C" {
 #include "hash.h"
 }
@@ -999,6 +1000,7 @@ void doInitialReadStatistics(FILE* jsfp, const string& fname, StereoFASTQReader&
 
 
 int main(int argc, char** argv)
+try
 {
 #ifdef __linux__
   feenableexcept(FE_DIVBYZERO | FE_INVALID); 
@@ -1041,9 +1043,19 @@ int main(int argc, char** argv)
 
   {
     char buffer[1024];
-    (*g_log)<<"Current working directory is '"<<getcwd(buffer,sizeof(buffer))<<"' on host ";
+    if(getcwd(buffer,sizeof(buffer)))
+      (*g_log)<<"Current working directory is '"<<buffer<<"' on host ";
     *buffer=0;
+#ifdef _WIN32
+    DWORD len=sizeof(buffer);
+    if(GetComputerName(buffer, &len)) {
+      buffer[len]=0;
+      (*g_log)<<buffer << endl;
+    }
+    else (*g_log)<<"UNKNOWN"<<endl;
+#else 
     (*g_log)<<(gethostname(buffer, sizeof(buffer)) < 0 ? "UNKNOWN" : buffer) <<endl;
+#endif
   }
   //  (*g_log)<<"Current time: "<< std::put_time(std::localtime(&system_clock::now()), "%F %T")<<endl;
   
@@ -1089,7 +1101,7 @@ int main(int argc, char** argv)
       (*g_log)<<"No annotations for '"<<rg->d_fullname<<"': "<<((bool)rg->d_gar)<<endl;
     refgens.emplace_back(move(rg));
   }
-  
+
   if(excludePhiXSwitch.getValue()) {
     auto rg = ReferenceGenome::makeFromString(phiXFastA);
     double genomeGCRatio = 1.0*(rg->d_cCount + rg->d_gCount)/(rg->d_cCount + rg->d_gCount + rg->d_aCount + rg->d_tCount);
@@ -1454,4 +1466,8 @@ int main(int argc, char** argv)
   fprintf(jsfp.get(), "var antonieLog=\"%s\";\n", log.c_str());
 
   return EXIT_SUCCESS;
+}
+catch(exception& e)
+{
+  cerr<<"Had error: "<<e.what()<<endl;
 }
