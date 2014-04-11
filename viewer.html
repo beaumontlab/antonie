@@ -4,6 +4,8 @@
 <link href="ext/html/nvd3/nv.d3.css" rel="stylesheet" type="text/css">
 <script src="ext/html/nvd3/lib/d3.v3.js"></script>
 <script src="ext/html/nvd3/nv.d3.min.js"></script>
+<script type="text/javascript" src="ext/jquery-1.11.0.min.js"></script>
+<script type="text/javascript" src="ext/nhpup_1.1.js"></script>
 
 <style>
 body {
@@ -84,190 +86,13 @@ work, please cite xyz.
 <!-- <tr><th>Type</th><th>Locus</th><th>Reference</th><th>Var
 count</th><th>Annotation(s)</th></tr> -->
 </table>
-<script type="text/javascript" src="ext/jquery-1.11.0.min.js"></script>
-<script type="text/javascript" src="ext/nhpup_1.1.js"></script>
-<script>
+
+<script language="javascript">
 var loci={};
+console.log("hallo?");
 </script>
+<script src="bigfelix/loci.js"></script>
+<script src="viewer.js"></script>
 
-<script src="loci.js"></script>
-<script>
-
-function transform(attrName) {
-	d3.select("#toctable tbody").selectAll("tr").remove();
-
-	// set headers
-	var th = d3.select("#toctable thead").selectAll("th")
-        	    .data(jsonToArray(loci["A12"][0]))
-	            .enter().append("th")
-	            .attr("onclick", function (d, i) { console.log("sort?"); return "transform('" + d[0] + "');";})
-	            .text(function(d) { return d[0]; })
-
-	// Make rows
-	    var tr = d3.select("#toctable tbody").selectAll("tr")
-        	        .data(loci["A12"])
-                	.enter().append("tr")
-	                .sort(function (a, b) { return a == null || b == null ? 0 : stringCompare(a[attrName], b[attrName]); })
-
-	// and tell the cells how to fill themselves
-	    var td = tr.selectAll("#toctable td")
-        	        .data(function(d) { return jsonToArray(d); })
-                	.enter().append("td")
-	                .attr("onclick", function (d, i) {
-	                	return "transform('" + d[0] + "');";})
-	                .text(function(d) { return d[1]; });
-}
-
-function jsonKeyValueToArray(k, v) {return [k, v];}
- 
-function jsonToArray(json) {
-	var ret = new Array();
-        var key;
-        for (key in json) {
-	        if (json.hasOwnProperty(key)) {
-        		ret.push(jsonKeyValueToArray(key,
-			        json[key]));
-	        }
-        }
-        return ret;
-};
-
-function stringCompare(a, b) {
-    return a > b ? 1 : a == b ? 0 : -1;
-//    a = a.toLowerCase();
-//    b = b.toLowerCase();
-//    return a > b ? 1 : a == b ? 0 : -1;
-}
-            
-// transform('locus');
-
-
-function makeSNPStat()
-{
-	var ret={};
-	ret.counts=0;
-	ret.present=[];
-	return ret;
-}
-
-function UpdateTable()
-{
-  var numpools=0, numSNPs=0, filteredSNPs=0, nonGene=0;
-  var snps={};
-  var numDiffLimit = document.getElementById("numDiff").value;
-  var geneFilter = document.getElementById("geneFilter").checked;
-  var nonsynFilter = document.getElementById("nonsynFilter").checked;
-  var nonuniversalFilter = document.getElementById("nonuniversalFilter").checked;
-  var deletesOnly = document.getElementById("deletesOnly").checked;
-  var insertsOnly = document.getElementById("insertsOnly").checked;
-  // console.log("The gene filter "+geneFilter);
-  
-  $.each(loci, function(pool, poollocus) {
-//  	console.log("Pool: "+pool);
-	numpools++;
-	numSNPs+= poollocus.length;
-	$.each(poollocus, function(pos, locus) { 
-		if(geneFilter && !locus.gene) {
-			nonGene++;
-			return;
-		}
-		if(snps[locus.locus] == undefined) {
-			snps[locus.locus]=makeSNPStat();
-			snps[locus.locus].description = decodeURIComponent(locus.annotation);
-		}
-			
-		snps[locus.locus].count++;
-		snps[locus.locus].present.push([pool, locus]);
-	});
-  });
-
-  var distinct=0;
-  $.each(snps, function() {
- 	distinct++;
-  });
-
- 
-  var table="<table><tr><th>Locus</th><th>Description</th>";
-  for(pool in loci) {
-	table+=("<th>"+pool+"</th>");
-  }
-  var realCount=0;
-  $.each(snps, function(locus, snp) {
-	row="<tr><td>"+locus+"</td><td><small>"+snp.description+"</small></td>";
-	var real=false;
-	var totfound=false;
-	var universal=snp.present.length > 0;
-	var totCount=0;	
-	for(pool in loci) {
-		var found=false;
-
-		for(pos in snp.present) {
-			if(snp.present[pos][0]==pool) {
-				var aminoReport = snp.present[pos][1].aminoReport;				
-				
-				var mouseOver="onmouseover='nhpup.popup(\"";
-				mouseOver+= "Numdiff: "+snp.present[pos][1].numDiff;
-				mouseOver+= ", ";
-				if(snp.present[pos][1].xCount) 
-					mouseOver += snp.present[pos][1].xCount+" deletes, ";
-				if(snp.present[pos][1].insertReport != "") {
-					mouseOver += "Inserts: "+snp.present[pos][1].insertReport+", ";
-				}
-				var totPresent=snp.present[pos][1].numDiff + snp.present[pos][1].depth;
-				mouseOver+=(100.0*snp.present[pos][1].numDiff/totPresent).toFixed(2);
-				mouseOver+= "&percnt;, depth: " + totPresent;
-				mouseOver +=", "+aminoReport;
-				mouseOver+="\");'";
-				
-				if(nonsynFilter) {
-					var re=/([A-Z][a-z ]+) -> ([A-Z][a-z ]+) $/;
-					var result = re.exec(aminoReport);
-	//				console.log(aminoReport +": "+result);
-					if(result != null && result[1]==result[2]) {
-//						console.log("Neutral:'"+result[1]+"' '"+result[2]+"'");
-						continue;
-					}
-				}
-				if(deletesOnly && snp.present[pos][1].xCount == 0) 
-					continue;
-				if(insertsOnly && snp.present[pos][1].insertReport=='')
-					continue;
-				totCount+=snp.present[pos][1].numDiff;				
-				if(snp.present[pos][1].numDiff < numDiffLimit) 
-					row+='<td '+mouseOver+'><font	color="#bbbbbb">'+pool+'</font></td>';
-				else if(snp.present[pos][1].numDiff > 10) {
-					row+='<td '+mouseOver+'><b>'+pool+'</b></td>';	
-					real=1;
-				}				
-				else {
-					row+="<td "+mouseOver+">"+pool+"</td>";
-					real=1;
-				}	
-				found=true;
-				break;
-			}
-		}
-		if(!found) {
-			row+="<td></td>";
-			universal=false;
-		}
-	}
-	
-	row+="</tr>";
-	if((real || totCount > 3*numDiffLimit) && (!nonuniversalFilter || !universal)) {
-		table+=row;
-		realCount++;
-	}
-  });
-
-  table+=("</table>");
-  d3.select("#toctable").html(table);
-  
-  var resp = "There are "+numpools+ " pools, "+numSNPs+" candidate SNPs, "
-  resp += nonGene + " non-genes, "+realCount+" distinct left";
-  d3.select("#log").text(resp);
-  
-  return false;
-}
-UpdateTable();
-</script>
+</body>
+</html>
