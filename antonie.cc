@@ -934,7 +934,7 @@ void doInitialReadStatistics(FILE* jsfp, const string& fname, StereoFASTQReader&
   int num=0;
   for(auto iter = lenstats.crbegin(); iter != lenstats.crend() && num < 3; ++iter, ++num) {
     cumul+=iter->first;
-    cout << cumul*100.0/totalReads<<"% covered after indexing "<<iter->second<<endl;
+    (*g_log) << cumul*100.0/totalReads<<"% covered after indexing "<<iter->second<<endl;
     recommendIndex->push_back(iter->second);
     if(cumul > 0.99*totalReads)
       break;
@@ -1132,7 +1132,7 @@ try
   g_log->flush();
   dnapos_t pos;
 
-  uint64_t withAny=0, found=0, total=0, differentLength=0, tooFrequent=0, goodPairMatches=0, badPairMatches=0,
+  uint64_t withAny=0, found=0, total=0, tooFrequent=0, goodPairMatches=0, badPairMatches=0,
     qualityExcluded=0;
 
   BAMWriter sbw(bamFileArg.getValue(), (*refgens.begin())->d_name, (*refgens.begin())->size()); // XXXmulti
