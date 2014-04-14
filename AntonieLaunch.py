@@ -2,6 +2,7 @@ import wx
 import sys
 import traceback
 import  wx.lib.filebrowsebutton as filebrowse
+import platform;
 
 class Frame(wx.Frame):
 	def __init__(self, title):
@@ -73,8 +74,19 @@ class Frame(wx.Frame):
 
 	def OnGoBtn(self, evt):
 		try:
-			cmd = (".\\antonie.exe -1 \"" + self.fastq1.GetValue() + "\" -2 \"" +self.fastq2.GetValue() +"\" -r \""+self.fna.GetValue()+"\" -a \""+self.gff.GetValue()+"\"")
+			if platform.system()=="Windows":
+				cmd = ".\\antonie.exe "
+			else:
+				cmd = "./antonie "
+
+			cmd += "-1 \"" + self.fastq1.GetValue() + "\" -2 \"" +self.fastq2.GetValue() +"\" -r \""+self.fna.GetValue()+"\" -a \""+self.gff.GetValue()+"\""
 #			print "Go Button pressed, commandline: "+cmd
+			if self.bam.GetValue():
+				cmd += " -w antonie.bam"
+			
+			if self.unfound.GetValue():
+				cmd += " -u "
+			
 			
 			self.process = wx.Process(self)
 			self.process.Redirect();
