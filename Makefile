@@ -9,6 +9,10 @@ CHEAT_ARG := $(shell ./update-git-hash-if-necessary)
 SHIPPROGRAMS=antonie 16ssearcher stitcher fqgrep pfqgrep
 PROGRAMS=$(SHIPPROGRAMS) digisplice gffedit gfflookup nwunsch
 
+ifeq ($(CC),clang)
+        CXXFLAGS+=-ftemplate-depth 1000
+endif
+
 all: $(PROGRAMS)
 
 -include *.d
