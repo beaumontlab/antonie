@@ -36,7 +36,7 @@ namespace {
       ga.stopPos = state.stopLocus;
       ga.strand = state.strand;
       ga.type=state.kind;
-      ga.gene=true;
+      ga.gene=false;
       /*
 	cout<<"Should emit '"<<state.kind<<"', "<<state.startLocus<<" - " << state.stopLocus<< " "<< (state.strand ? '+' : '-')<<endl;
       */
@@ -48,7 +48,11 @@ namespace {
 	  ga.tag+=+", ";
 	}
       }
-      g_ret.push_back(ga);
+      if(ga.type=="CDS" || ga.type=="gene")
+	ga.gene=true;
+
+      if(ga.type!="source")
+	g_ret.push_back(ga);
       state.clear();
     }
     state.kind=kind;

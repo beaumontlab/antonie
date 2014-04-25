@@ -22,9 +22,7 @@ int main(int argc, char **argv)
   ReferenceGenome rg(argv[2]);
   for(int n = 3; n < argc; ++n) {
     for(const auto& ga : gar.lookup(atoi(argv[n]))) {
-      cout<<atoi(argv[n])<<'\t'<<ga.name<<'\t'<<ga.tag<< '\t'<<(ga.strand ? '+' : '-')<<endl;
-
-
+      cout<<atoi(argv[n])<<'\t'<<ga.startPos<<" - "<<ga.stopPos<<'\t'<<ga.name<<'\t'<<ga.tag<< '\t'<<(ga.strand ? '+' : '-')<<'\t'<<(ga.gene ? "gene" : "") << endl;
       continue;
 
 
