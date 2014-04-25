@@ -10,7 +10,7 @@ SHIPPROGRAMS=antonie 16ssearcher stitcher fqgrep pfqgrep
 PROGRAMS=$(SHIPPROGRAMS) digisplice gffedit gfflookup nwunsch
 
 ifeq ($(CC),clang)
-        CXXFLAGS+=-ftemplate-depth 1000
+        CXXFLAGS+=-ftemplate-depth=1000
 endif
 
 all: $(PROGRAMS)
