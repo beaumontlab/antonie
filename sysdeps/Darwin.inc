@@ -1,1 +1,1 @@
-CXX2011FLAGS=-std=c++11 -stdlib=libc++ -I/usr/local/include/
+CXX2011FLAGS=-std=c++11 -stdlib=libc++ -I/usr/local/include/ -ftemplate-depth=1000
