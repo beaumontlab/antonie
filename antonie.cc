@@ -595,7 +595,7 @@ string makeAminoReport(ReferenceGenome& rg, dnapos_t pos, const vector<GeneAnnot
     acgtDo(c, [&](){ aCount++; }, [&](){ cCount++; }, [&](){ gCount++; }, [&](){ tCount++; } );
   }
   for(const auto& ga : gas) {
-    if(ga.type == "gene") {
+    if(ga.gene) {
       gene = rg.snippet(ga.startPos, ga.stopPos+1);
       orfSense = ga.strand;
       if(ga.strand) {
