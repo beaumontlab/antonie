@@ -40,10 +40,13 @@ namespace {
       /*
 	cout<<"Should emit '"<<state.kind<<"', "<<state.startLocus<<" - " << state.stopLocus<< " "<< (state.strand ? '+' : '-')<<endl;
       */
-      for(const auto& a: state.features) {
-	if(a.first!="translation")
-	  ga.tag+=a.second+", ";
-	//  cout<<a.first<<": "<<a.second<<endl;
+      for(auto& a: state.features) {
+	if(a.first!="translation") {
+	  boost::replace_all(a.second, "\n", " ");
+	  boost::replace_all(a.second, "'", "\\'");
+	  ga.tag+=a.second;
+	  ga.tag+=+", ";
+	}
       }
       g_ret.push_back(ga);
       state.clear();
