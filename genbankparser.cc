@@ -11,78 +11,79 @@ using std::endl;
 
 namespace {
 
-struct State
-{
+  struct State
+  {
     void clear()
     {
-	startLocus = stopLocus = 0;
-	strand = true;
-	features.clear();
+      startLocus = stopLocus = 0;
+      strand = true;
+      features.clear();
     }
     uint32_t startLocus;
     uint32_t stopLocus;
     bool strand;
     std::string kind;
     std::vector<std::pair<std::string, std::string> > features;
-} state;
+  } state;
 
-std::vector<GeneAnnotation> g_ret;
+  std::vector<GeneAnnotation> g_ret;
 
-void reportKind(const std::string& kind)
-{
+  void reportKind(const std::string& kind)
+  {
     if(!state.kind.empty()) {
-	GeneAnnotation ga;
-	ga.startPos = state.startLocus;
-	ga.stopPos = state.stopLocus;
-	ga.strand = state.strand;
-	ga.type=state.kind;
-	ga.gene=true;
-	/*
+      GeneAnnotation ga;
+      ga.startPos = state.startLocus;
+      ga.stopPos = state.stopLocus;
+      ga.strand = state.strand;
+      ga.type=state.kind;
+      ga.gene=true;
+      /*
 	cout<<"Should emit '"<<state.kind<<"', "<<state.startLocus<<" - " << state.stopLocus<< " "<< (state.strand ? '+' : '-')<<endl;
-	*/
-	for(const auto& a: state.features) {
-	    ga.tag+=a.second;
-	    //  cout<<a.first<<": "<<a.second<<endl;
-	}
-	g_ret.push_back(ga);
-	state.clear();
+      */
+      for(const auto& a: state.features) {
+	if(a.first!="translation")
+	  ga.tag+=a.second+", ";
+	//  cout<<a.first<<": "<<a.second<<endl;
+      }
+      g_ret.push_back(ga);
+      state.clear();
     }
     state.kind=kind;
-}
+  }
 
-// XXX FIXME, we get a lot of these for order() and join()!
-void startLocus(int start)
-{
+  // XXX FIXME, we get a lot of these for order() and join()!
+  void startLocus(int start)
+  {
     state.startLocus = start;
 
-}
+  }
 
-void stopLocus(int stop)
-{
+  void stopLocus(int stop)
+  {
     state.stopLocus = stop;
 
-}
+  }
 
-void complement()
-{
+  void complement()
+  {
     state.strand=false;
-}
+  }
 
 
-void variable(const std::string& var)
-{
+  void variable(const std::string& var)
+  {
     state.features.push_back({var, std::string()});
-}
+  }
 
-void value(int val)
-{
+  void value(int val)
+  {
     state.features.rbegin()->second=std::to_string(val);
-}
+  }
 
-void stringValue(const std::string& val)
-{
+  void stringValue(const std::string& val)
+  {
     state.features.rbegin()->second=val;
-}
+  }
 
 
 }

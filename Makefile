@@ -1,7 +1,7 @@
 -include sysdeps/$(shell uname).inc
 
 VERSION=0.1
-CXXFLAGS?=-Wall -O3 -ggdb -I. -Iext/libmba  -MMD -MP  $(CXX2011FLAGS) # -Wno-unused-local-typedefs 
+CXXFLAGS?=-Wall -O3 -ggdb -I. -Iext/libmba  -MMD -MP  $(CXX2011FLAGS) -Wno-strict-aliasing # -Wno-unused-local-typedefs 
 CFLAGS=-Wall -I. -Iext/libmba -O3 -MMD -MP
 LDFLAGS=$(CXX2011FLAGS)   # -Wl,-Bstatic -lstdc++ -lgcc -lz -Wl,-Bdynamic -static-libgcc -lm -lc
 CHEAT_ARG := $(shell ./update-git-hash-if-necessary)
@@ -16,7 +16,7 @@ all: $(PROGRAMS)
 .PHONY:	antonie.exe codedocs/html/index.html check
 
 MBA_OBJECTS = ext/libmba/allocator.o ext/libmba/diff.o ext/libmba/msgno.o ext/libmba/suba.o ext/libmba/varray.o 
-ANTONIE_OBJECTS = antonie.o refgenome.o hash.o geneannotated.o misc.o fastq.o saminfra.o dnamisc.o githash.o phi-x174.o zstuff.o $(MBA_OBJECTS)
+ANTONIE_OBJECTS = antonie.o refgenome.o hash.o geneannotated.o misc.o fastq.o saminfra.o dnamisc.o githash.o phi-x174.o zstuff.o genbankparser.o $(MBA_OBJECTS)
 
 dino: dino.o 
 	$(CXX) $^ -o $@
@@ -32,10 +32,10 @@ SEARCHER_OBJECTS=16ssearcher.o hash.o misc.o fastq.o zstuff.o githash.o fastqind
 16ssearcher: $(SEARCHER_OBJECTS)
 	$(CXX)  $(SEARCHER_OBJECTS) -lz  $(LDFLAGS) $(STATICFLAGS) -o $@
 
-digisplice: digisplice.o refgenome.o misc.o fastq.o hash.o zstuff.o dnamisc.o geneannotated.o
+digisplice: digisplice.o refgenome.o misc.o fastq.o hash.o zstuff.o dnamisc.o geneannotated.o genbankparser.o
 	$(CXX) $(LDFLAGS) $^ -lz $(STATICFLAGS) -o $@
 
-stitcher: stitcher.o refgenome.o misc.o fastq.o hash.o zstuff.o dnamisc.o geneannotated.o fastqindex.o stitchalg.o
+stitcher: stitcher.o refgenome.o misc.o fastq.o hash.o zstuff.o dnamisc.o geneannotated.o genbankparser.o fastqindex.o stitchalg.o
 	$(CXX) $(LDFLAGS) $^ -lz -pthread $(STATICFLAGS) -o $@
 
 invert: invert.o misc.o
@@ -51,7 +51,7 @@ pfqgrep: pfqgrep.o misc.o fastq.o dnamisc.o zstuff.o hash.o
 gffedit: gffedit.o refgenome.o fastq.o dnamisc.o zstuff.o misc.o hash.o
 	$(CXX) $(LDFLAGS) $^ -lz $(STATICFLAGS) -o $@
 
-gfflookup: gfflookup.o geneannotated.o refgenome.o fastq.o dnamisc.o zstuff.o misc.o hash.o
+gfflookup: gfflookup.o geneannotated.o genbankparser.o refgenome.o fastq.o dnamisc.o zstuff.o misc.o hash.o
 	$(CXX) $(LDFLAGS) $^ -lz $(STATICFLAGS) -o $@
 
 nwunsch: nwunsch.o

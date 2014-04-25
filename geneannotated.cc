@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <map>
 #include "misc.hh"
+#include <boost/algorithm/string.hpp>
 using namespace std;
 
 GeneAnnotationReader::GeneAnnotationReader(const std::string& fname)
@@ -15,6 +16,10 @@ GeneAnnotationReader::GeneAnnotationReader(const std::string& fname)
   if(fname.empty())
     return;
 
+  if(!boost::ends_with(fname, ".gff") && !boost::ends_with(fname, ".gff3")) {
+    parseGenBank(fname);
+    return;
+  }
   FILE* fp=fopen(fname.c_str(), "rb");
   if(!fp)
     throw runtime_error("Unable to open '"+fname+"' for gene annotation reading");
@@ -96,4 +101,30 @@ vector<GeneAnnotation> GeneAnnotationReader::lookup(uint64_t pos)
       ret.push_back(a);
   }
   return ret;
+}
+
+void GeneAnnotationReader::parseGenBank(const std::string& fname)
+{
+  FILE* fp=fopen(fname.c_str(), "rb");
+  if(!fp)
+    throw runtime_error("Unable to open '"+fname+"' for gene annotation reading");
+
+  string line;
+
+  //
+  while(stringfgets(fp, &line)) {
+    if(line.find("FEATURES") == 0)
+      break;
+  }
+  
+  string genbank;
+  while(stringfgets(fp, &line)) {
+    if(!isspace(line[0]))
+      break;
+
+    boost::trim_right(line);
+
+    genbank+=line+"\n";
+  }
+  d_gas=parseGenBankString(genbank);
 }
