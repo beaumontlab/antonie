@@ -593,65 +593,20 @@ nv.addGraph(function() {
   return chart;
 });
 
-/*
-for(i = 0 ; i < region.length; ++i) {
-//	if(!region[i].gene)
-//		continue;
+var loci=genomes[0].loci;
+for(i = 0 ; i < loci.length; ++i) {
+	if(!loci[i].gene)
+		continue;
 	  var toctable=d3.select('#toctable').append('tr');
-	  toctable.append('td').append('a').attr('href','#region'+i).attr('onClick','showRegion('+i+');return true;').text(region[i].name+' '+i);
-	  toctable.append('td').text(region[i].pos);
-	  toctable.append('td').text(region[i].reference);	  
-	  toctable.append('td').text(region[i].maxVarcount);
-	  toctable.append('td').text(decodeURIComponent(region[i].annotations));
+	  toctable.append('td').append('a').attr('href','#region'+i).attr('onClick','showRegion('+i+');return true;').text(i);
+	  toctable.append('td').text(loci[i].locus);
+	  toctable.append('td').text(loci[i].depth);
+	  toctable.append('td').text(loci[i].numDiff);	  
+	  toctable.append('td').text(loci[i].summary);	  
+	  toctable.append('td').text(decodeURIComponent(loci[i].aminoReport));
+	  toctable.append('td').text(decodeURIComponent(loci[i].annotation));
+	  
 }
-*/
-
-function transform(attrName) {
-	d3.select("#toctable tbody").selectAll("tr").remove();
-
-	// set headers
-	var th = d3.select("#toctable thead").selectAll("th")
-        	    .data(jsonToArray(genomes[0].loci[0]))
-	            .enter().append("th")
-	            .attr("onclick", function (d, i) { console.log("sort?"); return "transform('" + d[0] + "');";})
-	            .text(function(d) { return d[0]; })
-
-	// Make rows
-	    var tr = d3.select("#toctable tbody").selectAll("tr")
-        	        .data(genomes[0].loci)
-                	.enter().append("tr")
-	                .sort(function (a, b) { return a == null || b == null ? 0 : stringCompare(a[attrName], b[attrName]); })
-
-	// and tell the cells how to fill themselves
-	    var td = tr.selectAll("#toctable td")
-        	        .data(function(d) { return jsonToArray(d); })
-                	.enter().append("td")
-	                .attr("onclick", function (d, i) {
-	                	return "transform('" + d[0] + "');";})
-	                .text(function(d) { return d[1]; });
-}
-
-function jsonKeyValueToArray(k, v) {return [k, v];}
- 
-function jsonToArray(json) {
-	var ret = new Array();
-        var key;
-        for (key in json) {
-	        if (json.hasOwnProperty(key)) {
-        		ret.push(jsonKeyValueToArray(key,
-			        json[key]));
-	        }
-        }
-        return ret;
-};
-
-function stringCompare(a, b) {
-    return a > b ? 1 : a == b ? 0 : -1;
-//    a = a.toLowerCase();
-//    b = b.toLowerCase();
-//    return a > b ? 1 : a == b ? 0 : -1;
-}
-            
 
 function showRegion(region)
 {
@@ -703,5 +658,4 @@ function printRegions(start)
 
 var regionStart=0;
 printRegions(regionStart);
-transform('locus');
 </script>

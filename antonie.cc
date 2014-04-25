@@ -649,33 +649,37 @@ string makeAminoReport(ReferenceGenome& rg, dnapos_t pos, const vector<GeneAnnot
   return ret2.str();
 }
 
-string makeReport(ReferenceGenome& rg, dnapos_t pos, ReferenceGenome::LociStats locistat, double fraction)
+string makeReport(ReferenceGenome& rg, dnapos_t pos, ReferenceGenome::LociStats locistat, double fraction, string* summary=0)
 {
   ostringstream report;
-
+  if(summary)
+    summary->clear();
   boost::format fmt1("%-10d: %3d*%c ");
   string fmt2("                  ");
-  int aCount, cCount, tCount, gCount;  
+  int aCount, cCount, tCount, gCount, xCount;
 
   vector<GeneAnnotation> gas;
   if(rg.d_gar)
     gas= rg.d_gar->lookup(pos);
 
   char c=rg.snippet(pos, pos+1)[0];
-  aCount = cCount = tCount = gCount = 0;
+  aCount = cCount = tCount = gCount = xCount = 0;
   
-  acgtDo(c, 
+  acgtxDo(c, 
 	 [&](){aCount += rg.d_mapping[pos].coverage;},
 	 [&](){cCount += rg.d_mapping[pos].coverage;},
 	 [&](){gCount += rg.d_mapping[pos].coverage;},
-	 [&](){tCount += rg.d_mapping[pos].coverage;}
+	  [&](){tCount += rg.d_mapping[pos].coverage;},
+	  [&](){xCount += rg.d_mapping[pos].coverage;}
 	 );
-  report << (fmt1 % pos % rg.d_mapping[pos].coverage % rg.snippet(pos, pos+1) ).str();
+
+  char orig = rg.snippet(pos, pos+1)[0];
+  report << (fmt1 % pos % rg.d_mapping[pos].coverage % orig ).str();
   sort(locistat.samples.begin(), locistat.samples.end());
   for(auto j = locistat.samples.begin(); 
       j != locistat.samples.end(); ++j) {
     c=j->nucleotide;
-    acgtDo(c, [&](){ aCount++; }, [&](){ cCount++; }, [&](){ gCount++; }, [&](){ tCount++; } );    
+    acgtxDo(c, [&](){ aCount++; }, [&](){ cCount++; }, [&](){ gCount++; }, [&](){ tCount++; }, [&](){ xCount++; }  );    
     report<<c;
   }
   report<<endl<<fmt2;
@@ -704,7 +708,7 @@ string makeReport(ReferenceGenome& rg, dnapos_t pos, ReferenceGenome::LociStats 
     report << endl;
   }
   report << fmt2<< "Fraction tail: "<<fraction<<", "<< locistat.samples.size()<<endl;
-  report << fmt2<< "A: " << aCount*100/tot <<"%, C: "<<cCount*100/tot<<"%, G: "<<gCount*100/tot<<"%, T: "<<tCount*100/tot<<"%"<<endl;
+  report << fmt2<< "A: " << aCount*100/tot <<"%, C: "<<cCount*100/tot<<"%, G: "<<gCount*100/tot<<"%, T: "<<tCount*100/tot<<"%"<<", X: "<<xCount*100/tot<<"%"<<endl;
 
   if(!aminoBody.empty())
     report << aminoBody;
@@ -808,11 +812,45 @@ void emitLociAndCluster(FILE* jsfp, ReferenceGenome* rg, int numRef,
       insertReport += i.first+": "+lexical_cast<string>(i.second);
     }
 
+
+
     double fraction =(1.0*head/p.second.samples.size());
     if(fraction < 0.1 || fraction > 0.9)
       continue;
     
     vcl.feed(ClusterLocus{p.first, p.second});
+
+    string summary;
+    char orig = rg->snippet(p.first, p.first+1)[0];
+    if(aCount && orig!='A') {
+      summary.append(1, orig);
+      summary.append(">A");
+    }
+    if(cCount && orig!='C') {
+      if(!summary.empty())
+	summary.append(",");
+      summary.append(1, orig);
+      summary.append(">C");
+    }
+    if(gCount && orig!='G') {
+      if(!summary.empty())
+	summary.append(",");
+      summary.append(1, orig);
+      summary.append(">G");
+    }
+    if(tCount && orig!='T') {
+      if(!summary.empty())
+	summary.append(",");
+      summary.append(1, orig);
+      summary.append(">T");
+    }
+    if(xCount) {
+      if(!summary.empty())
+	summary.append(",");
+      summary.append("-");
+      summary.append(1, orig);
+    }
+  
 
     ofs<<p.first<<"\t"<<p.second.samples.size()<<"\t"<<rg->d_mapping[p.first].coverage<<"\t";
     ofs<<aCount<<"\t"<<aQual<<"\t";
@@ -854,11 +892,11 @@ void emitLociAndCluster(FILE* jsfp, ReferenceGenome* rg, int numRef,
 	      "tCount: %d, tQual: %d, "
 	      "totQual: %d, "
 	      "xCount: %d, "
-	      "fraction: %f, gene: %d, annotation: '%s', aminoReport: '%s', insertReport: '%s'}", 
+	      "fraction: %f, gene: %d, annotation: '%s', aminoReport: '%s', insertReport: '%s', summary: '%s'}", 
 	      p.first, (int)p.second.samples.size(), '?', rg->d_mapping[p.first].coverage, 
 	      aCount, aQual, cCount, cQual, gCount, gQual, tCount, tQual, 
 	      aQual+cQual+gQual+tQual,
-	      xCount, fraction, gene, annotation.c_str(), aminoReport.c_str(), insertReport.c_str());
+	      xCount, fraction, gene, annotation.c_str(), aminoReport.c_str(), insertReport.c_str(), summary.c_str());
     }
     emitted=true;
   }
@@ -1441,19 +1479,8 @@ try
 	if(insert.first < 3)
 	  break;
 	for(const auto& position : insert.second) {
-	  //	cout<<position<<"\t"<<insert.first<<" inserts"<<endl;
-	  vector<GeneAnnotation> gas;
-	  if(rg->d_gar)
-	    gas = rg->d_gar->lookup(position);
-	  if(!gas.empty()) {
-	    //	  cout<<fmt2<<"Annotation: ";
-	    //	  for(auto& ga : gas) {
-	    //	    cout<<ga.name<<" ["<<ga.tag<<"], ";
-	    //}
-	    //	  cout<<endl;
-	  }
-	  emitRegion(jsfp.get(), *rg, fastq, "Insert", index++, position);
-	  // cout<<rg.getMatchingFastQs(position, fastq);
+	  auto theReport = makeReport(*rg, position, rg->d_locimap[position], 0);
+	  emitRegion(jsfp.get(), *rg, fastq, "Insert", index++, position, theReport);
 	}
       }
     }
