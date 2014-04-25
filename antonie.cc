@@ -431,7 +431,8 @@ void emitRegion(FILE*fp, ReferenceGenome& rg, StereoFASTQReader& fastq, const st
   int gene=0;
   if(rg.d_gar) {
     auto gas=rg.d_gar->lookup(dnapos);
-    for(const auto& ga : gas) {
+    for(auto ga : gas) {
+      replace_all(ga.tag, "'", "\\'");
       annotations += ga.name+" [" + ga.tag  + "], ";
       if(ga.gene)
 	gene=1;
@@ -866,6 +867,8 @@ void emitLociAndCluster(FILE* jsfp, ReferenceGenome* rg, int numRef,
     if(rg->d_gar) {
       auto gas = rg->d_gar->lookup(p.first);
       for(auto ga : gas) {
+        replace_all(ga.tag, "\n", "\\n");
+        replace_all(ga.tag, "'", "\\'");
 	annotation+=ga.name +"\t[" + ga.tag + "]\t";
 	if(ga.gene)
 	  gene=1;

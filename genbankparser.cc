@@ -42,9 +42,7 @@ namespace {
       */
       for(auto& a: state.features) {
 	if(a.first!="translation") {
-	  boost::replace_all(a.second, "\n", " ");
-	  boost::replace_all(a.second, "'", "\\'");
-	  ga.tag+=a.second;
+	  ga.tag+=boost::replace_all_copy(a.second, "\n", "\\n");
 	  ga.tag+=+", ";
 	}
       }
@@ -118,6 +116,7 @@ std::vector<GeneAnnotation> parseGenBankString(const std::string& bank)
     unquoted_string %= lexeme[+(alpha | char_('_'))];
     number_range %= lexeme[-char_('<') >> int_[startLocus] >> lit("..") >> -char_('>') >> int_[stopLocus]];
 
+    auto unquoted_allcaps_string = lexeme[+char_('A','Z')];
 
     auto base_range = (number_range) |
       (lit("complement(")[complement] >> number_range >> char_(')')) |
@@ -127,7 +126,7 @@ std::vector<GeneAnnotation> parseGenBankString(const std::string& bank)
       (lit("complement(join(")[complement] >> *(number_range >> -char_(',') ) >> lit("))"));
 
 
-    // anti_codon needs to be treated like transl_except 
+    // anticodon needs to be treated like transl_except 
     bool r = phrase_parse(
 	first,                         
 	last,                          
@@ -135,7 +134,8 @@ std::vector<GeneAnnotation> parseGenBankString(const std::string& bank)
 	   base_range
 	   >> *(char_('/') >> (
 			       (lit("transl_except=(pos:") >> base_range >> char_(',') >> lit("aa:") >> unquoted_string >> lit(")"))  |
-			       (unquoted_string[variable] >> -(char_('=') >> (int_[value] | (quoted_string[stringValue] )  ))) 
+             (lit("anticodon=(pos:") >> base_range >> char_(',')>>lit("aa:") >> unquoted_string >> char_(',') >> lit("seq:") >> unquoted_string >> lit(")"))  |
+			       (unquoted_string[variable] >> -(char_('=') >> (int_[value] | quoted_string[stringValue] | unquoted_allcaps_string  ))) 
 
 			       )
 		)
@@ -147,7 +147,7 @@ std::vector<GeneAnnotation> parseGenBankString(const std::string& bank)
 	space                           /*< the skip-parser >*/
 			  );
     if (!r || first != last) {// fail if we did not get a full match	
-      //      cout<<"Failed at: '"<<bank.substr(last-first, 100)<<"'"<<endl;
+      cout<<"Failed at: '"<<g_ret.rbegin()->startPos<<"'"<<endl;
       throw std::runtime_error("Failed to parse genbank string at byte "+std::to_string(last-first) +" of " +std::to_string(bank.size()));
     }
     reportKind("");
