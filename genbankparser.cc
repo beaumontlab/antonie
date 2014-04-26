@@ -111,23 +111,21 @@ std::vector<GeneAnnotation> parseGenBankString(const std::string& bank)
     using qi::int_;
     using ascii::space;
 
-    qi::rule<std::string::const_iterator, std::string(), ascii::space_type> quoted_string, unquoted_string, number_range;
+    qi::rule<std::string::const_iterator, std::string(), ascii::space_type> quoted_string, unquoted_string, number_range, unquoted_allcaps_string, base_range;
     quoted_string %= lexeme['"' >> +(char_ - '"') >> '"'];
     unquoted_string %= lexeme[+(alpha | char_('_'))];
     number_range %= lexeme[-char_('<') >> int_[startLocus] >> lit("..") >> -char_('>') >> int_[stopLocus]];
 
-    auto unquoted_allcaps_string = lexeme[+char_('A','Z')];
+    unquoted_allcaps_string = lexeme[+char_('A','Z')];
 
-    auto base_range = (number_range) |
+    base_range %= (number_range) |
       (lit("complement(")[complement] >> number_range >> char_(')')) |
       (lit("order(") >> *(number_range >> -char_(',') ) >> lit(")")  ) |
       (lit("join(") >> *(number_range >> -char_(',') ) >> lit(")")  ) |
       (lit("complement(order(")[complement] >> *(number_range >> -char_(',') ) >> lit("))")  ) |
       (lit("complement(join(")[complement] >> *(number_range >> -char_(',') ) >> lit("))"));
 
-
-    // anticodon needs to be treated like transl_except 
-    bool r = phrase_parse(
+    bool r=phrase_parse(
 	first,                         
 	last,                          
 	*((unquoted_string[reportKind] >> 

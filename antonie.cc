@@ -1188,7 +1188,7 @@ try
   vector<unsigned int> qcounts(256);
   vector<uint64_t> unfoundReads;
   vector<qtally> qqcounts(256);
-  vector<dnapos_t> gchisto(maxreadsize);
+  vector<dnapos_t> gchisto(maxreadsize+1);
 
   DuplicateCounter dc;
   uint32_t theHash;
