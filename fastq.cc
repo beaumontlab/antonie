@@ -9,7 +9,7 @@ using namespace std;
 uint64_t StereoFASTQReader::s_mask= ~(1ULL<<63);
 
 FASTQReader::FASTQReader(const std::string& str, unsigned int qoffset) 
-  :  d_reader(LineReader::make(str)), d_snipLeft(0), d_snipRight(0)
+  : d_snipLeft(0), d_snipRight(0), d_reader(LineReader::make(str))
 {
   d_qoffset=qoffset;
 }
