@@ -111,12 +111,14 @@ std::vector<GeneAnnotation> parseGenBankString(const std::string& bank)
     using qi::int_;
     using ascii::space;
 
-    qi::rule<std::string::const_iterator, std::string(), ascii::space_type> quoted_string, unquoted_string, number_range, unquoted_allcaps_string, base_range;
+    qi::rule<std::string::const_iterator, std::string(), ascii::space_type> quoted_string, unquoted_string, number_range, unquoted_allcaps_string;
     quoted_string %= lexeme['"' >> +(char_ - '"') >> '"'];
     unquoted_string %= lexeme[+(alpha | char_('_'))];
     number_range %= lexeme[-char_('<') >> int_[startLocus] >> lit("..") >> -char_('>') >> int_[stopLocus]];
 
     unquoted_allcaps_string = lexeme[+char_('A','Z')];
+
+    qi::rule<std::string::const_iterator, ascii::space_type> base_range;
 
     base_range %= (number_range) |
       (lit("complement(")[complement] >> number_range >> char_(')')) |
@@ -143,7 +145,7 @@ std::vector<GeneAnnotation> parseGenBankString(const std::string& bank)
 	
 	,
 	space                           /*< the skip-parser >*/
-			  );
+		   );
     if (!r || first != last) {// fail if we did not get a full match	
       cout<<"Failed at: '"<<g_ret.rbegin()->startPos<<"'"<<endl;
       throw std::runtime_error("Failed to parse genbank string at byte "+std::to_string(last-first) +" of " +std::to_string(bank.size()));
