@@ -9,7 +9,7 @@ function makeSNPStat()
 
 function UpdateTable()
 {
-    var numpools=0, numSNPs=0, filteredSNPs=0, nonGene=0;
+    var numpools=0, numMuts=0, filteredSNPs=0, nonGene=0;
     var snps={};
     var numDiffLimit = document.getElementById("numDiff").value;
     var percDiffLimit = document.getElementById("percDiff").value;
@@ -22,7 +22,7 @@ function UpdateTable()
 
     $.each(loci, function(pool, poollocus) {
 	numpools++;
-	numSNPs+= poollocus.length;
+	numMuts+= poollocus.length;
 	$.each(poollocus, function(pos, locus) { 
 	    if(geneFilter && !locus.gene) {
 		nonGene++;
@@ -30,7 +30,13 @@ function UpdateTable()
 	    }
 	    if(snps[locus.locus] == undefined) {
 		snps[locus.locus]=makeSNPStat();
-		snps[locus.locus].description = decodeURIComponent(locus.annotation);
+		try {
+    		    snps[locus.locus].description = decodeURIComponent(locus.annotation);
+                }
+                catch(e) {
+    		    snps[locus.locus].description = locus.annotation;
+                    console.log(locus.annotation);
+                }
 	    }
 	    
 	    snps[locus.locus].count++;
@@ -121,7 +127,7 @@ function UpdateTable()
     table+=("</table>");
     d3.select("#toctable").html(table);
     
-    var resp = "There are "+numpools+ " pools, "+numSNPs+" candidate SNPs, "
+    var resp = "There are "+numpools+ " pools, "+numMuts+" candidate mutations, "
     resp += nonGene + " non-genes, "+realCount+" distinct left";
     d3.select("#log").text(resp);
     
