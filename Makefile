@@ -6,7 +6,7 @@ CFLAGS=-Wall -I. -Iext/libmba -O3 -MMD -MP
 LDFLAGS=$(CXX2011FLAGS)   # -Wl,-Bstatic -lstdc++ -lgcc -lz -Wl,-Bdynamic -static-libgcc -lm -lc
 CHEAT_ARG := $(shell ./update-git-hash-if-necessary)
 
-SHIPPROGRAMS=antonie 16ssearcher stitcher fqgrep pfqgrep
+SHIPPROGRAMS=antonie 16ssearcher stitcher renovo fqgrep pfqgrep
 PROGRAMS=$(SHIPPROGRAMS) digisplice gffedit gfflookup nwunsch
 
 ifeq ($(CC),clang)
@@ -41,6 +41,10 @@ digisplice: digisplice.o refgenome.o misc.o fastq.o hash.o zstuff.o dnamisc.o ge
 
 stitcher: stitcher.o refgenome.o misc.o fastq.o hash.o zstuff.o dnamisc.o geneannotated.o genbankparser.o fastqindex.o stitchalg.o
 	$(CXX) $(LDFLAGS) $^ -lz -pthread $(STATICFLAGS) -o $@
+
+renovo: renovo.o refgenome.o misc.o fastq.o hash.o zstuff.o dnamisc.o geneannotated.o genbankparser.o fastqindex.o stitchalg.o
+	$(CXX) $(LDFLAGS) $^ -lz -pthread $(STATICFLAGS) -o $@
+
 
 invert: invert.o misc.o
 	$(CXX) $(LDFLAGS) $(STATICFLAGS) $^ -o $@

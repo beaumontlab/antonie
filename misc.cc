@@ -50,6 +50,30 @@ void chomp(char* line)
   p = strchr(line, '\n');
   if(p)*p=0;
 }
+#if 0
+// thanks jeff sipek
+static void rev_and_comp_tbl_small(const char *in, char *out, size_t len)
+{
+        const char tbl[8] = {
+                [1] = 'T',
+                [4] = 'A',
+                [3] = 'G',
+                [7] = 'C',
+        };
+
+        if (!in || !out || !len)
+                return;
+
+        out[len] = '\0';
+
+        while (len) {
+                *out = tbl[(int) in[len - 1] & 0x7];
+
+                len--;
+                out++;
+        }
+}
+#endif
 
 void reverseNucleotides(std::string* nucleotides)
 {

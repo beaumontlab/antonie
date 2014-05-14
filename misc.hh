@@ -47,3 +47,4 @@ inline double variance(const VarMeanEstimator& vme)
 }
 
 std::string compilerVersion();
+void reverseNucleotides(std::string* nucleotides);
