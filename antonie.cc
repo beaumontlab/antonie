@@ -403,24 +403,26 @@ void emitRegion(FILE*fp, ReferenceGenome& rg, StereoFASTQReader& fastq, const st
     fprintf(fp, "[%d,%d]", pos, rg.d_mapping[pos].coverage);
   }
   fprintf(fp, "], ");
-  vector<double> aProb(stop-start), cProb(stop-start), gProb(stop-start), tProb(stop-start);
+  vector<double> aProb(stop-start), cProb(stop-start), gProb(stop-start), tProb(stop-start), xProb(stop-start);
   for(dnapos_t pos = start; pos < stop; ++pos) {
     if(rg.d_locimap.count(pos)) {
       for(const auto& locus: rg.d_locimap[pos].samples) {
-	acgtDo(locus.nucleotide, 
-	       [&]() { aProb[pos-start]+= locus.quality/30.0; }, 
-	       [&]() { cProb[pos-start]+= locus.quality/30.0; }, 
-	       [&]() { gProb[pos-start]+= locus.quality/30.0; }, 
-	       [&]() { tProb[pos-start]+= locus.quality/30.0; });
+	acgtxDo(locus.nucleotide, 
+		[&]() { aProb[pos-start]+= locus.quality/30.0; }, 
+		[&]() { cProb[pos-start]+= locus.quality/30.0; }, 
+		[&]() { gProb[pos-start]+= locus.quality/30.0; }, 
+		[&]() { tProb[pos-start]+= locus.quality/30.0; },
+		[&]() { xProb[pos-start]+= locus.quality/30.0; });
       }
     }
   }
   
-  fprintf(fp, "aProb: %s, cProb: %s, gProb: %s, tProb: %s,",
+  fprintf(fp, "aProb: %s, cProb: %s, gProb: %s, tProb: %s, xProb: %s",
 	  jsonVectorX(aProb, [start](int i){return i+start;}).c_str(), 
 	  jsonVectorX(cProb, [start](int i){return i+start;}).c_str(), 
 	  jsonVectorX(gProb, [start](int i){return i+start;}).c_str(), 
-	  jsonVectorX(tProb, [start](int i){return i+start;}).c_str());
+	  jsonVectorX(tProb, [start](int i){return i+start;}).c_str(),
+	  jsonVectorX(xProb, [start](int i){return i+start;}).c_str());
 
   string picture; // =rg.getMatchingFastQs(start, stop, fastq);
   string snippet=rg.snippet(start, dnapos) + " | " +rg.snippet(dnapos, stop);
@@ -813,8 +815,6 @@ void emitLociAndCluster(FILE* jsfp, ReferenceGenome* rg, int numRef,
       insertReport += i.first+": "+lexical_cast<string>(i.second);
     }
 
-
-
     double fraction =(1.0*head/p.second.samples.size());
     if(fraction < 0.1 || fraction > 0.9)
       continue;
@@ -887,6 +887,29 @@ void emitLociAndCluster(FILE* jsfp, ReferenceGenome* rg, int numRef,
       fprintf(locifp, ",\n");
     }
 
+    string graph;
+
+    dnapos_t start = p.first-100, stop = min(p.first+100, (dnapos_t)rg->d_mapping.size());
+    vector<double> aProb(stop-start), cProb(stop-start), gProb(stop-start), tProb(stop-start), xProb(stop-start);
+
+    for(dnapos_t pos = start; pos < stop; ++pos) {
+      if(!graph.empty()) 
+	graph+=",";
+      graph+="["+to_string(pos)+","+to_string(rg->d_mapping[pos].coverage)+"]";
+
+      if(rg->d_locimap.count(pos)) {
+	for(const auto& locus: rg->d_locimap[pos].samples) {
+	  acgtxDo(locus.nucleotide, 
+		  [&]() { aProb[pos-start]+= locus.quality/30.0; }, 
+		  [&]() { cProb[pos-start]+= locus.quality/30.0; }, 
+		  [&]() { gProb[pos-start]+= locus.quality/30.0; }, 
+		  [&]() { tProb[pos-start]+= locus.quality/30.0; },
+		  [&]() { xProb[pos-start]+= locus.quality/30.0; });
+	}
+      }
+    }
+
+
     for(int n=0; n < 2; ++n) {
       fprintf(n ? jsfp : locifp, " { locus: %d, numDiff: %d, originalBase: '%c', depth: %d, "
 	      "aCount: %d, aQual: %d, "
@@ -895,11 +918,16 @@ void emitLociAndCluster(FILE* jsfp, ReferenceGenome* rg, int numRef,
 	      "tCount: %d, tQual: %d, "
 	      "totQual: %d, "
 	      "xCount: %d, "
-	      "fraction: %f, gene: %d, annotation: '%s', aminoReport: '%s', insertReport: '%s', summary: '%s'}", 
+	      "fraction: %f, gene: %d, annotation: '%s', aminoReport: '%s', insertReport: '%s', summary: '%s', graph: [%s], aProb: %s, cProb: %s, gProb: %s, tProb: %s, xProb: %s}", 
 	      p.first, (int)p.second.samples.size(), '?', rg->d_mapping[p.first].coverage, 
 	      aCount, aQual, cCount, cQual, gCount, gQual, tCount, tQual, 
 	      aQual+cQual+gQual+tQual,
-	      xCount, fraction, gene, annotation.c_str(), aminoReport.c_str(), insertReport.c_str(), summary.c_str());
+	      xCount, fraction, gene, annotation.c_str(), aminoReport.c_str(), insertReport.c_str(), summary.c_str(), graph.c_str(),
+	      jsonVectorX(aProb, [start](int i){return i+start;}).c_str(), 
+	      jsonVectorX(cProb, [start](int i){return i+start;}).c_str(), 
+	      jsonVectorX(gProb, [start](int i){return i+start;}).c_str(), 
+	      jsonVectorX(tProb, [start](int i){return i+start;}).c_str(),
+	      jsonVectorX(xProb, [start](int i){return i+start;}).c_str());
     }
     emitted=true;
   }

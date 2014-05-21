@@ -2,11 +2,13 @@
 <meta charset="utf-8">
 
 <link href="ext/html/nvd3/nv.d3.css" rel="stylesheet" type="text/css">
+<link href="ext/html/jquery-ui-1.10.4.custom/css/ui-lightness/jquery-ui-1.10.4.custom.css" rel="stylesheet">
 <script src="ext/html/nvd3/lib/d3.v3.js"></script>
 <script src="ext/html/nvd3/nv.d3.min.js"></script>
 <script type="text/javascript" src="ext/jquery-1.11.0.min.js"></script>
+<script src="ext/html/jquery-ui-1.10.4.custom/js/jquery-ui-1.10.4.custom.js"></script>
 <script type="text/javascript" src="ext/nhpup_1.1.js"></script>
-
+<script src="support.js"></script>
 <style>
 body {
   overflow-y:scroll;
@@ -50,6 +52,8 @@ svg {
 }
 </style>
 <body>
+<div id="dialog" title="Candidate Mutation Viewer" style="width: 800px;">
+</div>
 
 <table width="100%"><tr valign="top"><td>
 <h1>Antonie 0.0 Big View</h1>
@@ -79,6 +83,8 @@ work, please cite xyz.
 <div id="log"></div>
 <p></p>
 
+
+
 <table id="toctable" border="1" cellpadding="4">
 <thead></thead>
 <tbody></tbody>
@@ -91,6 +97,25 @@ var loci={};
 </script>
 <script src="loci.js"></script>
 <script src="viewer.js"></script>
-
+<script language="javascript">
+	$( "#dialog" ).dialog({
+			autoOpen: false,
+			width: 800,
+			buttons: [
+				{
+					text: "Ok",
+					click: function() {
+						$( this ).dialog( "close" );
+					}
+				},
+				{
+					text: "Cancel",
+					click: function() {
+						$( this ).dialog( "close" );
+					}
+				}
+			]
+		});
+</script>
 </body>
 </html>

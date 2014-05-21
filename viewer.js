@@ -69,6 +69,7 @@ function UpdateTable()
 		    var aminoReport = snp.present[pos][1].aminoReport;				
 		    
 		    var mouseOver="onmouseover='nhpup.popup(\"";
+		    mouseOver+=snp.present[pos][1].summary+" ";
 		    mouseOver+= "Numdiff: "+snp.present[pos][1].numDiff;
 		    mouseOver+= ", ";
 		    if(snp.present[pos][1].xCount) 
@@ -82,6 +83,10 @@ function UpdateTable()
 		    mouseOver +=", "+aminoReport;
 		    mouseOver+="\");'";
 		    
+		    var onClick='onclick="';
+		    onClick+="drawGraph('" +pool+"',"+ locus + ");";
+		    onClick+='"';
+
 		    if(nonsynFilter) {
 			var re=/([A-Z][a-z ]+) -> ([A-Z][a-z ]+) $/;
 			var result = re.exec(aminoReport);
@@ -98,13 +103,13 @@ function UpdateTable()
 		    totCount+=snp.present[pos][1].numDiff;	
 		    var percentage = 100.0* snp.present[pos][1].numDiff / snp.present[pos][1].depth;
 		    if(snp.present[pos][1].numDiff < numDiffLimit || percentage < percDiffLimit) 
-			row+='<td '+mouseOver+'><font	color="#bbbbbb">'+pool+'</font></td>';
+			row+='<td '+mouseOver+' '+onClick+'><font	color="#bbbbbb">'+pool+'</font></td>';
 		    else if(snp.present[pos][1].numDiff > 10 && percentage >= percDiffLimit) {
-			row+='<td '+mouseOver+'><b>'+pool+'</b></td>';	
+			row+='<td '+mouseOver+' '+onClick+'><b>'+pool+'</b></td>';	
 			real=1;
 		    }				
 		    else {
-			row+="<td "+mouseOver+">"+pool+"</td>";
+			row+="<td "+mouseOver+' '+onClick+">"+pool+"</td>";
 			real=1;
 		    }	
 		    found=true;
@@ -132,5 +137,42 @@ function UpdateTable()
     d3.select("#log").text(resp);
     
     return false;
+}
+
+function drawGraph(pool, locus)
+{
+    $("#dialog").dialog("open");
+    
+    var item={};
+    $.each(loci[pool], function(key, val) {
+	if(val.locus==locus) 
+	    item=val;
+    });
+    console.log(item);
+    d3.select("#dialog").html('');
+    nv.addGraph((function() {	
+	var chart = nv.models.lineChart()
+	    .options({
+		margin: {left: 100, bottom: 75},
+		x: function(d,i) { return d.x},
+		showXAxis: true,
+		showYAxis: true,
+		transitionDuration: 250
+	    })
+	    .forceY([0]);
+
+	chart.xAxis.axisLabel("Position (p)").tickFormat(d3.format(',d'));
+	chart.yAxis.axisLabel('Depth').tickFormat(d3.format(',d'));
+
+	var ourdiv=d3.select('#dialog').append('div').attr('class','chart').attr('id',"region"+item);
+	ourdiv.append('p').html("Pool "+pool+", locus "+locus+", depth "+item.depth+", differences: "+item.numDiff+", fraction forward: "+item.fraction);
+	ourdiv.append('p').html(item.annotation);
+	ourdiv.append('p').html("Change summary: "+item.summary);
+	ourdiv.append('p').html("Amino acid change: "+item.aminoReport+", inserts: "+item.insertReport+", deletes: " + item.xCount);
+	ourdiv.append('svg').datum(getPoints5(item.graph, "Depth", item.aProb, "aProb", item.cProb, "cProb", item.gProb, "gProb", item.tProb, "tProb", item.xProb, "xProb")).call(chart);
+	nv.utils.windowResize(chart.update);
+	
+	return chart;
+    })());
 }
 UpdateTable();
