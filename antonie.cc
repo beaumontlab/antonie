@@ -1,5 +1,5 @@
 /* (C) 2013-2014 TU Delft
-   (C) 2013-2014 Netherlabs Computer Consulting BV */
+   (C) 2013-2014 AHU Holding BV */
 
 #define __STDC_FORMAT_MACROS
 #include <tclap/CmdLine.h>
