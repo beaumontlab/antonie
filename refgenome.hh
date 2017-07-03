@@ -41,12 +41,12 @@ struct Unmatched
 };
 
 //! Represents a reference genome to be aligned against
-class ReferenceGenome
+class ReferenceChromosome
 {
 public:
-  ReferenceGenome(const string& fname); //!< Read reference from FASTA
+  ReferenceChromosome(const string& fname); //!< Read reference from FASTA
 
-  static unique_ptr<ReferenceGenome> makeFromString(const string& str);
+  static unique_ptr<ReferenceChromosome> makeFromString(const string& str);
   dnapos_t size() const {
     return d_genome.size() - 1; // we pad at the beginning so we are 1 based..
   }
@@ -55,7 +55,7 @@ public:
   //! Describes how a FastQRead (not mentioned) matches to the reference (straight or in reverse), and what the matching score is
   struct MatchDescriptor
   {
-    ReferenceGenome* rg;
+    ReferenceChromosome* rg;
     dnapos_t pos;
     bool reverse;
     int score;
@@ -108,7 +108,7 @@ public:
     d_gar=unique_ptr<GeneAnnotationReader>(gar);
   }
 private:
-  ReferenceGenome() = default;
+  ReferenceChromosome() = default;
   void initGenome();
   string d_genome;
   struct HashPos {

@@ -33,7 +33,7 @@ int main(int argc, char**argv)
     cerr<<"Syntax: stitcher reference.fasta startoffset|startsnippet endsnippet fastq fastq"<<endl;
     return EXIT_FAILURE;
   }
-  ReferenceGenome rg(argv[1]);
+  ReferenceChromosome rg(argv[1]);
 
   int chunklen=35;
   string startseed;

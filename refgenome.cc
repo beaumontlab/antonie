@@ -14,7 +14,7 @@ extern "C" {
 using boost::lexical_cast;
 using namespace std;
 
-vector<dnapos_t> ReferenceGenome::getReadPositions(const std::string& nucleotides)
+vector<dnapos_t> ReferenceChromosome::getReadPositions(const std::string& nucleotides)
 {
   vector<dnapos_t> ret;
   if(!d_indexes.count(nucleotides.length()))
@@ -36,7 +36,7 @@ vector<dnapos_t> ReferenceGenome::getReadPositions(const std::string& nucleotide
   return ret;
 }
   
-dnapos_t ReferenceGenome::getReadPosBoth(FastQRead* fq, int qlimit) // tries original & complement
+dnapos_t ReferenceChromosome::getReadPosBoth(FastQRead* fq, int qlimit) // tries original & complement
 {
   vector<dnapos_t> positions;
 
@@ -55,7 +55,7 @@ dnapos_t ReferenceGenome::getReadPosBoth(FastQRead* fq, int qlimit) // tries ori
   return dnanpos;
 }
 
-vector<ReferenceGenome::MatchDescriptor> ReferenceGenome::getAllReadPosBoth(FastQRead* fq) // tries original & complement
+vector<ReferenceChromosome::MatchDescriptor> ReferenceChromosome::getAllReadPosBoth(FastQRead* fq) // tries original & complement
 {
   vector<MatchDescriptor > ret;
   string nucleotides;
@@ -67,7 +67,7 @@ vector<ReferenceGenome::MatchDescriptor> ReferenceGenome::getAllReadPosBoth(Fast
   return ret;
 }
 
-void ReferenceGenome::cover(dnapos_t pos, unsigned int length, const std::string& quality, int limit) 
+void ReferenceChromosome::cover(dnapos_t pos, unsigned int length, const std::string& quality, int limit) 
 {
   const char* p = quality.c_str();
   for(unsigned int i = 0; i < length; ++i) {
@@ -76,13 +76,13 @@ void ReferenceGenome::cover(dnapos_t pos, unsigned int length, const std::string
   }
 }
 
-void ReferenceGenome::cover(dnapos_t pos, char quality, int limit) 
+void ReferenceChromosome::cover(dnapos_t pos, char quality, int limit) 
 {
   if(quality > (int) limit)
     d_mapping[pos].coverage++;
 }
 
-void ReferenceGenome::mapFastQ(dnapos_t pos, const FastQRead& fqfrag, int indel)
+void ReferenceChromosome::mapFastQ(dnapos_t pos, const FastQRead& fqfrag, int indel)
 {
   FASTQMapping fqm;
   fqm.pos=fqfrag.position;
@@ -94,7 +94,7 @@ void ReferenceGenome::mapFastQ(dnapos_t pos, const FastQRead& fqfrag, int indel)
 
 
 
-string ReferenceGenome::snippet(dnapos_t start, dnapos_t stop) const 
+string ReferenceChromosome::snippet(dnapos_t start, dnapos_t stop) const 
 { 
   if(stop > d_genome.size()) {
       return d_genome.substr(start);
@@ -102,7 +102,7 @@ string ReferenceGenome::snippet(dnapos_t start, dnapos_t stop) const
   return d_genome.substr(start, stop-start);
 }
 
-ReferenceGenome::ReferenceGenome(const string& fname)
+ReferenceChromosome::ReferenceChromosome(const string& fname)
 {
   FILE* fp = fopen(fname.c_str(), "rb");
   if(!fp)
@@ -133,10 +133,10 @@ ReferenceGenome::ReferenceGenome(const string& fname)
   initGenome();
 }
 
-unique_ptr<ReferenceGenome> ReferenceGenome::makeFromString(const std::string& genome)
+unique_ptr<ReferenceChromosome> ReferenceChromosome::makeFromString(const std::string& genome)
 {
   istringstream istr(genome);
-  unique_ptr<ReferenceGenome> ret(new ReferenceGenome);
+  unique_ptr<ReferenceChromosome> ret(new ReferenceChromosome);
   getline(istr, ret->d_name);
   if(ret->d_name.empty() || ret->d_name[0]!='>') 
     throw runtime_error("Input not FASTA");
@@ -158,7 +158,7 @@ unique_ptr<ReferenceGenome> ReferenceGenome::makeFromString(const std::string& g
   return ret;
 }
 
-void ReferenceGenome::initGenome()
+void ReferenceChromosome::initGenome()
 {
   d_aCount = d_cCount = d_gCount = d_tCount = 0;
   for(const auto& c : d_genome) {
@@ -182,7 +182,7 @@ void ReferenceGenome::initGenome()
 }
 
 // returns as if we sampled once per index length, an array of index length bins
-vector<dnapos_t> ReferenceGenome::getGCHisto()
+vector<dnapos_t> ReferenceChromosome::getGCHisto()
 {
   vector<dnapos_t> ret;
   unsigned int indexlength = d_indexes.rbegin()->first;
@@ -196,7 +196,7 @@ vector<dnapos_t> ReferenceGenome::getGCHisto()
   return ret;
 }
 
-void ReferenceGenome::index(unsigned int length)
+void ReferenceChromosome::index(unsigned int length)
 {
   if(length > d_correctMappings.size()) {
     d_correctMappings.resize(length);
@@ -224,12 +224,12 @@ void ReferenceGenome::index(unsigned int length)
   // (*g_log)<<"Average fill in genome hash of length "<<length<<": "<<1.0*d_genome.length()/diff<<endl;
 }
 
-string ReferenceGenome::getMatchingFastQs(dnapos_t pos, StereoFASTQReader& fastq)
+string ReferenceChromosome::getMatchingFastQs(dnapos_t pos, StereoFASTQReader& fastq)
 {
   return getMatchingFastQs(pos > 150 ? pos-150 : 1, pos+150, fastq);
 }
 
-string ReferenceGenome::getMatchingFastQs(dnapos_t start, dnapos_t stop, StereoFASTQReader& fastq) 
+string ReferenceChromosome::getMatchingFastQs(dnapos_t start, dnapos_t stop, StereoFASTQReader& fastq) 
 {
   ostringstream os;
   if(stop > size())

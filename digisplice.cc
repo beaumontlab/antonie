@@ -9,7 +9,7 @@ string casette{"GGCCTGGTGATGATGGCGGGATCGTTGTATATTTCTTGACACCTTTTCGGCATCGCCCTAAAAT
 
 int main(int argc, char**argv)
 {
-  ReferenceGenome rg(argv[1]);
+  ReferenceChromosome rg(argv[1]);
   //  GeneAnnotationReader gar(argv[2]);
   cerr<<casette.length()<<endl;  
   string output;

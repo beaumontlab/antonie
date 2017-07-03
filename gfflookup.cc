@@ -19,7 +19,7 @@ int main(int argc, char **argv)
     return EXIT_FAILURE;
   }
   GeneAnnotationReader gar(argv[1]);
-  ReferenceGenome rg(argv[2]);
+  ReferenceChromosome rg(argv[2]);
   for(int n = 3; n < argc; ++n) {
     for(const auto& ga : gar.lookup(atoi(argv[n]))) {
       cout<<atoi(argv[n])<<'\t'<<ga.startPos<<" - "<<ga.stopPos<<'\t'<<ga.name<<'\t'<<ga.tag<< '\t'<<(ga.strand ? '+' : '-')<<'\t'<<(ga.gene ? "gene" : "") << endl;

@@ -51,7 +51,7 @@ using boost::lexical_cast;
 
 /*! \mainpage Antonie DNA Software
   The Antonie DNA software reads DNA reads as FastQRead objects, and matches them to a
-  ReferenceGenome. The reading happens through a StereoFASTQReader instance, which in turn
+  ReferenceChromosome. The reading happens through a StereoFASTQReader instance, which in turn
   has two FASTQReader instances, thus supporting paired end reads.
 
   Successfully matched reads are written out through the SAMWriter class, if so configured.
@@ -65,7 +65,7 @@ typedef io::stream< TeeDevice > TeeStream;
 TeeStream* g_log;
 string g_name;
 
-void ReferenceGenome::printCoverage(FILE* jsfp, const std::string& histoName)
+void ReferenceChromosome::printCoverage(FILE* jsfp, const std::string& histoName)
 {
   uint64_t totCoverage=0, noCoverages=0;
   unsigned int cov;
@@ -230,7 +230,7 @@ int MBADiff(dnapos_t pos, const FastQRead& fqr, const string& reference, unsigne
   return ret;
 }
 
-unsigned int diffScore(ReferenceGenome& rg, dnapos_t pos, const FastQRead& fqfrag, int qlimit)
+unsigned int diffScore(ReferenceChromosome& rg, dnapos_t pos, const FastQRead& fqfrag, int qlimit)
 {
   unsigned int diffcount=0;
   string reference = rg.snippet(pos, pos + fqfrag.d_nucleotides.length());
@@ -267,7 +267,7 @@ vector<dnapos_t> getTriplets(const vector<pair<dnapos_t, char>>& together, unsig
   return ret;
 }
 
-void printCorrectMappings(FILE* jsfp, const ReferenceGenome& rg, const std::string& name)
+void printCorrectMappings(FILE* jsfp, const ReferenceChromosome& rg, const std::string& name)
 {
   fprintf(jsfp, "%s=[", name.c_str());
   for(unsigned int i=0; i < rg.d_correctMappings.size() ;++i) {
@@ -291,7 +291,7 @@ struct qtally
   uint64_t incorrect;
 };
 
-int MapToReference(ReferenceGenome& rg, dnapos_t pos, FastQRead fqfrag, int qlimit, BAMWriter* sbw, vector<qtally>* qqcounts, int* outIndel=0)
+int MapToReference(ReferenceChromosome& rg, dnapos_t pos, FastQRead fqfrag, int qlimit, BAMWriter* sbw, vector<qtally>* qqcounts, int* outIndel=0)
 {
   if(pos > rg.size()) // can happen because of inserts or circular genomes
     return false;
@@ -388,7 +388,7 @@ int MapToReference(ReferenceGenome& rg, dnapos_t pos, FastQRead fqfrag, int qlim
 }
 
 
-void emitRegion(FILE*fp, ReferenceGenome& rg, StereoFASTQReader& fastq, const string& name, unsigned int index, dnapos_t start, 
+void emitRegion(FILE*fp, ReferenceChromosome& rg, StereoFASTQReader& fastq, const string& name, unsigned int index, dnapos_t start, 
 		dnapos_t stop, const std::string& report_="", int maxVarcount=-1)
 {
   if(stop > rg.size())
@@ -447,12 +447,12 @@ void emitRegion(FILE*fp, ReferenceGenome& rg, StereoFASTQReader& fastq, const st
   fflush(fp);
 }
 
-void emitRegion(FILE*fp, ReferenceGenome& rg, StereoFASTQReader& fastq, const string& name, unsigned int index, dnapos_t start, const std::string& report="")
+void emitRegion(FILE*fp, ReferenceChromosome& rg, StereoFASTQReader& fastq, const string& name, unsigned int index, dnapos_t start, const std::string& report="")
 {
   emitRegion(fp, rg, fastq, name, index, start > 200 ? start-200 : 1, (start +200) < rg.size() ? (start + 200) : rg.size(), report);
 }
 
-unsigned int variabilityCount(const ReferenceGenome& rg, dnapos_t position, const ReferenceGenome::LociStats& lc, double* fraction)
+unsigned int variabilityCount(const ReferenceChromosome& rg, dnapos_t position, const ReferenceChromosome::LociStats& lc, double* fraction)
 {
   vector<int> counts(256);
   counts[rg.snippet(position, position+1)[0]]+=rg.d_mapping[position].coverage;
@@ -481,9 +481,9 @@ unsigned int variabilityCount(const ReferenceGenome& rg, dnapos_t position, cons
 }
 
 
-vector<ReferenceGenome::MatchDescriptor> fuzzyFind(FastQRead* fqfrag, ReferenceGenome& rg, unsigned int keylen, int qlimit)
+vector<ReferenceChromosome::MatchDescriptor> fuzzyFind(FastQRead* fqfrag, ReferenceChromosome& rg, unsigned int keylen, int qlimit)
 {
-  vector<ReferenceGenome::MatchDescriptor> ret;
+  vector<ReferenceChromosome::MatchDescriptor> ret;
 
   string left, middle, right;
   typedef pair<dnapos_t, char> tpos;
@@ -524,7 +524,7 @@ vector<ReferenceGenome::MatchDescriptor> fuzzyFind(FastQRead* fqfrag, ReferenceG
       int score;
       for(auto match : matches) {
 	if(std::find_if(ret.begin(), ret.end(), 
-			[&match](const ReferenceGenome::MatchDescriptor& md){ return md.pos==match;}) != ret.end())
+			[&match](const ReferenceChromosome::MatchDescriptor& md){ return md.pos==match;}) != ret.end())
 	  continue;
 	
 	score = diffScore(rg, match, *fqfrag, qlimit);
@@ -538,9 +538,9 @@ vector<ReferenceGenome::MatchDescriptor> fuzzyFind(FastQRead* fqfrag, ReferenceG
   return ret;
 }
 
-vector<ReferenceGenome::MatchDescriptor> fuzzyFind(FastQRead* fqfrag, vector<unique_ptr<ReferenceGenome> >& refs, int keylen, int qlimit)
+vector<ReferenceChromosome::MatchDescriptor> fuzzyFind(FastQRead* fqfrag, vector<unique_ptr<ReferenceChromosome> >& refs, int keylen, int qlimit)
 {
-  vector<ReferenceGenome::MatchDescriptor> ret;
+  vector<ReferenceChromosome::MatchDescriptor> ret;
   for(auto& rg : refs) {
     auto inter = fuzzyFind(fqfrag, *rg, keylen, qlimit);
     for(auto& i : inter)
@@ -566,15 +566,15 @@ void writeUnmatchedReads(const vector<uint64_t>& unfoundReads, StereoFASTQReader
 struct ClusterLocus
 {
   unsigned int pos;
-  ReferenceGenome::LociStats locistat;
+  ReferenceChromosome::LociStats locistat;
   bool operator<(const ClusterLocus& rhs) const
   {
     return pos < rhs.pos;
   }
 };
 
-string makeAminoReport(ReferenceGenome& rg, dnapos_t pos, const vector<GeneAnnotation>& gas, 
-		       const ReferenceGenome::LociStats& locistat, string* headline, string* body)
+string makeAminoReport(ReferenceChromosome& rg, dnapos_t pos, const vector<GeneAnnotation>& gas, 
+		       const ReferenceChromosome::LociStats& locistat, string* headline, string* body)
 { 
   string origCodon{"XXX"}, newCodon;
   string gene;
@@ -652,7 +652,7 @@ string makeAminoReport(ReferenceGenome& rg, dnapos_t pos, const vector<GeneAnnot
   return ret2.str();
 }
 
-string makeReport(ReferenceGenome& rg, dnapos_t pos, ReferenceGenome::LociStats locistat, double fraction, string* summary=0)
+string makeReport(ReferenceChromosome& rg, dnapos_t pos, ReferenceChromosome::LociStats locistat, double fraction, string* summary=0)
 {
   ostringstream report;
   if(summary)
@@ -748,9 +748,9 @@ void printQualities(FILE* jsfp, const qstats_t& qstats)
   fflush(jsfp);
 }
 
-vector<ReferenceGenome::MatchDescriptor> getAllReadPosBoth(vector<unique_ptr<ReferenceGenome> >& refs, const vector<unsigned int>& indexLengths, FastQRead* fqfrag) 
+vector<ReferenceChromosome::MatchDescriptor> getAllReadPosBoth(vector<unique_ptr<ReferenceChromosome> >& refs, const vector<unsigned int>& indexLengths, FastQRead* fqfrag) 
 {
-  vector<ReferenceGenome::MatchDescriptor> ret;
+  vector<ReferenceChromosome::MatchDescriptor> ret;
   auto iter = indexLengths.begin();
   for(; iter != indexLengths.end(); ++iter)
     if(*iter == fqfrag->d_nucleotides.length())
@@ -766,12 +766,12 @@ vector<ReferenceGenome::MatchDescriptor> getAllReadPosBoth(vector<unique_ptr<Ref
   return ret;
 }
 
-void emitLociAndCluster(FILE* jsfp, ReferenceGenome* rg, int numRef, 
+void emitLociAndCluster(FILE* jsfp, ReferenceChromosome* rg, int numRef, 
 			Clusterer<ClusterLocus>& vcl)
 {
   ofstream ofs("loci."+lexical_cast<string>(numRef));
   ofs<<"locus\tnumdiff\tdepth\tA\tAq\tC\tCq\tG\tGq\tT\tTq\tdels\ttotQ\tfracHead"<<endl;
-  map<dnapos_t, ReferenceGenome::LociStats> slocimap;
+  map<dnapos_t, ReferenceChromosome::LociStats> slocimap;
 
   FILE* locifp=fopen(("loci."+lexical_cast<string>(numRef)+".js").c_str(), "w");
     
@@ -1148,10 +1148,10 @@ try
 
   fputs("var genomes=[];\n", jsfp.get());
 
-  vector<unique_ptr<ReferenceGenome> > refgens;
+  vector<unique_ptr<ReferenceChromosome> > refgens;
   auto annotations = annotationsArg.getValue().begin();
   for(auto& fname: referenceArg.getValue()) {
-    unique_ptr<ReferenceGenome> rg(new ReferenceGenome(fname));
+    unique_ptr<ReferenceChromosome> rg(new ReferenceChromosome(fname));
     double genomeGCRatio = 1.0*(rg->d_cCount + rg->d_gCount)/(rg->d_cCount + rg->d_gCount + rg->d_aCount + rg->d_tCount);
 
     (*g_log)<<"Read FASTA reference genome of '"<<rg->d_fullname<<"', "<<rg->size()<<" nucleotides from '"<<fname<<"' (GC = "<<genomeGCRatio<<")"<<endl;
@@ -1172,7 +1172,7 @@ try
   }
 
   if(excludePhiXSwitch.getValue()) {
-    auto rg = ReferenceGenome::makeFromString(phiXFastA);
+    auto rg = ReferenceChromosome::makeFromString(phiXFastA);
     double genomeGCRatio = 1.0*(rg->d_cCount + rg->d_gCount)/(rg->d_cCount + rg->d_gCount + rg->d_aCount + rg->d_tCount);
     (*g_log)<<"Read FASTA reference genome of '"<<rg->d_fullname<<"', "<<rg->size()<<" nucleotides from builtin (GC = "<<genomeGCRatio<<")"<<endl;
     rg->index(maxreadsize);
@@ -1229,7 +1229,7 @@ try
     if(g_pleaseQuit) 
       break;
     show_progress += bytes;
-    vector<ReferenceGenome::MatchDescriptor > pairpositions[2];
+    vector<ReferenceChromosome::MatchDescriptor > pairpositions[2];
     bool dup1(false), dup2(false);
     safeIncVec(readlengths, fqfrag1.d_nucleotides.length());
     safeIncVec(readlengths, fqfrag2.d_nucleotides.length());
@@ -1268,7 +1268,7 @@ try
       } 
     }
     
-    map<int, vector<pair<ReferenceGenome::MatchDescriptor,ReferenceGenome::MatchDescriptor> > > potMatch;
+    map<int, vector<pair<ReferenceChromosome::MatchDescriptor,ReferenceChromosome::MatchDescriptor> > > potMatch;
     unsigned int matchCount=0;
     for(auto& match1 : pairpositions[0]) {
       for(auto& match2 : pairpositions[1]) {
@@ -1321,7 +1321,7 @@ try
 	if(paircount ? dup2 : dup1)
 	  continue;
 	
-	map<int, vector<ReferenceGenome::MatchDescriptor>> scores;
+	map<int, vector<ReferenceChromosome::MatchDescriptor>> scores;
 	for(auto match: pairpositions[paircount]) {
 	  scores[match.score].push_back(match);
 	  //	  cout<<"\t"<<paircount<<"\t"<<match.pos<<" "<<match.reverse<<", score: "<<match.score<<endl;

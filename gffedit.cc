@@ -14,7 +14,7 @@ using namespace std;
 // gffedit fasta gff newgff [insertpos insertlen]
 int main(int argc, char **argv)
 {
-  ReferenceGenome rg(argv[1]);
+  ReferenceChromosome rg(argv[1]);
   FILE* fp =fopen(argv[2], "rb");
   if(!fp)
     throw runtime_error("Unable to open '"+string(argv[2])+"' for reading GFF3: "+string(strerror(errno)));
