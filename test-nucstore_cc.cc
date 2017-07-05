@@ -36,6 +36,14 @@ BOOST_AUTO_TEST_CASE(test_nucstore) {
   sep.append("ACGTCGT");
   BOOST_CHECK_EQUAL(ns, sep);
 
+
+  sep.set(0, 'C');
+  BOOST_CHECK_EQUAL(sep.get(0), 'C');
+
+
+  sep.set(4, 'C');
+  BOOST_CHECK_EQUAL(sep.get(0), 'C');
+
   
   
 }

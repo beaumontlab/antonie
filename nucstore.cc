@@ -1,6 +1,7 @@
 #include "nucstore.hh"
 #include <iostream>
 
+
 using std::cout;
 using std::endl;
 
@@ -16,6 +17,26 @@ NucleotideStore NucleotideStore::getRange(size_t pos, size_t len) const
   return ret;
 }
 
+NucleotideStore NucleotideStore::getRC() const
+{
+  NucleotideStore ret;
+  char c;
+  for(size_t pos=size(); pos; --pos) {
+    c=get(pos-1);
+    if(c=='C')
+      c='G';
+    else if(c=='G')
+      c='C';
+    else if(c=='A')
+      c='T';
+    else if(c=='T')
+      c='A';
+    ret.append(c); // C -> G, A->t
+  }
+  return ret;
+}
+
+
 char NucleotideStore::get(size_t pos) const
 {
   uint8_t byte;
@@ -28,44 +49,85 @@ char NucleotideStore::get(size_t pos) const
   return "ACGT"[byte & 0x3];
 }
 
+bool getBit(uint8_t c, uint8_t bit)
+{
+  uint8_t mask = 1 << bit;
+  return c & mask;
+}
+
+
+
+
+static void setBit(uint8_t * val, int bit, bool nval)
+{
+  uint8_t mask = 1 << bit;
+  if(nval) {
+    *val |= mask;
+  }
+  else
+    *val &= (~mask);
+}
+
+
+void NucleotideStore::set(size_t pos, char c) 
+{
+  uint8_t newval=getVal(c);
+  if(pos/4 < d_storage.size()) {
+    uint8_t val=d_storage.at(pos/4);
+    setBit(&val, (pos%4)*2, getBit(newval, 0));
+    setBit(&val, (pos%4)*2+1, getBit(newval, 1));
+    
+    d_storage.at(pos/4) = val;
+  }
+  else {
+    setBit(&d_curval, (pos%4)*2, getBit(newval, 0));
+    setBit(&d_curval, (pos%4)*2+1, getBit(newval, 1));
+  }
+
+}
+
+
 void NucleotideStore::append(const boost::string_ref& line)
 {
   for(const auto& c : line)
     append(c);
 }
 
-void NucleotideStore::append(char c)
+char NucleotideStore::getVal(char c)
 {
-  uint8_t val;
   switch(c) {
   case 0:
   case 'A':
   case 'a':
-    val=0;
-    break;
+    return 0;
 
+    
   case 1:
   case 'C':
   case 'c':
-    val=1;
-    break;
-
+    return 1;
+    
   case 2:
   case 'G':
   case 'g':
-    val=2;
-    break;
-
+    return 2;
+    
   case 3:
   case 'T':
   case 't':
-    val=3;
-    break;
+    return 3;
   case 'N':
-    return;
-  default:
-    throw std::runtime_error("Impossible nucleotide: "+std::string(1, c));
+    return 4;
   }
+  throw std::runtime_error("Impossible nucleotide: "+std::string(1, c));
+}
+
+void NucleotideStore::append(char c)
+{
+  uint8_t val=getVal(c);
+  if(val == 4) // N
+    return;
+  
   if(!bitpos) {
     d_curval=0;
   }
