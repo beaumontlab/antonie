@@ -17,6 +17,78 @@ NucleotideStore NucleotideStore::getRange(size_t pos, size_t len) const
   return ret;
 }
 
+std::vector<NucleotideStore::Delta> NucleotideStore::getDelta(const NucleotideStore& b, double mispen, double gappen, double skwpen) const
+{
+  const NucleotideStore& a=*this;
+  std::vector<NucleotideStore::Delta> ret;
+  unsigned int i,j,k;
+  double dn,rt,dg;
+  std::string::size_type ia = size(), ib = b.size();
+  double *cost[ia+1];
+  for(unsigned int n=0; n < ia+1; ++n)
+    cost[n]=new double[ib+1];
+  cost[0][0] = 0.;
+  for (i=1;i<=ia;i++) cost[i][0] = cost[i-1][0] + skwpen;
+  for (i=1;i<=ib;i++) cost[0][i] = cost[0][i-1] + skwpen;
+  for (i=1;i<=ia;i++) for (j=1;j<=ib;j++) {
+      dn = cost[i-1][j] + ((j == ib)? skwpen : gappen);
+      rt = cost[i][j-1] + ((i == ia)? skwpen : gappen);
+      dg = cost[i-1][j-1] + ((get(i-1) == b.get(j-1))? -1. : mispen);
+      cost[i][j] = std::min({dn,rt,dg});
+    }
+  i=ia; j=ib; k=0;
+  while (i > 0 || j > 0) {
+    dn = rt = dg = 9.99e99;
+    if (i>0) dn = cost[i-1][j] + ((j==ib)? skwpen : gappen);
+    if (j>0) rt = cost[i][j-1] + ((i==ia)? skwpen : gappen);
+    if (i>0 && j>0) dg = cost[i-1][j-1] +
+		      ((a[i-1] == b[j-1])? -1. : mispen);
+    if (dg <= std::min(dn,rt)) {
+      //      aout[k] = ain[i-1];
+      //      bout[k] = bin[j-1];
+      bool match=(a[i-1] == b[j-1]);
+      //      summary[k++] = (match ? '=' : '!');
+      if(match)
+	; //ret.matches++;
+      else 
+	ret.push_back({(i-1), b[j-1], Delta::Action::Replace}); // ret.mismatches++;
+      
+      i--; j--;
+    }
+    else if (dn < rt) {
+      //      aout[k] = ain[i-1];
+      //      bout[k] = ' ';
+      // summary[k++] = ' ';		
+      if(j==ib)
+        ret.push_back({i-1, 0, Delta::Action::Delete});
+      else
+        ret.push_back({i-1, 0, Delta::Action::Delete});
+	; // ret.deletes++;
+      i--;
+    }
+    else {
+      //      aout[k] = ' ';
+      // bout[k] = bin[j-1];
+      //  summary[k++] = ' ';		
+      if(i==ia)
+	; // ret.skews++;
+      else
+        ret.push_back({i-1, b[j-1], Delta::Action::Insert});
+	; // ret.inserts++;
+      j--;
+    }
+  }
+  for (i=0;i<k/2;i++) {
+    //    swap(aout[i],aout[k-1-i]);
+    // swap(bout[i],bout[k-1-i]);
+    // swap(summary[i],summary[k-1-i]);
+  }
+  // aout.resize(k); bout.resize(k); summary.resize(k);
+  for(unsigned int n=0; n < ia+1; ++n)
+    delete[] cost[n];
+  return ret;
+}
+
 NucleotideStore NucleotideStore::getRC() const
 {
   NucleotideStore ret;
@@ -160,5 +232,20 @@ std::ostream& operator<<(std::ostream& os, const NucleotideStore& ns)
 {
   for(size_t pos=0; pos < ns.size(); ++pos)
     os<<ns.get(pos);
+  return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const NucleotideStore::Delta& d)
+{
+  os<<d.pos<<" "<<d.o<<" ";
+  if(d.a==NucleotideStore::Delta::Action::Replace)
+    os<<"R";
+  else
+    if(d.a==NucleotideStore::Delta::Action::Delete)
+      os<<"D";
+  else
+    if(d.a==NucleotideStore::Delta::Action::Insert)
+      os<<"I";
+  
   return os;
 }

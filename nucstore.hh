@@ -9,9 +9,18 @@ extern "C" {
 class NucleotideStore
 {
 public:
+  explicit NucleotideStore(const boost::string_ref& in)
+  {
+    append(in);
+  }
+  NucleotideStore() {}
   void append(char c);
   void append(const boost::string_ref& line);
   char get(size_t pos) const;
+  char operator[](size_t pos) const
+  {
+    return get(pos);
+  }
   void set(size_t pos, char c);
   NucleotideStore getRange(size_t pos, size_t len) const;
   NucleotideStore getRC() const;
@@ -20,6 +29,19 @@ public:
     return 4*d_storage.size() + bitpos/2;
   }
 
+  struct Delta
+  {
+    uint32_t pos;
+    char o;
+    enum class Action {Replace, Delete, Insert} a;
+    bool operator==(const Delta& rhs) const
+    {
+      return pos==rhs.pos && o==rhs.o && a==rhs.a;
+    }
+  };
+
+  std::vector<Delta> getDelta(const NucleotideStore& b, double mispen=1, double gappen=2, double skwpen=0) const;
+  void applyDelta(std::vector<Delta>& delta);
   size_t hash() const
   {
     /*
@@ -53,3 +75,4 @@ private:
 };
 
 std::ostream& operator<<(std::ostream& os, const NucleotideStore& ns);
+std::ostream& operator<<(std::ostream& os, const NucleotideStore::Delta& delta);

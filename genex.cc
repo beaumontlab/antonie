@@ -309,7 +309,7 @@ int main(int argc, char**argv)
       auto longerh = chromo->chromosome.getRange(beg+pos, 256);
       for(const auto& m: matches) {
 	auto longerm = rg.getRange(std::get<0>(m), 256);
-	ann.push_back({std::get<0>(m), std::get<1>(m), longerh.fuzOverlap(longerm, 16)});
+	ann.push_back(std::make_tuple(std::get<0>(m), std::get<1>(m), longerh.fuzOverlap(longerm, 16)));
       }
 
       sort(ann.begin(), ann.end(),

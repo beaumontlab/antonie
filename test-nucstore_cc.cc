@@ -1,6 +1,7 @@
 #include <boost/test/unit_test.hpp>
 #include "dnamisc.hh"
 #include "nucstore.hh"
+#include <iostream>
 
 BOOST_AUTO_TEST_SUITE(nucstore_hh)
 
@@ -48,4 +49,38 @@ BOOST_AUTO_TEST_CASE(test_nucstore) {
   
 }
 
+
+BOOST_AUTO_TEST_CASE(test_delta) {
+  using namespace std;
+  NucleotideStore a("ACGTTGCA"), b("ACGTTTCA"), c;
+  auto ds = a.getDelta(b);
+  cout<<a<<endl<<b<<endl;
+  for(const auto& d : ds) {
+    cout<<d<<endl;
+  }
+  cout<<"---"<<endl;
+
+  vector<NucleotideStore::Delta> expected({{(uint32_t)5, 'T', NucleotideStore::Delta::Action::Replace}});
+  BOOST_CHECK(ds==expected);
+  
+  auto ds2= a.getDelta(c);
+  for(const auto& d : ds2) {
+    cout<<d<<endl;
+  }
+  
+  NucleotideStore d("AGCCTTTCCGGA"), e("AGCCTTTCCCGGA");
+  auto ds3 = d.getDelta(e);
+  cout<<"---"<<endl;
+
+  for(const auto& d : ds3) {
+    cout<<d<<endl;
+  }
+  
+  NucleotideStore f("AGCCTTTCCCGGGA");
+  cout<<"---"<<endl;
+  for(const auto& de : d.getDelta(f))
+    cout<<de<<endl;
+
+  
+}
 BOOST_AUTO_TEST_SUITE_END()
