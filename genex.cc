@@ -44,6 +44,19 @@ public:
     auto str=d_genome.find(name);
     return &str->second;
   }
+  uint32_t numChromosomes()
+  {
+    return d_genome.size();
+  }
+
+  uint32_t numNucleotides()
+  {
+    uint32_t ret=0;
+    for(const auto& g : d_genome)
+      ret+=g.second.chromosome.size();
+    return ret;
+  }
+
 private:
   
   map<string,Chromosome> d_genome;
@@ -87,21 +100,39 @@ public:
   const unsigned int d_hashsize=1<<28; 
 
   uint32_t count(const NucleotideStore& ns, const ReferenceGenome& rg) const;
-  vector<uint32_t> getPositions(const NucleotideStore& ns, const ReferenceGenome& rg) const;
+  vector<pair<uint32_t,bool>> getPositions(const NucleotideStore& ns, const ReferenceGenome& rg) const;
   void add(const NucleotideStore& ns, uint32_t pos);
   
 } g_hashes;
 
+NucleotideStore g_allA, g_allC, g_allG, g_allT;
+
 void HashCollector::add(const NucleotideStore& stretch, uint32_t pos)
 {
-  auto h = stretch.hash() % d_hashsize;
+  if(stretch==g_allA || stretch==g_allC || stretch == g_allG || stretch == g_allT)
+    return;
+  // CG AT
+  uint32_t h;
+  if(stretch.get(0)=='G' || stretch.get(0)=='T') 
+    h = stretch.getRC().hash() % d_hashsize;
+  else
+    h = stretch.hash() % d_hashsize;
+    
+  //  cout<<"Storing '"<<stretch<<"' at pos, h="<<h<<endl;
   std::lock_guard<std::mutex> l(*d_hashes[h].m);
-  d_hashes[h].pos.push_back(pos);
+  d_hashes[h].pos.push_back(pos);  
 }
 
 uint32_t HashCollector::count(const NucleotideStore& stretch, const ReferenceGenome& rg) const
 {
-  auto h = stretch.hash() % d_hashsize;
+  uint32_t h;
+
+  if(stretch.get(0)=='G' || stretch.get(0)=='T')  {
+    h = stretch.getRC().hash() % d_hashsize;
+  }
+  else
+    h = stretch.hash() % d_hashsize;
+
   uint32_t ret=0;
   std::lock_guard<std::mutex> l(*d_hashes[h].m);
   
@@ -109,23 +140,39 @@ uint32_t HashCollector::count(const NucleotideStore& stretch, const ReferenceGen
     auto cmp = rg.getRange(e, g_unitsize);
     if(cmp==stretch)
       ++ret;
+    else if(cmp.getRC() == stretch) {
+      ++ret;
+    }
   }
   return ret;
 }
 
-vector<uint32_t> HashCollector::getPositions(const NucleotideStore& stretch, const ReferenceGenome& rg) const
+vector<pair<uint32_t,bool>> HashCollector::getPositions(const NucleotideStore& stretch, const ReferenceGenome& rg) const
 {
-  vector<uint32_t> ret;
-  auto h = stretch.hash() % d_hashsize;
+  vector<pair<uint32_t,bool>> ret;
+
+  uint32_t h;
+
+  if(stretch.get(0)=='G' || stretch.get(0)=='T')  {
+    h = stretch.getRC().hash() % d_hashsize;
+  }
+  else
+    h = stretch.hash() % d_hashsize;
+
+
   std::lock_guard<std::mutex> l(*d_hashes[h].m);
-  
+  //  cout<<"Lookup "<<stretch<<", h="<<h<<", have "<<d_hashes[h].pos.size()<<" candidates"<<endl;
   for(const auto& e : d_hashes[h].pos) {
     auto cmp = rg.getRange(e, g_unitsize);
-    if(cmp==stretch)
-      ret.push_back(e);
+    if(cmp==stretch) 
+      ret.push_back({e,false});
+    else if (cmp.getRC()==stretch)
+      ret.push_back({e,true});
+    else {
+      //      cout<<"Candidate "<<cmp<<" matched neither way"<<endl;
+    }
   }
   return ret;
-  
 }
 
 void indexChr(ReferenceGenome::Chromosome* chromosome, std::string name)
@@ -189,6 +236,10 @@ ReferenceGenome::ReferenceGenome(const boost::string_ref& fname) : d_fname(fname
     }
 	  
   }
+  if(chromosome) {
+    running.emplace_back(indexChr, chromosome, name);
+  }
+
   fclose(fp);
   cout<<"Done reading, awaiting threads"<<endl;
   for(auto& r: running) 
@@ -226,6 +277,13 @@ ReferenceGenome::ReferenceGenome(const boost::string_ref& fname) : d_fname(fname
 // stitcher fasta startpos fastq fastq
 int main(int argc, char**argv)
 {
+  for(unsigned int n=0; n < g_unitsize;++n) {
+    g_allA.append('A');
+    g_allC.append('C');
+    g_allG.append('G');
+    g_allT.append('T');
+  }
+  
   cout<<"Start reading genome"<<endl;
     
   if(argc < 2) {
@@ -234,25 +292,42 @@ int main(int argc, char**argv)
   }
   ReferenceGenome rg(argv[1]);
 
-  cout<<"Done reading genome"<<endl;
+  cout<<"Done reading genome, have "<<rg.numChromosomes()<<" chromosomes, "<<
+    rg.numNucleotides()<<" nucleotides"<<endl;
 
-  auto chromo=rg.getChromosome("CM000663.2");
+  auto chromo=rg.getChromosome("CM000665.2" /*"CM000663.2"*/);
 
-  for(unsigned int beg=0; beg < chromo->chromosome.size(); beg += 80) {
-    cout<<chromo->chromosome.getRange(beg, 80)<<endl;
-    vector<vector<uint32_t>> positions;
-    for(int pos=0; pos < 80; pos += g_unitsize) {
+  for(unsigned int beg=0; beg < chromo->chromosome.size(); beg += 96) {
+    cout<<chromo->chromosome.getRange(beg, 96)<<" "<<beg+chromo->offset<<" "<<beg<<"@chromosome"<<endl;
+    vector<vector<std::tuple<uint32_t,bool,uint16_t>>> positions;
+    for(int pos=0; pos < 96; pos += g_unitsize) {
       auto str = chromo->chromosome.getRange(beg+pos, g_unitsize);
-      positions.push_back(g_hashes.getPositions(str, rg));
-      sort(positions.rbegin()->begin(), positions.rbegin()->end());
-      printf("%-16lu", positions.rbegin()->size());
+      auto matches=g_hashes.getPositions(str, rg);
+
+
+      vector<std::tuple<uint32_t,bool,uint16_t>> ann;
+      auto longerh = chromo->chromosome.getRange(beg+pos, 256);
+      for(const auto& m: matches) {
+	auto longerm = rg.getRange(std::get<0>(m), 256);
+	ann.push_back({std::get<0>(m), std::get<1>(m), longerh.fuzOverlap(longerm, 16)});
+      }
+
+      sort(ann.begin(), ann.end(),
+	   [](const auto&a, const auto& b) {
+	     return std::make_tuple(-std::get<2>(a), std::get<0>(a)) <
+	       std::make_tuple(-std::get<2>(b), std::get<0>(b));
+	   });
+
+      positions.push_back(ann);
+      printf("#%-15lu", positions.rbegin()->size());
     }
     printf("\n");
     for(unsigned int n=0; n < 40; ++n) {
       bool some=false;
       for(auto& v : positions) {
 	if(n < v.size()) {
-	  printf("%-16u", v[n]);
+	  printf("%c%-11u+%-3u" , std::get<1>(v[n]) ? 'R':' ', std::get<0>(v[n]),
+		 std::get<2>(v[n]));
 	  some=true;
 	}
 	else

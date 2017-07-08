@@ -36,6 +36,23 @@ NucleotideStore NucleotideStore::getRC() const
   return ret;
 }
 
+size_t NucleotideStore::overlap(const NucleotideStore& rhs) const
+{
+  size_t pos=0;
+  for(; pos < size() && pos < rhs.size() && get(pos)==rhs.get(pos); ++pos)
+    ;
+  return pos;
+}
+
+size_t NucleotideStore::fuzOverlap(const NucleotideStore& rhs, int ratio) const
+{
+  size_t pos=0, mism=0;
+  for(; pos < size() && pos < rhs.size() && mism <= pos/ratio; ++pos) {
+    if(get(pos)!=rhs.get(pos))
+      mism++;
+  }
+  return pos;
+}
 
 char NucleotideStore::get(size_t pos) const
 {
@@ -116,8 +133,8 @@ char NucleotideStore::getVal(char c)
   case 'T':
   case 't':
     return 3;
-  case 'N':
-    return 4;
+  default:
+    return 0;
   }
   throw std::runtime_error("Impossible nucleotide: "+std::string(1, c));
 }
@@ -125,8 +142,6 @@ char NucleotideStore::getVal(char c)
 void NucleotideStore::append(char c)
 {
   uint8_t val=getVal(c);
-  if(val == 4) // N
-    return;
   
   if(!bitpos) {
     d_curval=0;
