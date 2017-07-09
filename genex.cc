@@ -13,6 +13,7 @@
 #include <mutex>
 #include <fstream>
 #include <boost/container/small_vector.hpp>
+#include <future>
 #include <sys/prctl.h>
 
 using namespace std;
@@ -33,6 +34,7 @@ public:
   string d_fname;
   struct Chromosome
   {
+    string fullname;
     uint32_t offset;
     NucleotideStore chromosome;
   };
@@ -100,7 +102,7 @@ public:
   const unsigned int d_hashsize=1<<28; 
 
   uint32_t count(const NucleotideStore& ns, const ReferenceGenome& rg) const;
-  vector<pair<uint32_t,bool>> getPositions(const NucleotideStore& ns, const ReferenceGenome& rg) const;
+  vector<pair<uint32_t,bool>> getPositions(const NucleotideStore& ns, const ReferenceGenome& rg, uint32_t before=std::numeric_limits<uint32_t>::max()) const;
   void add(const NucleotideStore& ns, uint32_t pos);
   
 } g_hashes;
@@ -147,7 +149,7 @@ uint32_t HashCollector::count(const NucleotideStore& stretch, const ReferenceGen
   return ret;
 }
 
-vector<pair<uint32_t,bool>> HashCollector::getPositions(const NucleotideStore& stretch, const ReferenceGenome& rg) const
+vector<pair<uint32_t,bool>> HashCollector::getPositions(const NucleotideStore& stretch, const ReferenceGenome& rg, uint32_t before) const
 {
   vector<pair<uint32_t,bool>> ret;
 
@@ -163,6 +165,8 @@ vector<pair<uint32_t,bool>> HashCollector::getPositions(const NucleotideStore& s
   std::lock_guard<std::mutex> l(*d_hashes[h].m);
   //  cout<<"Lookup "<<stretch<<", h="<<h<<", have "<<d_hashes[h].pos.size()<<" candidates"<<endl;
   for(const auto& e : d_hashes[h].pos) {
+    if(e >= before)
+      continue;
     auto cmp = rg.getRange(e, g_unitsize);
     if(cmp==stretch) 
       ret.push_back({e,false});
@@ -177,6 +181,10 @@ vector<pair<uint32_t,bool>> HashCollector::getPositions(const NucleotideStore& s
 
 void indexChr(ReferenceGenome::Chromosome* chromosome, std::string name)
 {
+  if(chromosome->fullname.find("primary")==string::npos) {
+    cout<<"Not indexing "<<chromosome->fullname<<endl;
+    return;
+  }
   prctl(PR_SET_NAME, string("Indexing "+name).c_str());
   auto size=chromosome->chromosome.size();
   cout<<"Starting index of '"<<name<<"' with "<<size<<" nucleotides"<<endl;
@@ -202,6 +210,7 @@ ReferenceGenome::ReferenceGenome(const boost::string_ref& fname) : d_fname(fname
 
   vector<std::thread> running;
   uint32_t seenSoFar=0;
+
   while(fgets(line, sizeof(line), fp)) {
     chomp(line);
 
@@ -211,7 +220,7 @@ ReferenceGenome::ReferenceGenome(const boost::string_ref& fname) : d_fname(fname
       }
 
       string fullname=line+1;
-      
+	
       char* spacepos=strchr(line+1, ' ');
     
       if(spacepos)
@@ -221,6 +230,7 @@ ReferenceGenome::ReferenceGenome(const boost::string_ref& fname) : d_fname(fname
       if(chromosome)
 	seenSoFar += chromosome->chromosome.size();
       d_genome[name].offset = seenSoFar;
+      d_genome[name].fullname = fullname;
             
       chromosome = &d_genome[name];
 
@@ -295,49 +305,142 @@ int main(int argc, char**argv)
   cout<<"Done reading genome, have "<<rg.numChromosomes()<<" chromosomes, "<<
     rg.numNucleotides()<<" nucleotides"<<endl;
 
-  auto chromo=rg.getChromosome("CM000665.2" /*"CM000663.2"*/);
+  string shortname="CM000673.2"; // "CM000663.2";
+  auto chromo=rg.getChromosome(shortname);
 
-  for(unsigned int beg=0; beg < chromo->chromosome.size(); beg += 96) {
-    cout<<chromo->chromosome.getRange(beg, 96)<<" "<<beg+chromo->offset<<" "<<beg<<"@chromosome"<<endl;
-    vector<vector<std::tuple<uint32_t,bool,uint16_t>>> positions;
+  uint32_t emitted=0;
+
+  struct Choice
+  {
+    uint16_t precost{0};
+    uint32_t pos{0};
+    uint16_t len{0};
+    bool reverse{false};
+    int deltalen{0};
+    uint16_t cost() const
+    {
+      return precost+sizeof(pos)+sizeof(len)+deltalen+2;
+    }
+  };
+
+
+  for(unsigned int beg=0; beg < chromo->chromosome.size(); ) {
     for(int pos=0; pos < 96; pos += g_unitsize) {
-      auto str = chromo->chromosome.getRange(beg+pos, g_unitsize);
-      auto matches=g_hashes.getPositions(str, rg);
+      cout<<chromo->chromosome.getRange(beg, g_unitsize)<<"   ";
+    }
+    cout<<beg+chromo->offset<<" "<<beg<<"@"<<shortname<<endl;
+    //    vector<vector<std::tuple<uint32_t,bool,uint16_t,uint16_t>>> positions;
+    vector<vector<Choice>> positions;
+    vector<std::future<vector<Choice>>> futures;
+    for(int pos=0; pos < 96; pos += g_unitsize) {
+      futures.emplace_back(std::async(std::launch::async, [chromo,pos,&rg,beg]() {
+	    // the starter
+	    auto str = chromo->chromosome.getRange(beg+pos, g_unitsize);
+	    // where we can find such things in the first big+pos+chromo->offset bytes
+	    auto matches=g_hashes.getPositions(str, rg, beg+pos+chromo->offset);
+	   
+	    vector<Choice> ann;
 
+	    uint16_t dsize=0, bestlen=16;
+	    for(const auto& m: matches) {
+	      unsigned int t;
+	      // try longer and longer bits
+	      for(t = 16; t < 8193; t < 128 ? ++t : t*=2) {
+		auto longerh = chromo->chromosome.getRange(beg+pos, t);
+		NucleotideStore longerm;
+		if(!m.second) {
+		  longerm = rg.getRange(m.first, t);
+		}
+		else {
+		  longerm = rg.getRange(m.first-t+g_unitsize, t).getRC();
+		}
+		if(longerh == longerm) {
+		  dsize=0;
+		  bestlen=t;
+		  continue;
+		}
+		auto delta = longerm.getDelta(longerh);
+		
+		if(delta.size() > t/16) // too many errors
+		  break;
+		bestlen=t;
+		dsize = delta.size();
+		if(!dsize && bestlen==8192)
+		  break;
+	      }
+	      ann.push_back({0, m.first, bestlen, m.second, dsize});
+	      if(!dsize && bestlen==8192)
+		break;
+	    }
+	    
+	    sort(ann.begin(), ann.end(),
+		 [](const auto& a, const auto& b) {
+		   return std::make_tuple(-a.len, a.deltalen, a.pos) <
+		     std::make_tuple(-b.len, b.deltalen, b.pos);
+		   
+		 });
+	    return ann;
+	  }));
+    }
 
-      vector<std::tuple<uint32_t,bool,uint16_t>> ann;
-      auto longerh = chromo->chromosome.getRange(beg+pos, 256);
-      for(const auto& m: matches) {
-	auto longerm = rg.getRange(std::get<0>(m), 256);
-	ann.push_back(std::make_tuple(std::get<0>(m), std::get<1>(m), longerh.fuzOverlap(longerm, 16)));
-      }
-
-      sort(ann.begin(), ann.end(),
-	   [](const auto&a, const auto& b) {
-	     return std::make_tuple(-std::get<2>(a), std::get<0>(a)) <
-	       std::make_tuple(-std::get<2>(b), std::get<0>(b));
-	   });
+    for(auto& f : futures) {
+      auto ann=f.get();
+      	    //	    printf("#%-18lu", matches.size());
+	    //fflush(stdout);
+      for(auto &a : ann)
+	a.precost=positions.size()*4;
 
       positions.push_back(ann);
-      printf("#%-15lu", positions.rbegin()->size());
     }
+    
     printf("\n");
+
     for(unsigned int n=0; n < 40; ++n) {
       bool some=false;
       for(auto& v : positions) {
 	if(n < v.size()) {
-	  printf("%c%-11u+%-3u" , std::get<1>(v[n]) ? 'R':' ', std::get<0>(v[n]),
-		 std::get<2>(v[n]));
+	  char o[20];                            // R                           pos
+	  snprintf(o,sizeof(o), "%c%u+%u/%u" , v[n].reverse ? 'R':' ', v[n].pos,
+		   // len                deltasize
+		 v[n].len, v[n].deltalen);
+	  printf("%-19s", o);
 	  some=true;
 	}
 	else
-	  printf("                ");
+	  printf("                   ");
       }
       printf("\n");
       if(!some)
 	break;
     }
     cout<<endl;
+
+    vector<Choice> choices;
+    for(auto& v : positions) {
+      if(v.size())
+	choices.push_back(v[0]);
+    }
+    sort(choices.begin(), choices.end(), [](const auto& a, const auto& b) {
+	return a.len-a.cost()>  b.len-b.cost();
+      });
+
+    
+    if(!choices.empty()) {
+      auto& pick = choices[0];
+      cout<<"Pick: pos="<<(pick.reverse ? 'R': ' ')<<pick.pos<<", precost="<<pick.precost<<", len="<<pick.len<<", deltalen="<<pick.deltalen<<", cost="<<pick.cost()<<endl;
+      beg+=pick.len+pick.precost;
+      emitted+=pick.cost();
+      for(const auto& c : choices) {
+	cout<<"\tNotpick: pos="<<(c.reverse ? 'R': ' ')<<c.pos<<", precost="<<c.precost<<", len="<<c.len<<", deltalen="<<c.deltalen<<", cost="<<c.cost()<<endl;
+
+      }
+    }
+    else {
+      beg+=96;
+      emitted+=96;
+    }
+    
+    cout<<"Ratio: "<<100.0*emitted/beg<<"%"<<endl;
   }
   
   uint32_t uniques=0, reposWin=0;

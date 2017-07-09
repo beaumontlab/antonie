@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <vector>
 #include <boost/utility/string_ref.hpp>
 #include <string.h>
 extern "C" {
