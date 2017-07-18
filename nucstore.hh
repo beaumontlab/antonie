@@ -57,7 +57,11 @@ public:
 
   size_t overlap(const NucleotideStore& rhs) const;
   size_t fuzOverlap(const NucleotideStore& rhs, int ratio) const;
-  
+
+  bool isCanonical() const
+  {
+    return (*this < getRC());
+  }
   bool operator==(const NucleotideStore& rhs) const
   {
     return d_storage == rhs.d_storage && bitpos == rhs.bitpos && d_curval == rhs.d_curval;
@@ -69,10 +73,12 @@ public:
   }
   
   static char getVal(char c);
+  std::string getString() const { return d_storage; }
+  void setString(const std::string& str) { d_storage = str; }
 private:
-  int bitpos{0};
-  std::string d_storage;
   uint8_t d_curval{0};
+  uint8_t bitpos{0};
+  std::string d_storage;
 };
 
 std::ostream& operator<<(std::ostream& os, const NucleotideStore& ns);

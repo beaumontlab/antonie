@@ -7,7 +7,7 @@ LDFLAGS=$(CXX2014FLAGS)   # -Wl,-Bstatic -lstdc++ -lgcc -lz -Wl,-Bdynamic -stati
 CHEAT_ARG := $(shell ./update-git-hash-if-necessary)
 
 SHIPPROGRAMS=antonie 16ssearcher stitcher  fqgrep pfqgrep genex
-PROGRAMS=$(SHIPPROGRAMS) digisplice gffedit gfflookup nwunsch
+PROGRAMS=$(SHIPPROGRAMS) digisplice gffedit gfflookup nwunsch fogsaa
 
 ifeq ($(CC),clang)
         CXXFLAGS+=-ftemplate-depth=1000
@@ -55,7 +55,7 @@ fqgrep: fqgrep.o misc.o fastq.o dnamisc.o zstuff.o hash.o
 pfqgrep: pfqgrep.o misc.o fastq.o dnamisc.o zstuff.o hash.o
 	$(CXX) $(LDFLAGS) $^ -lz $(STATICFLAGS) -o $@
 
-genex: genex.o refgenome.o fastq.o dnamisc.o zstuff.o misc.o hash.o nucstore.o
+genex: genex.o dnamisc.o zstuff.o misc.o hash.o nucstore.o refgenome2.o
 	$(CXX) $(LDFLAGS) $^ -lz $(STATICFLAGS) -pthread -o $@
 
 gffedit: gffedit.o refgenome.o fastq.o dnamisc.o zstuff.o misc.o hash.o
@@ -66,6 +66,10 @@ gfflookup: gfflookup.o geneannotated.o genbankparser.o refgenome.o fastq.o dnami
 
 nwunsch: nwunsch.o
 	$(CXX) $(LDFLAGS) $^ -lz $(STATICFLAGS) -o $@
+
+fogsaa: fogsaaimp.o
+	$(CXX) $(LDFLAGS) $^ -lz $(STATICFLAGS) -o $@
+
 
 install: antonie
 	mkdir -p $(DESTDIR)/usr/bin/
