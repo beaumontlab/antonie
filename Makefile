@@ -58,6 +58,10 @@ pfqgrep: pfqgrep.o misc.o fastq.o dnamisc.o zstuff.o hash.o
 genex: genex.o dnamisc.o zstuff.o misc.o hash.o nucstore.o refgenome2.o
 	$(CXX) $(LDFLAGS) $^ -lz $(STATICFLAGS) -pthread -o $@
 
+correlo: correlo.o dnamisc.o zstuff.o misc.o hash.o nucstore.o refgenome2.o
+	$(CXX) $(LDFLAGS) $^ -lz $(STATICFLAGS) -pthread -o $@
+
+
 gffedit: gffedit.o refgenome.o fastq.o dnamisc.o zstuff.o misc.o hash.o
 	$(CXX) $(LDFLAGS) $^ -lz $(STATICFLAGS) -o $@
 

@@ -71,7 +71,7 @@ void HashCollector::add(const NucleotideStore& stretch, uint32_t pos)
   //  return;
   // CG AT
   uint32_t h;
-  if(stretch.get(0)=='G' || stretch.get(0)=='T') 
+  if(!stretch.isCanonical())
     h = stretch.getRC().hash() % d_hashsize;
   else
     h = stretch.hash() % d_hashsize;
