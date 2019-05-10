@@ -75,6 +75,7 @@ public:
   static char getVal(char c);
   std::string getString() const { return d_storage; }
   void setString(const std::string& str) { d_storage = str; }
+  std::string toASCII() const;
 private:
   uint8_t d_curval{0};
   uint8_t bitpos{0};

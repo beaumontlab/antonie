@@ -14,7 +14,8 @@ public:
     NucleotideStore chromosome;
   };
 
-  ReferenceGenome(const boost::string_ref& fname, std::function<void(Chromosome*, std::string)> idx);
+  ReferenceGenome(const boost::string_ref& fname,
+                  std::function<void(Chromosome*, std::string)> idx=std::function<void(Chromosome*, std::string)>());
  
   std::string d_fname;
   NucleotideStore getRange(uint32_t offset, uint32_t len) const;
@@ -37,6 +38,11 @@ public:
     return (*d_lookup.rbegin())->offset + (*d_lookup.rbegin())->chromosome.size();
   }
 
+  const std::map<std::string,Chromosome>& getAllChromosomes()
+  {
+    return d_genome;
+  }
+  
 private:
   
   std::map<std::string,Chromosome> d_genome;

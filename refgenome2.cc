@@ -39,7 +39,7 @@ ReferenceGenome::ReferenceGenome(const boost::string_ref& fname, std::function<v
     chomp(line);
 
     if(line[0] == '>') {
-      if(chromosome) {
+      if(chromosome && idx) {
 	running.emplace_back(idx, chromosome, name);
       }
 
@@ -70,7 +70,7 @@ ReferenceGenome::ReferenceGenome(const boost::string_ref& fname, std::function<v
     }
 	  
   }
-  if(chromosome) {
+  if(chromosome && idx) {
     running.emplace_back(idx, chromosome, name);
   }
 

@@ -16,6 +16,7 @@
 #include <future>
 #include <sstream>
 #include <sys/prctl.h>
+#include "bzlib.h"
 
 using namespace std;
 
@@ -55,7 +56,7 @@ public:
       delete h.m;
   }
   vector<HashStat> d_hashes;
-  const unsigned int d_hashsize=1<<27;
+  const unsigned int d_hashsize=1<<16;
 
   uint32_t count(const NucleotideStore& ns, const ReferenceGenome& rg) const;
   vector<pair<uint32_t,bool>> getPositions(const NucleotideStore& ns, const ReferenceGenome& rg, uint32_t before=std::numeric_limits<uint32_t>::max()) const;
@@ -170,7 +171,7 @@ struct Matrix
     values = new T[X*Y];
     for(size_t x=0 ; x < X; ++x)
       for(size_t y=0 ; y < Y; ++y)
-	values[x + X*y]=0;
+	values[x + X*y]=T();
   }
   ~Matrix()
   {
@@ -186,25 +187,129 @@ struct Matrix
   
 };
 
-Matrix<atomic<uint32_t>, 4000, 4000> g_m;
+
+
+set<NucleotideStore> getUniNucs(const ReferenceGenome& rg, uint32_t start, uint32_t len)
+{
+  set<NucleotideStore> ret;
+  for(uint32_t pos = start ; pos < start + len; ++pos) {
+    try {
+      ret.insert(rg.getRange(pos, g_unitsize));
+    }
+    catch(std::exception& e) {
+      cerr<<e.what()<<endl;
+    }
+  }
+  return ret;
+}
 
 void doKMERMap(const ReferenceGenome& rg)
 {
+  struct Count
+  {
+    uint32_t xnucs{0}, ynucs{0}, overnucs{0};
+  };
+  Matrix<Count, 4000, 4000> m;
+
   auto numnucs= rg.numNucleotides();
 
-  atomic<uint32_t> sofar{0};
-  auto f=[&sofar,&rg,&numnucs]() {
-    for(uint32_t pos = sofar++ ; pos < numnucs; pos = sofar++) {
-      unsigned int xpos =  g_m.maxX() * pos / numnucs;
-      unsigned int ypos;
+  unsigned int chunksize = rg.numNucleotides()/4000;
+  unsigned int numchunks = 400; // numnucs/chunksize - 1; // we have some edge cases
 
+  cout<<"Chunksize: "<<chunksize<<" nucleotides, "<<endl;
+  vector<set<NucleotideStore>> xvector;
+  xvector.resize(numchunks);
+
+   
+  atomic<uint32_t> sofar{0};
+  auto f=[&sofar,&rg,&numchunks,&chunksize, &xvector]() {
+    for(uint32_t chunk = sofar++ ; chunk < numchunks; chunk = sofar++) {
+      cout<<chunk<<endl;
+      xvector[chunk]=getUniNucs(rg, chunk*chunksize, chunksize);
+    }
+  };
+  
+  vector<std::thread> running;
+  for(int n=0; n < 8; ++n)
+    running.emplace_back(f);
+  
+  for(auto& r : running)
+    r.join();
+
+  running.clear();
+  sofar=0;
+
+  auto f2=[&sofar,&rg,&numchunks,&chunksize, &xvector, &m]() {
+    for(uint32_t xchunk = sofar++ ; xchunk < numchunks; xchunk = sofar++) {
+      cout<<xchunk<<endl;
+      for(uint32_t ychunk = 0; ychunk < numchunks; ++ychunk) {
+        vector<NucleotideStore> inter;
+        set_intersection(xvector[xchunk].begin(), xvector[xchunk].end(), xvector[ychunk].begin(), xvector[ychunk].end(), back_inserter(inter));
+
+        m(xchunk, ychunk)={xvector[xchunk].size(), xvector[ychunk].size(), inter.size()};
+      }
+    }
+  };
+  for(int n=0; n < 8; ++n)
+    running.emplace_back(f2);
+  
+  while(sofar < numchunks) {
+    cout<<sofar<<endl;
+    sleep(30);
+    ofstream plot("plot");
+    for(size_t x=0; x <= m.maxX(); ++x)
+      for(size_t y=0; y <= m.maxY(); ++y) {
+        auto res=m(x,y);
+        plot<<x<<"\t"<<y<<"\t"<<res.xnucs<<"\t" << res.ynucs<<"\t"<<res.overnucs<<"\n";
+      }
+  }
+}
+
+
+uint32_t measureBZ2(const std::string& cmp)
+{
+  unsigned int dstlen=cmp.size()*1.04;
+  char* dest=new char[dstlen];
+  int err;
+  if((err=BZ2_bzBuffToBuffCompress(dest, &dstlen, (char*)cmp.c_str(), cmp.size(), 9, 0, 30)) != BZ_OK) {
+    delete[] dest;
+    throw runtime_error("bz2 error: "+std::to_string(err));
+  }
+
+  delete[] dest;
+  return dstlen;
+}
+
+void doCompressMap(const ReferenceGenome& rg)
+{
+  struct Count
+  {
+    uint32_t xlen, ylen, totlen;
+  };
+  Matrix<Count, 4000, 4000> m;
+  auto numnucs= rg.numNucleotides();
+  unsigned int chunksize = rg.numNucleotides()/8000;
+  unsigned int numchunks = numnucs/chunksize - 1; // we have some edge cases
+
+  cout<<"Chunksize: "<<chunksize<<" nucleotides"<<endl;
+  
+  atomic<uint32_t> sofar{0};
+  auto f=[&sofar,&rg,&numchunks,&m,&chunksize]() {
+    for(uint32_t xchunk = sofar++ ; xchunk < numchunks; xchunk = sofar++) {
       try {
-	auto stretch=rg.getRange(pos, g_unitsize);
-	auto matches=g_hashes.getPositions(stretch, rg);
-	for(const auto& m : matches) {
-	  ypos = g_m.maxY() * m.first/numnucs;
-	  g_m(xpos, ypos)++;
-	}
+	auto xstretch=rg.getRange(xchunk*chunksize, chunksize);
+        string xascii=xstretch.toASCII();
+        auto xlen=measureBZ2(xascii);
+        for(uint32_t ychunk = 0 ; ychunk < numchunks; ++ychunk) {
+          auto ystretch=rg.getRange(ychunk*chunksize, chunksize);
+
+          string yascii=ystretch.toASCII();
+          m(xchunk, ychunk)={
+            xlen,
+            measureBZ2(yascii),
+            measureBZ2(xascii+yascii)};
+        }
+        
       }
       catch(std::exception& e) {
 	cerr<<e.what()<<endl;
@@ -213,16 +318,27 @@ void doKMERMap(const ReferenceGenome& rg)
   };
 
   vector<std::thread> running;
-  for(int n=0; n < 16; ++n)
+  for(int n=0; n < 8; ++n)
     running.emplace_back(f);
 
   while(sofar < numnucs) {
     cout<<sofar<<endl;
     sleep(30);
-    ofstream plot("plot");
-    for(size_t x=0; x <= g_m.maxX(); ++x)
-      for(size_t y=0; y <= g_m.maxY(); ++y)
-	plot<<x<<"\t"<<y<<"\t"<<g_m(x,y)<<"\n";
+    {
+      ofstream plot("plot.tmp");
+      plot <<"# "<<m.maxX()<<" "<< m.maxY()<<endl;
+      for(size_t x=0; x <= m.maxX(); ++x) {
+        for(size_t y=0; y <= m.maxY(); ++y) {
+          auto res=m(x,y);
+          plot<<x<<"\t"<<y<<"\t"<<res.xlen<<"\t" << res.ylen<<"\t"<<res.totlen<<"\t";
+          if(res.xlen + res.ylen)
+            plot<<1.0*res.totlen/(res.xlen+res.ylen)<<"\n";
+          else
+            plot<<"0\n";
+        }
+      }
+    }
+    rename("plot.tmp", "plot");
   }
   
   for(auto& r : running)
@@ -246,11 +362,19 @@ int main(int argc, char**argv)
     cerr<<"Syntax: genex reference.fasta"<<endl;
     return EXIT_FAILURE;
   }
-  ReferenceGenome rg(argv[1], indexChr);
+  ReferenceGenome rg(argv[1]); //, indexChr);
 
+  for(const auto& a: rg.getAllChromosomes()) {
+    ofstream of(a.first);
+    cout<<a.first<<" " <<a.second.fullname<< " "<<a.second.chromosome.getString().size()<<endl;
+    of<<a.second.chromosome.getString();
+  }
+  return 0;
+  
   cout<<"Done reading genome, have "<<rg.numChromosomes()<<" chromosomes, "<<
     rg.numNucleotides()<<" nucleotides"<<endl;
 
+  // doCompressMap(rg);
   doKMERMap(rg);
   
 }

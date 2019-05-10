@@ -228,6 +228,15 @@ void NucleotideStore::append(char c)
     
 }
 
+std::string NucleotideStore::toASCII() const
+{
+  std::string ret;
+  ret.reserve(size());
+  for(size_t pos=0; pos < size(); ++pos)
+    ret.append(1, get(pos));
+  return ret;
+}
+
 std::ostream& operator<<(std::ostream& os, const NucleotideStore& ns)
 {
   for(size_t pos=0; pos < ns.size(); ++pos)

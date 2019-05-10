@@ -59,7 +59,7 @@ genex: genex.o dnamisc.o zstuff.o misc.o hash.o nucstore.o refgenome2.o
 	$(CXX) $(LDFLAGS) $^ -lz $(STATICFLAGS) -pthread -o $@
 
 correlo: correlo.o dnamisc.o zstuff.o misc.o hash.o nucstore.o refgenome2.o
-	$(CXX) $(LDFLAGS) $^ -lz $(STATICFLAGS) -pthread -o $@
+	$(CXX) $(LDFLAGS) $^ -lz $(STATICFLAGS) -pthread -lbz2 -o $@
 
 
 gffedit: gffedit.o refgenome.o fastq.o dnamisc.o zstuff.o misc.o hash.o
