@@ -432,7 +432,8 @@ void emitRegion(FILE*fp, ReferenceChromosome& rg, StereoFASTQReader& fastq, cons
   string annotations;
   int gene=0;
   if(rg.d_gar) {
-    auto gas=rg.d_gar->lookup(dnapos);
+    auto gas=rg.d_gar->lookup("", dnapos);
+    abort(); // instead of "", it needs to have a name of a chromosome
     for(auto ga : gas) {
       replace_all(ga.tag, "'", "\\'");
       annotations += ga.name+" [" + ga.tag  + "], ";
@@ -662,8 +663,10 @@ string makeReport(ReferenceChromosome& rg, dnapos_t pos, ReferenceChromosome::Lo
   int aCount, cCount, tCount, gCount, xCount;
 
   vector<GeneAnnotation> gas;
-  if(rg.d_gar)
-    gas= rg.d_gar->lookup(pos);
+  if(rg.d_gar) {
+    gas= rg.d_gar->lookup("", pos);
+    abort(); // needs name of chromosome here
+  }
 
   char c=rg.snippet(pos, pos+1)[0];
   aCount = cCount = tCount = gCount = xCount = 0;
@@ -865,7 +868,8 @@ void emitLociAndCluster(FILE* jsfp, ReferenceChromosome* rg, int numRef,
     bool gene=false;
     string aminoReport;
     if(rg->d_gar) {
-      auto gas = rg->d_gar->lookup(p.first);
+      auto gas = rg->d_gar->lookup("", p.first);
+      abort(); // needs name of chromosome
       for(auto ga : gas) {
         replace_all(ga.tag, "\n", "\\n");
         replace_all(ga.tag, "'", "\\'");

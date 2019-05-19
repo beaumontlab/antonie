@@ -1,10 +1,8 @@
 #include "nucstore.hh"
 #include <iostream>
 
-
 using std::cout;
 using std::endl;
-
 
 /* byte  byte byte
    ACGT  ACGT ACGT */

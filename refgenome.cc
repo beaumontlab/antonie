@@ -115,7 +115,7 @@ ReferenceChromosome::ReferenceChromosome(const string& fname)
   chomp(line);
 
   if(line[0] != '>') 
-    throw runtime_error("Input not FASTA");
+    throw runtime_error("Input not FASTA, missing >");
   d_fullname=line+1;
 
   char* spacepos=strchr(line+1, ' ');

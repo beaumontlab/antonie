@@ -1,13 +1,13 @@
 -include sysdeps/$(shell uname).inc
 
 VERSION=0.1
-CXXFLAGS?=-Wall -O3 -ggdb -I. -Iext/libmba  -MMD -MP -pthread  $(CXX2014FLAGS) -Wno-strict-aliasing # -Wno-unused-local-typedefs 
+CXXFLAGS?=-Wall -O3 -fPIC -I/usr/include/python3.6m -ggdb -I. -Iext -Iext/libmba  -MMD -MP -pthread  $(CXX2014FLAGS) -Wno-strict-aliasing # -Wno-unused-local-typedefs 
 CFLAGS=-Wall -I. -Iext/libmba -O3 -MMD -MP
-LDFLAGS=$(CXX2014FLAGS)   # -Wl,-Bstatic -lstdc++ -lgcc -lz -Wl,-Bdynamic -static-libgcc -lm -lc
+LDFLAGS=$(CXX2014FLAGS) -pthread  # -Wl,-Bstatic -lstdc++ -lgcc -lz -Wl,-Bdynamic -static-libgcc -lm -lc
 CHEAT_ARG := $(shell ./update-git-hash-if-necessary)
 
 SHIPPROGRAMS=antonie 16ssearcher stitcher  fqgrep pfqgrep genex
-PROGRAMS=$(SHIPPROGRAMS) digisplice gffedit gfflookup nwunsch fogsaa
+PROGRAMS=$(SHIPPROGRAMS) digisplice gffedit gfflookup nwunsch fogsaa gtfreader
 
 ifeq ($(CC),clang)
         CXXFLAGS+=-ftemplate-depth=1000
@@ -46,6 +46,10 @@ stitcher: stitcher.o refgenome.o misc.o fastq.o hash.o zstuff.o dnamisc.o genean
 #	$(CXX) $(LDFLAGS) $^ -lz -pthread $(STATICFLAGS) -o $@
 
 
+libbridge.so: bridge.o
+	g++ -shared -Wl,-soname,"libhello.so" bridge.o -lboost_python3 -fpic -o libbridge.so
+
+
 invert: invert.o misc.o
 	$(CXX) $(LDFLAGS) $(STATICFLAGS) $^ -o $@
 
@@ -65,8 +69,16 @@ correlo: correlo.o dnamisc.o zstuff.o misc.o hash.o nucstore.o refgenome2.o
 gffedit: gffedit.o refgenome.o fastq.o dnamisc.o zstuff.o misc.o hash.o
 	$(CXX) $(LDFLAGS) $^ -lz $(STATICFLAGS) -o $@
 
-gfflookup: gfflookup.o geneannotated.o genbankparser.o refgenome.o fastq.o dnamisc.o zstuff.o misc.o hash.o
+gfflookup: gfflookup.o geneannotated.o genbankparser.o refgenome2.o nucstore.o fastq.o dnamisc.o zstuff.o misc.o hash.o
 	$(CXX) $(LDFLAGS) $^ -lz $(STATICFLAGS) -o $@
+
+gtfreader: gtfreader.o geneannotated.o genbankparser.o refgenome2.o nucstore.o fastq.o dnamisc.o zstuff.o misc.o hash.o
+	$(CXX) $(LDFLAGS) $^ -lz $(STATICFLAGS) -o $@
+
+
+gendump: gendump.o geneannotated.o genbankparser.o refgenome2.o nucstore.o fastq.o dnamisc.o zstuff.o misc.o hash.o
+	$(CXX) $(LDFLAGS) $^ -lz $(STATICFLAGS) -o $@
+
 
 nwunsch: nwunsch.o
 	$(CXX) $(LDFLAGS) $^ -lz $(STATICFLAGS) -o $@

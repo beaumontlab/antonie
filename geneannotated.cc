@@ -11,6 +11,9 @@
 #include <boost/algorithm/string.hpp>
 using namespace std;
 
+
+// 1       ensembl_havana  gene    9234775 9271337 .       +       .       ID=gene:ENSG00000049239;Name=H6PD;biotype=protein_coding;description=hexose-6-phosphate dehydrogenase/glucose 1-dehydrogenase [Source:HGNC Symbol%3BAcc:HGNC:4795];gene_id=ENSG00000049239;logic_name=ensembl_havana_gene;version=12
+
 GeneAnnotationReader::GeneAnnotationReader(const std::string& fname)
 {
   if(fname.empty())
@@ -25,7 +28,7 @@ GeneAnnotationReader::GeneAnnotationReader(const std::string& fname)
     throw runtime_error("Unable to open '"+fname+"' for gene annotation reading");
 
   string line;
-
+  map<std::string, vector<Interval<unsigned int, GeneAnnotation> > > gas;
   while(stringfgets(fp, &line)) {
     GeneAnnotation ga;
     ga.gene=false;
@@ -37,8 +40,11 @@ GeneAnnotationReader::GeneAnnotationReader(const std::string& fname)
     string attributeStr;
     do {
       switch(field) {
-      case 8:
-	attributeStr=p;
+      case 0:
+        ga.chromosome = p;
+        break;
+      case 2:
+	ga.type=p;
 	break;
       case 3:
 	ga.startPos=atoi(p);
@@ -49,9 +55,10 @@ GeneAnnotationReader::GeneAnnotationReader(const std::string& fname)
       case 6:
 	ga.strand = (*p=='+');
 	break;
-      case 2:
-	ga.type=p;
+      case 8:
+	attributeStr=p;
 	break;
+      
       }
       field++;
     } while((p=strtok(0, "\t\n")));
@@ -78,30 +85,62 @@ GeneAnnotationReader::GeneAnnotationReader(const std::string& fname)
       }
       if(val.first=="genome" && val.second=="chromosome")
 	goto no;
+      else if(val.first=="ID")
+        ga.id = val.second;
+      else if(val.first=="Parent")
+        ga.parent = val.second;
     }
 
     if(ga.type =="gene" || ga.type=="CDS" || ga.type=="cds")
       ga.gene=true;
     if(!ga.tag.empty()) {
-      ga.tag = ga.type+": "+ga.tag;
-      d_gas.push_back(ga);
+      ga.tag = ga.type.get() + ": "+ ga.tag;
     }
-
-      
+    else
+      ga.tag=ga.type.get();
+    
+    gas[ga.chromosome].push_back(Interval<unsigned int, GeneAnnotation>(ga.startPos, ga.stopPos, ga));
   no:;
+  }
+  for(const auto& ga : gas) {
+    vector<Interval<unsigned int, GeneAnnotation>> vec = ga.second;
+    IntervalTree<unsigned int, GeneAnnotation> tree(std::move(vec));
+   
+    d_gas[ga.first]=tree;
   }
 }
 
-vector<GeneAnnotation> GeneAnnotationReader::lookup(uint64_t pos)
+vector<GeneAnnotation> GeneAnnotationReader::getAll(string_view chromo)
+{
+  vector<GeneAnnotation> ret;
+  d_gas[(string)chromo].visit_all([&ret](const auto& i) {
+      ret.push_back(i.value);
+    });
+  return ret;
+}
+
+vector<GeneAnnotation> GeneAnnotationReader::lookup(string_view chromo, uint64_t pos1)
 {
   vector<GeneAnnotation> ret;
 
-  for(const auto& a : d_gas) {
-    if(a.startPos <= pos && pos <= a.stopPos)
-      ret.push_back(a);
+  auto results = d_gas[(string)chromo].findOverlapping(pos1, pos1);
+  for(const auto& res : results) {
+    ret.push_back(res.value);
   }
   return ret;
 }
+
+vector<GeneAnnotation> GeneAnnotationReader::lookup(string_view chromo, uint64_t pos1, uint64_t pos2)
+{
+  vector<GeneAnnotation> ret;
+
+  auto results = d_gas[(string)chromo].findContained(pos1, pos2);
+  for(const auto& res : results) {
+    ret.push_back(res.value);
+  }
+  return ret;
+}
+
 
 void GeneAnnotationReader::parseGenBank(const std::string& fname)
 {
@@ -126,5 +165,5 @@ void GeneAnnotationReader::parseGenBank(const std::string& fname)
 
     genbank+=line+"\n";
   }
-  d_gas=parseGenBankString(genbank);
+  //  d_gas[""]=parseGenBankString(genbank);
 }
